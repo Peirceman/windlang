@@ -1,0 +1,18 @@
+/* this is a block comment */
+const αConst: int = 69;
+var a: int = 0x1A4;
+
+a = aConst * 3;
+
+// line comment
+if a == 50 {
+	io.print(50);
+} elif a != 30 {
+	print(!true);
+} else {
+	print(30);
+}
+
+fn get(ints: int[], idx: int): int {
+	return ints[idx]
+}
