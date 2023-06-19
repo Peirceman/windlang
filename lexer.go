@@ -54,7 +54,7 @@ func LexerFromFilename(filename string) *Lexer {
 func LexerFromString(str string) *Lexer {
 	return &Lexer{
 		nextRuneFunc: StringRuneReader(str),
-		curLoc:       Location{"", 1, 1},
+		curLoc:       Location{"--", 1, 1},
 	}
 }
 
@@ -104,7 +104,7 @@ func (l *Lexer) nextToken() *Token {
 		}
 	}
 
-	if TTLength != 38 {
+	if TTLength != 39 {
 		panic("TokenType enum length changed")
 	}
 
@@ -268,7 +268,8 @@ func (l *Lexer) nextToken() *Token {
 		tok.typ = TTRSquirly
 
 	default:
-		panic(l.curLoc.String() + " illegal char `" + string(r) + "`")
+		tok.literal = string(r)
+		tok.typ = TTIllegal
 	}
 
 	return tok

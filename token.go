@@ -2,10 +2,7 @@ package main
 
 import "strconv"
 
-type (
-	TokenType   int
-	KeywordType int
-)
+type TokenType int
 
 type Token struct {
 	typ     TokenType
@@ -14,7 +11,8 @@ type Token struct {
 }
 
 const (
-	TTEOF TokenType = iota
+	TTIllegal TokenType = iota
+	TTEOF
 	TTConst
 	TTVar
 	TTFn
@@ -56,11 +54,15 @@ const (
 )
 
 func (tokTyp TokenType) String() string {
-	if TTLength != 38 {
+	if TTLength != 39 {
 		panic("TokenType enum length changed")
 	}
 
 	switch tokTyp {
+	case TTIllegal:
+		return "TTIllegal"
+	case TTEOF:
+		return "TTEOF"
 	case TTConst:
 		return "TTConst"
 	case TTVar:
@@ -85,8 +87,6 @@ func (tokTyp TokenType) String() string {
 		return "TTTrue"
 	case TTFalse:
 		return "TTFalse"
-	case TTEOF:
-		return "TTEOF"
 	case TTIdentifier:
 		return "TTIdentifier"
 	case TTNumber:
@@ -138,7 +138,7 @@ func (tokTyp TokenType) String() string {
 	case TTRSquirly:
 		return "TTRSquirly"
 	default:
-		return "unkown TokenType"
+		panic("unkown TokenType")
 	}
 }
 
