@@ -5,11 +5,13 @@ import (
 )
 
 func TestLexer_1(t *testing.T) {
-	code := `/* this is a block comment */
+	code := `/* this is a block comment
+ * it can go on multiple lines
+ */
 const αConst: int = 69;
 var a: int = 0x1A4;
 
-a = aConst * 3;
+a = aConst * 3 + 1;
 
 // line comment
 if a == 50 {
@@ -17,98 +19,111 @@ if a == 50 {
 } elif a != 30 {
 	print(!true);
 } else {
-	print(30);
+	print('\x41');
 }
 
 fn get(ints: int[], idx: int): int {
-	return ints[idx]
-}`
+	return ints[idx];
+}
+
+var str: string = "\u0009string\n\tmulti line";
+`
 
 	i := 0
 	expected := []Token{
-		{TTComment, Location{"--", 1, 1}, "/* this is a block comment */"},
-		{TTConst, Location{"--", 2, 1}, "const"},
-		{TTIdentifier, Location{"--", 2, 7}, "αConst"},
-		{TTColon, Location{"--", 2, 13}, ":"},
-		{TTIdentifier, Location{"--", 2, 15}, "int"},
-		{TTAssign, Location{"--", 2, 19}, "="},
-		{TTNumber, Location{"--", 2, 21}, "69"},
-		{TTSemiColon, Location{"--", 2, 23}, ";"},
-		{TTVar, Location{"--", 3, 1}, "var"},
-		{TTIdentifier, Location{"--", 3, 5}, "a"},
-		{TTColon, Location{"--", 3, 6}, ":"},
-		{TTIdentifier, Location{"--", 3, 8}, "int"},
-		{TTAssign, Location{"--", 3, 12}, "="},
-		{TTNumber, Location{"--", 3, 14}, "0x1A4"},
-		{TTSemiColon, Location{"--", 3, 19}, ";"},
-		{TTIdentifier, Location{"--", 5, 1}, "a"},
-		{TTAssign, Location{"--", 5, 3}, "="},
-		{TTIdentifier, Location{"--", 5, 5}, "aConst"},
-		{TTMul, Location{"--", 5, 12}, "*"},
-		{TTNumber, Location{"--", 5, 14}, "3"},
-		{TTSemiColon, Location{"--", 5, 15}, ";"},
-		{TTComment, Location{"--", 7, 1}, "// line comment"},
-		{TTIf, Location{"--", 8, 1}, "if"},
-		{TTIdentifier, Location{"--", 8, 4}, "a"},
-		{TTEqual, Location{"--", 8, 6}, "=="},
-		{TTNumber, Location{"--", 8, 9}, "50"},
-		{TTLSquirly, Location{"--", 8, 12}, "{"},
-		{TTIdentifier, Location{"--", 9, 2}, "io"},
-		{TTPeriod, Location{"--", 9, 4}, "."},
-		{TTIdentifier, Location{"--", 9, 5}, "print"},
-		{TTLBrace, Location{"--", 9, 10}, "("},
-		{TTNumber, Location{"--", 9, 11}, "50"},
-		{TTRBrace, Location{"--", 9, 13}, ")"},
-		{TTSemiColon, Location{"--", 9, 14}, ";"},
-		{TTRSquirly, Location{"--", 10, 1}, "}"},
-		{TTElif, Location{"--", 10, 3}, "elif"},
-		{TTIdentifier, Location{"--", 10, 8}, "a"},
-		{TTNotEqual, Location{"--", 10, 10}, "!="},
-		{TTNumber, Location{"--", 10, 13}, "30"},
-		{TTLSquirly, Location{"--", 10, 16}, "{"},
-		{TTIdentifier, Location{"--", 11, 2}, "print"},
-		{TTLBrace, Location{"--", 11, 7}, "("},
-		{TTExclam, Location{"--", 11, 8}, "!"},
-		{TTTrue, Location{"--", 11, 9}, "true"},
-		{TTRBrace, Location{"--", 11, 13}, ")"},
-		{TTSemiColon, Location{"--", 11, 14}, ";"},
-		{TTRSquirly, Location{"--", 12, 1}, "}"},
-		{TTElse, Location{"--", 12, 3}, "else"},
-		{TTLSquirly, Location{"--", 12, 8}, "{"},
-		{TTIdentifier, Location{"--", 13, 2}, "print"},
-		{TTLBrace, Location{"--", 13, 7}, "("},
-		{TTNumber, Location{"--", 13, 8}, "30"},
-		{TTRBrace, Location{"--", 13, 10}, ")"},
-		{TTSemiColon, Location{"--", 13, 11}, ";"},
-		{TTRSquirly, Location{"--", 14, 1}, "}"},
-		{TTFn, Location{"--", 16, 1}, "fn"},
-		{TTIdentifier, Location{"--", 16, 4}, "get"},
-		{TTLBrace, Location{"--", 16, 7}, "("},
-		{TTIdentifier, Location{"--", 16, 8}, "ints"},
-		{TTColon, Location{"--", 16, 12}, ":"},
-		{TTIdentifier, Location{"--", 16, 14}, "int"},
-		{TTLSquare, Location{"--", 16, 17}, "["},
-		{TTRSquare, Location{"--", 16, 18}, "]"},
-		{TTComma, Location{"--", 16, 19}, ","},
-		{TTIdentifier, Location{"--", 16, 21}, "idx"},
-		{TTColon, Location{"--", 16, 24}, ":"},
-		{TTIdentifier, Location{"--", 16, 26}, "int"},
-		{TTRBrace, Location{"--", 16, 29}, ")"},
-		{TTColon, Location{"--", 16, 30}, ":"},
-		{TTIdentifier, Location{"--", 16, 32}, "int"},
-		{TTLSquirly, Location{"--", 16, 36}, "{"},
-		{TTReturn, Location{"--", 17, 2}, "return"},
-		{TTIdentifier, Location{"--", 17, 9}, "ints"},
-		{TTLSquare, Location{"--", 17, 13}, "["},
-		{TTIdentifier, Location{"--", 17, 14}, "idx"},
-		{TTRSquare, Location{"--", 17, 17}, "]"},
-		{TTRSquirly, Location{"--", 18, 1}, "}"},
-		{TTEOF, Location{"--", 18, 2}, ""},
+		{typ: TTComment, loc: Location{"--", 1, 1}, literal: "/* this is a block comment\n * it can go on multiple lines\n */"},
+		{typ: TTConst, loc: Location{"--", 4, 1}, literal: "const"},
+		{typ: TTIdentifier, loc: Location{"--", 4, 7}, literal: "αConst"},
+		{typ: TTColon, loc: Location{"--", 4, 13}, literal: ":"},
+		{typ: TTIdentifier, loc: Location{"--", 4, 15}, literal: "int"},
+		{typ: TTAssign, loc: Location{"--", 4, 19}, literal: "="},
+		{typ: TTNumber, loc: Location{"--", 4, 21}, literal: "69"},
+		{typ: TTSemiColon, loc: Location{"--", 4, 23}, literal: ";"},
+		{typ: TTVar, loc: Location{"--", 5, 1}, literal: "var"},
+		{typ: TTIdentifier, loc: Location{"--", 5, 5}, literal: "a"},
+		{typ: TTColon, loc: Location{"--", 5, 6}, literal: ":"},
+		{typ: TTIdentifier, loc: Location{"--", 5, 8}, literal: "int"},
+		{typ: TTAssign, loc: Location{"--", 5, 12}, literal: "="},
+		{typ: TTNumber, loc: Location{"--", 5, 14}, literal: "0x1A4"},
+		{typ: TTSemiColon, loc: Location{"--", 5, 19}, literal: ";"},
+		{typ: TTIdentifier, loc: Location{"--", 7, 1}, literal: "a"},
+		{typ: TTAssign, loc: Location{"--", 7, 3}, literal: "="},
+		{typ: TTIdentifier, loc: Location{"--", 7, 5}, literal: "aConst"},
+		{typ: TTStar, loc: Location{"--", 7, 12}, literal: "*"},
+		{typ: TTNumber, loc: Location{"--", 7, 14}, literal: "3"},
+		{typ: TTPlus, loc: Location{"--", 7, 16}, literal: "+"},
+		{typ: TTNumber, loc: Location{"--", 7, 18}, literal: "1"},
+		{typ: TTSemiColon, loc: Location{"--", 7, 19}, literal: ";"},
+		{typ: TTComment, loc: Location{"--", 9, 1}, literal: "// line comment"},
+		{typ: TTIf, loc: Location{"--", 10, 1}, literal: "if"},
+		{typ: TTIdentifier, loc: Location{"--", 10, 4}, literal: "a"},
+		{typ: TTEqual, loc: Location{"--", 10, 6}, literal: "=="},
+		{typ: TTNumber, loc: Location{"--", 10, 9}, literal: "50"},
+		{typ: TTLSquirly, loc: Location{"--", 10, 12}, literal: "{"},
+		{typ: TTIdentifier, loc: Location{"--", 11, 2}, literal: "io"},
+		{typ: TTPeriod, loc: Location{"--", 11, 4}, literal: "."},
+		{typ: TTIdentifier, loc: Location{"--", 11, 5}, literal: "print"},
+		{typ: TTLBrace, loc: Location{"--", 11, 10}, literal: "("},
+		{typ: TTNumber, loc: Location{"--", 11, 11}, literal: "50"},
+		{typ: TTRBrace, loc: Location{"--", 11, 13}, literal: ")"},
+		{typ: TTSemiColon, loc: Location{"--", 11, 14}, literal: ";"},
+		{typ: TTRSquirly, loc: Location{"--", 12, 1}, literal: "}"},
+		{typ: TTElif, loc: Location{"--", 12, 3}, literal: "elif"},
+		{typ: TTIdentifier, loc: Location{"--", 12, 8}, literal: "a"},
+		{typ: TTNotEqual, loc: Location{"--", 12, 10}, literal: "!="},
+		{typ: TTNumber, loc: Location{"--", 12, 13}, literal: "30"},
+		{typ: TTLSquirly, loc: Location{"--", 12, 16}, literal: "{"},
+		{typ: TTIdentifier, loc: Location{"--", 13, 2}, literal: "print"},
+		{typ: TTLBrace, loc: Location{"--", 13, 7}, literal: "("},
+		{typ: TTExclam, loc: Location{"--", 13, 8}, literal: "!"},
+		{typ: TTTrue, loc: Location{"--", 13, 9}, literal: "true"},
+		{typ: TTRBrace, loc: Location{"--", 13, 13}, literal: ")"},
+		{typ: TTSemiColon, loc: Location{"--", 13, 14}, literal: ";"},
+		{typ: TTRSquirly, loc: Location{"--", 14, 1}, literal: "}"},
+		{typ: TTElse, loc: Location{"--", 14, 3}, literal: "else"},
+		{typ: TTLSquirly, loc: Location{"--", 14, 8}, literal: "{"},
+		{typ: TTIdentifier, loc: Location{"--", 15, 2}, literal: "print"},
+		{typ: TTLBrace, loc: Location{"--", 15, 7}, literal: "("},
+		{typ: TTChar, loc: Location{"--", 15, 8}, literal: "'\\x41'", extraInfo: 'A'},
+		{typ: TTRBrace, loc: Location{"--", 15, 14}, literal: ")"},
+		{typ: TTSemiColon, loc: Location{"--", 15, 15}, literal: ";"},
+		{typ: TTRSquirly, loc: Location{"--", 16, 1}, literal: "}"},
+		{typ: TTFn, loc: Location{"--", 18, 1}, literal: "fn"},
+		{typ: TTIdentifier, loc: Location{"--", 18, 4}, literal: "get"},
+		{typ: TTLBrace, loc: Location{"--", 18, 7}, literal: "("},
+		{typ: TTIdentifier, loc: Location{"--", 18, 8}, literal: "ints"},
+		{typ: TTColon, loc: Location{"--", 18, 12}, literal: ":"},
+		{typ: TTIdentifier, loc: Location{"--", 18, 14}, literal: "int"},
+		{typ: TTLSquare, loc: Location{"--", 18, 17}, literal: "["},
+		{typ: TTRSquare, loc: Location{"--", 18, 18}, literal: "]"},
+		{typ: TTComma, loc: Location{"--", 18, 19}, literal: ","},
+		{typ: TTIdentifier, loc: Location{"--", 18, 21}, literal: "idx"},
+		{typ: TTColon, loc: Location{"--", 18, 24}, literal: ":"},
+		{typ: TTIdentifier, loc: Location{"--", 18, 26}, literal: "int"},
+		{typ: TTRBrace, loc: Location{"--", 18, 29}, literal: ")"},
+		{typ: TTColon, loc: Location{"--", 18, 30}, literal: ":"},
+		{typ: TTIdentifier, loc: Location{"--", 18, 32}, literal: "int"},
+		{typ: TTLSquirly, loc: Location{"--", 18, 36}, literal: "{"},
+		{typ: TTReturn, loc: Location{"--", 19, 2}, literal: "return"},
+		{typ: TTIdentifier, loc: Location{"--", 19, 9}, literal: "ints"},
+		{typ: TTLSquare, loc: Location{"--", 19, 13}, literal: "["},
+		{typ: TTIdentifier, loc: Location{"--", 19, 14}, literal: "idx"},
+		{typ: TTRSquare, loc: Location{"--", 19, 17}, literal: "]"},
+		{typ: TTSemiColon, loc: Location{"--", 19, 18}, literal: ";"},
+		{typ: TTRSquirly, loc: Location{"--", 20, 1}, literal: "}"},
+		{typ: TTVar, loc: Location{"--", 22, 1}, literal: "var"},
+		{typ: TTIdentifier, loc: Location{"--", 22, 5}, literal: "str"},
+		{typ: TTColon, loc: Location{"--", 22, 8}, literal: ":"},
+		{typ: TTIdentifier, loc: Location{"--", 22, 10}, literal: "string"},
+		{typ: TTAssign, loc: Location{"--", 22, 17}, literal: "="},
+		{typ: TTString, loc: Location{"--", 22, 19}, literal: "\"\\u0009string\\n\\tmulti line\"", extraInfo: "\tstring\n\tmulti line"},
+		{typ: TTSemiColon, loc: Location{"--", 22, 47}, literal: ";"},
+		{typ: TTEOF, loc: Location{"--", 23, 1}, literal: ""},
 	}
 
 	lex := LexerFromString(code)
 	exitNext := false
-	for tok := lex.nextToken(); !exitNext; tok, i = lex.nextToken(), i+1 {
+	for tok := lex.NextToken(); !exitNext; tok, i = lex.NextToken(), i+1 {
 		if *tok != expected[i] {
 			t.Logf("expected `%s`, but got `%s`", expected[i].String(), tok.String())
 			t.Fail()
@@ -127,19 +142,19 @@ func TestLexer_2(t *testing.T) {
 
 	i := 0
 	expected := []Token{
-		{TTPlus, Location{"--", 1, 1}, "+"},
-		{TTMinus, Location{"--", 1, 2}, "-"},
-		{TTDiv, Location{"--", 1, 3}, "/"},
-		{TTPlusAsign, Location{"--", 2, 1}, "+="},
-		{TTMinusAsign, Location{"--", 3, 1}, "-="},
-		{TTMulAsign, Location{"--", 4, 1}, "*="},
-		{TTDivAsign, Location{"--", 5, 1}, "/="},
-		{TTEOF, Location{"--", 5, 3}, ""},
+		{typ: TTPlus, loc: Location{"--", 1, 1}, literal: "+"},
+		{typ: TTDash, loc: Location{"--", 1, 2}, literal: "-"},
+		{typ: TTSlash, loc: Location{"--", 1, 3}, literal: "/"},
+		{typ: TTPlusAssign, loc: Location{"--", 2, 1}, literal: "+="},
+		{typ: TTDashAssign, loc: Location{"--", 3, 1}, literal: "-="},
+		{typ: TTStarAssign, loc: Location{"--", 4, 1}, literal: "*="},
+		{typ: TTSlashAssign, loc: Location{"--", 5, 1}, literal: "/="},
+		{typ: TTEOF, loc: Location{"--", 5, 3}, literal: ""},
 	}
 
 	lex := LexerFromString(code)
 	exitNext := false
-	for tok := lex.nextToken(); !exitNext; tok, i = lex.nextToken(), i+1 {
+	for tok := lex.NextToken(); !exitNext; tok, i = lex.NextToken(), i+1 {
 		if *tok != expected[i] {
 			t.Logf("expected `%s`, but got `%s`", expected[i].String(), tok.String())
 			t.Fail()

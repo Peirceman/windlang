@@ -9,9 +9,9 @@ func main() {
 	fileName := os.Args[1]
 
 	lex := LexerFromFilename(fileName)
-	exitNext := false
-	for tok := lex.nextToken(); !exitNext; tok = lex.nextToken() {
-		fmt.Println(tok)
-		exitNext = tok.typ == TTEOF
+	par := &Parser{lex}
+	for line := par.parseFunctionBody(); line != nil; line = par.parseFunctionBody() {
+		fmt.Println(line.String())
 	}
+	lex = LexerFromFilename(fileName)
 }

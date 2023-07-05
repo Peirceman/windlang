@@ -2,8 +2,10 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -11,11 +13,13 @@ import (
 type NextRuneFunc func() (r rune, eof bool)
 
 type Lexer struct {
-	nextRuneFunc NextRuneFunc
-	preekRune    rune
-	peekEOF      bool
-	hasPreekRune bool
-	curLoc       Location
+	nextRuneFunc   NextRuneFunc
+	peekedRune     rune
+	peekEOF        bool
+	hasPeekedRune  bool
+	peekedToken    *Token
+	hasPeekedToken bool
+	curLoc         Location
 }
 
 func ReaderRuneReader(r *bufio.Reader) NextRuneFunc {
@@ -26,7 +30,7 @@ func ReaderRuneReader(r *bufio.Reader) NextRuneFunc {
 		}
 
 		if err != nil {
-			panic(err)
+			panic(err) // TODO: better error handling
 		}
 
 		return r, false
@@ -40,7 +44,7 @@ func StringRuneReader(str string) NextRuneFunc {
 func LexerFromFilename(filename string) *Lexer {
 	f, err := os.Open(filename)
 	if err != nil {
-		panic(err)
+		panic(err) // TODO: better error handling
 	}
 
 	r := bufio.NewReader(f)
@@ -59,24 +63,25 @@ func LexerFromString(str string) *Lexer {
 }
 
 func (l *Lexer) peekRune() (rune, bool) {
-	if l.hasPreekRune {
-		return l.preekRune, l.peekEOF
+	if l.hasPeekedRune {
+		return l.peekedRune, l.peekEOF
 	}
 
-	l.preekRune, l.peekEOF = l.nextRuneFunc()
-	l.hasPreekRune = true
+	l.peekedRune, l.peekEOF = l.nextRuneFunc()
+	l.hasPeekedRune = true
 
-	return l.preekRune, l.peekEOF
+	return l.peekedRune, l.peekEOF
 }
 
 func (l *Lexer) nextRune() (r rune, eof bool) {
 	r, eof = l.peekRune()
-	l.hasPreekRune = false
-	l.curLoc.col++
+	l.hasPeekedRune = false
 
 	if eof {
 		return
 	}
+
+	l.curLoc.col++
 
 	if r == '\n' {
 		l.curLoc.col = 1
@@ -92,40 +97,59 @@ func (l *Lexer) skipWhitespace() {
 	}
 }
 
-func (l *Lexer) nextToken() *Token {
+func (l *Lexer) NextToken() *Token {
+	l.PeekToken()
+	l.hasPeekedToken = false
+	return l.peekedToken
+}
+
+func (l *Lexer) PeekToken() *Token {
+	if l.hasPeekedToken {
+		return l.peekedToken
+	}
+
+	l.hasPeekedToken = true
+
 	l.skipWhitespace()
 
 	r, eof := l.peekRune()
 	if eof {
-		return &Token{
+		l.peekedToken = &Token{
 			typ:     TTEOF,
 			loc:     l.curLoc,
 			literal: "",
 		}
+
+		return l.peekedToken
 	}
 
-	if TTLength != 39 {
-		panic("TokenType enum length changed")
+	if TTCount != 58 {
+		panic("TokenType enum length changed: " + strconv.Itoa(int(TTCount)))
 	}
 
 	if unicode.IsLetter(r) {
-		return l.parseLetter()
+		l.peekedToken = l.readAfterLetter()
+
+		return l.peekedToken
 	}
 
 	if unicode.IsDigit(r) {
-		return l.parseDigit()
+		l.peekedToken = l.readAfterDigit()
+
+		return l.peekedToken
 	}
 
 	// symbols
 
 	tok := &Token{loc: l.curLoc}
 	l.nextRune()
+
 	switch r {
 	case '+':
 		if r, eof = l.peekRune(); !eof && r == '=' {
 			l.nextRune()
 			tok.literal = "+="
-			tok.typ = TTPlusAsign
+			tok.typ = TTPlusAssign
 		} else {
 			tok.literal = "+"
 			tok.typ = TTPlus
@@ -135,78 +159,24 @@ func (l *Lexer) nextToken() *Token {
 		if r, eof = l.peekRune(); !eof && r == '=' {
 			l.nextRune()
 			tok.literal = "-="
-			tok.typ = TTMinusAsign
+			tok.typ = TTDashAssign
 		} else {
 			tok.literal = "-"
-			tok.typ = TTMinus
+			tok.typ = TTDash
 		}
 
 	case '*':
 		if r, eof = l.peekRune(); !eof && r == '=' {
 			l.nextRune()
 			tok.literal = "*="
-			tok.typ = TTMulAsign
+			tok.typ = TTStarAssign
 		} else {
 			tok.literal = "*"
-			tok.typ = TTMul
+			tok.typ = TTStar
 		}
 
 	case '/':
-		r, eof = l.peekRune()
-		tok.literal = "/"
-		tok.typ = TTDiv
-		if eof {
-			break
-		}
-
-		switch r {
-		case '=':
-			l.nextRune()
-			tok.literal = "/="
-			tok.typ = TTDivAsign
-		case '/':
-			l.nextRune()
-			literal := strings.Builder{}
-			literal.WriteString("//")
-
-			for r, eof := l.peekRune(); !eof && r != '\n'; r, eof = l.peekRune() {
-				l.nextRune()
-				literal.WriteRune(r)
-			}
-
-			tok.literal = literal.String()
-			tok.typ = TTComment
-		case '*':
-			l.nextRune()
-			literal := strings.Builder{}
-			literal.WriteString("/*")
-
-			for r, eof := l.peekRune(); !eof; r, eof = l.peekRune() {
-				l.nextRune()
-				literal.WriteRune(r)
-				if r != '*' {
-					continue
-				}
-
-				r, eof := l.peekRune()
-				if eof {
-					panic(l.curLoc.String() + " unterminated comment")
-				}
-
-				if r == '/' {
-					l.nextRune()
-					literal.WriteRune('/')
-					goto ok
-				}
-			}
-
-			panic(l.curLoc.String() + "unterminated comment")
-
-		ok:
-			tok.literal = literal.String()
-			tok.typ = TTComment
-		}
-
+		tok.literal, tok.typ = l.readAfterSlash()
 	case '!':
 		if r, eof = l.peekRune(); !eof && r == '=' {
 			l.nextRune()
@@ -267,15 +237,358 @@ func (l *Lexer) nextToken() *Token {
 		tok.literal = "}"
 		tok.typ = TTRSquirly
 
+	case '|':
+		r, eof = l.peekRune()
+		tok.literal = "|"
+		tok.typ = TTBar
+		if eof {
+			break
+		}
+
+		if r == '|' {
+			l.nextRune()
+			tok.literal = "||"
+			tok.typ = TTOr
+		} else if r == '=' {
+			l.nextRune()
+			tok.literal = "|="
+			tok.typ = TTBarAssign
+		}
+
+	case '&':
+		r, eof = l.peekRune()
+		tok.literal = "&"
+		tok.typ = TTAmp
+		if eof {
+			break
+		}
+
+		if r == '&' {
+			l.nextRune()
+			tok.literal = "&&"
+			tok.typ = TTAnd
+		} else if r == '=' {
+			l.nextRune()
+			tok.literal = "&="
+			tok.typ = TTAmpAssign
+		}
+
+	case '^':
+		if r, eof = l.peekRune(); !eof && r == '=' {
+			l.nextRune()
+			tok.literal = "^="
+			tok.typ = TTCaretAssign
+		} else {
+			tok.literal = "^"
+			tok.typ = TTCaret
+		}
+
+	case '~':
+		tok.literal = "~"
+		tok.typ = TTTilde
+
+	case '>':
+		// posibilities: > >> >>= >=
+		tok.literal = ">"
+		tok.typ = TTGt
+
+		r, eof = l.peekRune()
+		if eof {
+			break
+		}
+
+		if r == '>' {
+			l.nextRune()
+			tok.literal = ">>"
+			tok.typ = TTShr
+
+			r, eof = l.peekRune()
+
+			if !eof && r == '=' {
+				l.nextRune()
+				tok.literal = ">>="
+				tok.typ = TTShrAssign
+				break
+			}
+		} else if r == '=' {
+			l.nextRune()
+			tok.literal = ">="
+			tok.typ = TTGtEq
+		}
+
+	case '<':
+		// posibilities: < << <<= <=
+		tok.literal = "<"
+		tok.typ = TTLt
+
+		r, eof = l.peekRune()
+		if eof {
+			break
+		}
+
+		if r == '<' {
+			l.nextRune()
+			tok.literal = "<<"
+			tok.typ = TTShl
+
+			r, eof = l.peekRune()
+
+			if !eof && r == '=' {
+				l.nextRune()
+				tok.literal = "<<="
+				tok.typ = TTShlAssign
+				break
+			}
+		} else if r == '=' {
+			l.nextRune()
+			tok.literal = "<="
+			tok.typ = TTLtEq
+		}
+
+	case '\'':
+		tok.typ = TTChar
+		tok.literal, tok.extraInfo = l.readCharLitteral()
+
+	case '"':
+		tok.typ = TTString
+		tok.literal, tok.extraInfo = l.readStringLitteral()
+
 	default:
 		tok.literal = string(r)
 		tok.typ = TTIllegal
 	}
 
-	return tok
+	l.peekedToken = tok
+
+	return l.peekedToken
 }
 
-func (l *Lexer) parseLetter() *Token {
+func (l *Lexer) readStringLitteral() (string, string) {
+	text := strings.Builder{}
+	litteral := strings.Builder{}
+	litteral.WriteRune('"')
+	r, eof := l.peekRune()
+
+	for ; !eof && r != '"'; r, eof = l.peekRune() {
+		if r == '\n' {
+			panic(l.curLoc.String() + " unterminated string litteral") // TODO: better error handling
+		}
+		l.nextRune()
+
+		if r != '\\' {
+			text.WriteRune(r)
+			litteral.WriteRune(r)
+			continue
+		}
+
+		litteral.WriteRune('\\')
+
+		r, eof = l.peekRune()
+
+		if eof {
+			l.nextRune()
+			panic(l.curLoc.String() + " unterminated string litteral") // TODO: better error handling
+		}
+
+		if r == '\n' {
+			panic(l.curLoc.String() + " unterminated string litteral") // TODO: better error handling
+		}
+
+		l.nextRune()
+
+		switch r {
+		case '"':
+			text.WriteRune(r)
+			litteral.WriteRune(r)
+		case '\\':
+			text.WriteRune(r)
+			litteral.WriteRune(r)
+		case 'n':
+			text.WriteRune('\n')
+			litteral.WriteRune(r)
+		case 'r':
+			text.WriteRune('\r')
+			litteral.WriteRune(r)
+		case 't':
+			text.WriteRune('\t')
+			litteral.WriteRune(r)
+
+		case 'u':
+			// Read the unicode codepoint
+			litteral.WriteRune(r)
+			var codepoint rune
+			for i := 0; i < 4; i++ {
+				r, eof = l.nextRune()
+				if eof {
+					panic(l.curLoc.String() + " unterminated char litteral") // TODO: better error handling
+				}
+
+				val, contains := decimalCharset[r]
+				if !contains {
+					panic(l.curLoc.String() + " illegal char in escape sequence") // TODO: better error handling
+				}
+
+				litteral.WriteRune(r)
+				codepoint = codepoint*10 + rune(val)
+			}
+
+			text.WriteRune(codepoint)
+
+		case 'x':
+			var char rune
+			// Check for byte escape sequence
+
+			for i := 0; i < 2; i++ {
+				r, eof = l.nextRune()
+				if eof {
+					panic(l.curLoc.String() + " unterminated char litteral") // TODO: better error handling
+				}
+
+				val, contains := hexCharset[r]
+				if !contains {
+					panic(l.curLoc.String() + " illegal char in escape sequence") // TODO: better error handling
+				}
+
+				char = char*16 + rune(val)
+				litteral.WriteRune(r)
+			}
+
+			text.WriteRune(char)
+
+		default:
+			panic(l.curLoc.String() + " invalid char in escape equence") // TODO: better error handling
+		}
+
+	}
+
+	if eof {
+		panic(l.curLoc.String() + " unterminated string litteral" + string(r)) // TODO: better error handling
+	}
+
+	l.nextRune()
+	litteral.WriteRune('"')
+
+	return litteral.String(), text.String()
+}
+
+func (l *Lexer) readCharLitteral() (string, rune) {
+	r, eof := l.peekRune()
+	if eof {
+		l.nextRune()
+		panic(l.curLoc.String() + " unterminated char litteral") // TODO: better error handling
+	}
+
+	if r == '\n' {
+		panic(l.curLoc.String() + " unterminated char litteral") // TODO: better error handling
+	}
+
+	l.nextRune()
+
+	if r == '\'' {
+		panic(l.curLoc.String() + " empty char litteral") // TODO: better error handling
+	}
+
+	checkClosing := func() {
+		r, eof := l.peekRune()
+		if eof || r != '\'' {
+			panic(l.curLoc.String() + " unterminated char litteral") // TODO: better error handling
+		}
+		l.nextRune()
+	}
+
+	// Handle escape sequences
+	if r == '\\' {
+		// Read the escape sequence character
+		r, eof = l.peekRune()
+		if eof {
+			l.nextRune()
+			panic(l.curLoc.String() + " unterminated char litteral") // TODO: better error handling
+		}
+
+		if r == '\n' {
+			panic(l.curLoc.String() + " unterminated char litteral") // TODO: better error handling
+		}
+
+		l.nextRune()
+
+		// Check for allowed escape sequences
+		switch r {
+		case '\'':
+			checkClosing()
+			return "'''", '\''
+		case '\\':
+			checkClosing()
+			return "'\\\\'", '\\'
+		case 'n':
+			checkClosing()
+			return "'\\n'", '\n'
+		case 'r':
+			checkClosing()
+			return "'\\r'", '\r'
+		case 't':
+			checkClosing()
+			return "'\\t'", '\t'
+
+		case 'u':
+			// Read the unicode codepoint
+			litteral := strings.Builder{}
+			litteral.WriteString("'\\u")
+			var codepoint rune
+
+			for i := 0; i < 4; i++ {
+				r, eof = l.nextRune()
+				if eof {
+					panic(l.curLoc.String() + " unterminated char litteral") // TODO: better error handling
+				}
+
+				val, contains := decimalCharset[r]
+				if !contains {
+					panic(l.curLoc.String() + " illegal char in escape sequence") // TODO: better error handling
+				}
+
+				codepoint = codepoint*10 + rune(val)
+				litteral.WriteRune(r)
+			}
+
+			checkClosing()
+			litteral.WriteRune('\'')
+			return litteral.String(), codepoint
+
+		case 'x':
+			// Check for byte escape sequence
+			litteral := strings.Builder{}
+			litteral.WriteString("'\\x")
+			var char rune
+
+			for i := 0; i < 2; i++ {
+				r, eof = l.nextRune()
+				if eof {
+					panic(l.curLoc.String() + " unterminated char litteral") // TODO: better error handling
+				}
+
+				val, contains := hexCharset[r]
+				if !contains {
+					panic(l.curLoc.String() + " illegal char `" + string(r) + "` in escape sequence") // TODO: better error handling
+				}
+
+				char = char*16 + rune(val)
+				litteral.WriteRune(r)
+			}
+
+			checkClosing()
+			litteral.WriteRune('\'')
+			return litteral.String(), char
+
+		default:
+			panic(l.curLoc.String() + " invalid char `" + string(r) + "` in escape equence") // TODO: better error handling
+		}
+	}
+
+	checkClosing()
+	return "'" + string(r) + "'", r
+}
+
+func (l *Lexer) readAfterLetter() *Token {
 	tokenText := strings.Builder{}
 	tok := &Token{}
 	tok.loc = l.curLoc
@@ -296,51 +609,120 @@ func (l *Lexer) parseLetter() *Token {
 	return tok
 }
 
-func (l *Lexer) parseDigit() *Token {
+func (l *Lexer) readAfterDigit() *Token {
 	tokenText := strings.Builder{}
 	tok := &Token{
 		loc: l.curLoc,
 		typ: TTNumber,
 	}
-	charset := decimalCharset
 
-	r, eof := l.nextRune()
-	if eof {
-		// people don't like goto???
-		goto end
-	}
+	var charsetName string = "decimal"
+	var charset map[rune]int = decimalCharset
+	var contains bool
 
+	r, _ := l.nextRune() // cannot be eof, because this function would otherwise not be called
 	tokenText.WriteRune(r)
 
 	if r == '0' {
-		r, eof = l.peekRune()
+		r, eof := l.peekRune()
 		if eof {
-			goto end
+			tok.literal = tokenText.String()
+			return tok
 		}
 
 		switch r {
 		case 'b':
+			charsetName = "binary"
 			charset = binaryCharset
 		case 'o':
+			charsetName = "octal"
 			charset = octalCharset
 		case 'x':
+			charsetName = "hex"
 			charset = hexCharset
 		default:
-			goto parseRest
+			if _, contains = charset[r]; !contains {
+				tok.literal = tokenText.String()
+				return tok
+			}
 		}
 
 		tokenText.WriteRune(r)
 		l.nextRune()
 	}
 
-parseRest:
-	for r, eof = l.peekRune(); !eof && charset[r]; r, eof = l.peekRune() {
+	r, eof := l.peekRune()
+	_, contains = charset[r]
+	for !eof && contains {
 		l.nextRune()
 		tokenText.WriteRune(r)
+
+		r, eof = l.peekRune()
+		_, contains = charset[r]
 	}
 
-end:
-	tok.literal = tokenText.String()
+	if _, contains := decimalCharset[r]; !eof && contains {
+		panic(fmt.Sprintf(l.curLoc.String()+" illegal digit `"+string(r)+"` in %s literal", charsetName)) // TODO: better error handling
+	}
 
+	tok.literal = tokenText.String()
 	return tok
+}
+
+func (l *Lexer) readAfterSlash() (lit string, typ TokenType) {
+	r, eof := l.peekRune()
+	lit = "/"
+	typ = TTSlash
+
+	if eof {
+		return
+	}
+
+	switch r {
+	case '=':
+		l.nextRune()
+		lit = "/="
+		typ = TTSlashAssign
+	case '/':
+		l.nextRune()
+		literal := strings.Builder{}
+		literal.WriteString("//")
+
+		for r, eof := l.peekRune(); !eof && r != '\n'; r, eof = l.peekRune() {
+			l.nextRune()
+			literal.WriteRune(r)
+		}
+
+		lit = literal.String()
+		typ = TTComment
+	case '*':
+		l.nextRune()
+		literal := strings.Builder{}
+		literal.WriteString("/*")
+
+		for r, eof := l.peekRune(); !eof; r, eof = l.peekRune() {
+			l.nextRune()
+			literal.WriteRune(r)
+			if r != '*' {
+				continue
+			}
+
+			r, eof := l.peekRune()
+			if eof {
+				panic(l.curLoc.String() + " unterminated comment") // TODO: better error handling
+			}
+
+			if r == '/' {
+				l.nextRune()
+				literal.WriteRune('/')
+				lit = literal.String()
+				typ = TTComment
+				return
+			}
+		}
+
+		panic(l.curLoc.String() + "unterminated comment") // TODO: better error handling
+	}
+
+	return
 }
