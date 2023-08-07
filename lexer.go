@@ -13,15 +13,14 @@ import (
 type NextRuneFunc func() (r rune, eof bool)
 
 type Lexer struct {
-	nextRuneFunc   NextRuneFunc
-	curLoc         Location
-	peekedRune     rune
-	peekEOF        bool
-	hasPeekedRune  bool
-	peekedToken    *Token
-	hasPeekedToken bool
-	idx            int
-	tokens         []Token
+	nextRuneFunc  NextRuneFunc
+	peekedRune    rune
+	peekEOF       bool
+	hasPeekedRune bool
+
+	curLoc Location
+	idx    int
+	tokens []Token
 }
 
 func ReaderRuneReader(r *bufio.Reader) NextRuneFunc {
@@ -104,50 +103,42 @@ func (l *Lexer) skipWhitespace() {
 	}
 }
 
-func (l *Lexer) NextToken() *Token {
-	l.PeekToken_()
-	l.hasPeekedToken = false
-	return l.peekedToken
-}
-
 func (l *Lexer) readAllTokens() {
-	return
-	tok := l.NextToken()
-	for ; tok.typ != TTEOF; tok = l.NextToken() {
+	tok := l.nextToken()
+	for ; tok.typ != TTEOF; tok = l.nextToken() {
 		l.tokens = append(l.tokens, *tok)
 	}
 
 	l.tokens = append(l.tokens, *tok)
+	l.curLoc = l.tokens[0].loc
 }
 
 func (l *Lexer) PeekToken() *Token {
 	return &l.tokens[l.idx]
 }
 
-func (l *Lexer) NextToken__() *Token {
+func (l *Lexer) NextToken() *Token {
 	tok := &l.tokens[l.idx]
 	l.idx++
+	l.curLoc = l.tokens[l.idx].loc
 	return tok
 }
 
-func (l *Lexer) PeekToken_() *Token {
-	if l.hasPeekedToken {
-		return l.peekedToken
-	}
+func (l *Lexer) Reset() {
+	l.idx = 0
+	l.curLoc = l.tokens[0].loc
+}
 
-	l.hasPeekedToken = true
-
+func (l *Lexer) nextToken() *Token {
 	l.skipWhitespace()
 
 	r, eof := l.peekRune()
 	if eof {
-		l.peekedToken = &Token{
+		return &Token{
 			typ:     TTEOF,
 			loc:     l.curLoc,
 			literal: "",
 		}
-
-		return l.peekedToken
 	}
 
 	if TTCount != 59 {
@@ -155,15 +146,11 @@ func (l *Lexer) PeekToken_() *Token {
 	}
 
 	if unicode.IsLetter(r) {
-		l.peekedToken = l.readAfterLetter()
-
-		return l.peekedToken
+		return l.readAfterLetter()
 	}
 
 	if unicode.IsDigit(r) {
-		l.peekedToken = l.readAfterDigit()
-
-		return l.peekedToken
+		return l.readAfterDigit()
 	}
 
 	// symbols
@@ -385,9 +372,7 @@ func (l *Lexer) PeekToken_() *Token {
 		tok.typ = TTIllegal
 	}
 
-	l.peekedToken = tok
-
-	return l.peekedToken
+	return tok
 }
 
 func (l *Lexer) readStringLitteral() (string, string) {

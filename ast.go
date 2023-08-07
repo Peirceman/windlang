@@ -472,12 +472,14 @@ type CodeBlockNode struct {
 var _ AstNode = (*CodeBlockNode)(nil)
 
 type IfChain struct {
-	ifCondition    Expression
-	ifStatement    CodeBlockNode
+	ifCondition Expression
+	ifStatement CodeBlockNode
+
 	elifConditions []Expression
 	elifStatements []CodeBlockNode
-	hasElse        bool
-	elseStatement  CodeBlockNode
+
+	hasElse       bool
+	elseStatement CodeBlockNode
 }
 
 var _ AstNode = (*IfChain)(nil)
@@ -514,9 +516,9 @@ func (f FnNode) String() string {
 	if f.returnType != "" {
 		sb.WriteString(": ")
 		sb.WriteString(string(f.returnType))
-		sb.WriteRune(' ')
 	}
 
+	sb.WriteRune(' ')
 	sb.WriteString(f.body.String())
 
 	return sb.String()

@@ -13,7 +13,7 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 		panic("TokenType enum length changed: " + strconv.Itoa(int(TTCount)))
 	}
 
-	tok := p.lex.PeekToken_()
+	tok := p.lex.PeekToken()
 	switch tok.typ {
 	case TTConst:
 		p.lex.NextToken()
@@ -69,7 +69,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 		panic("TokenType enum length changed: " + strconv.Itoa(int(TTCount)))
 	}
 
-	tok := p.lex.PeekToken_()
+	tok := p.lex.PeekToken()
 	switch tok.typ {
 	case TTConst:
 		p.lex.NextToken()
@@ -119,7 +119,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 		p.lex.NextToken()
 		block := CodeBlockNode{make([]AstNode, 0)}
 
-		for tok := p.lex.PeekToken_(); tok.typ != TTEOF && tok.typ != TTRSquirly; tok = p.lex.PeekToken_() {
+		for tok := p.lex.PeekToken(); tok.typ != TTEOF && tok.typ != TTRSquirly; tok = p.lex.PeekToken() {
 			statement, eof := p.parseFunctionBody()
 			if eof {
 				panic(tok.loc.String() + " `}` excpected")
@@ -158,7 +158,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 
 		node.ifStatement = statements.(CodeBlockNode)
 
-		for nextToken := p.lex.PeekToken_(); nextToken.typ == TTElif; nextToken = p.lex.PeekToken_() {
+		for nextToken := p.lex.PeekToken(); nextToken.typ == TTElif; nextToken = p.lex.PeekToken() {
 			p.lex.NextToken()
 
 			condition := p.parseExpression()
@@ -174,7 +174,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 			node.elifStatements = append(node.elifStatements, statements.(CodeBlockNode))
 		}
 
-		if nextToken := p.lex.PeekToken_(); nextToken != nil && nextToken.typ == TTElse {
+		if nextToken := p.lex.PeekToken(); nextToken != nil && nextToken.typ == TTElse {
 			node.hasElse = true
 			p.lex.NextToken()
 
@@ -204,7 +204,7 @@ func (p *Parser) parseFunc() (FnNode, bool) {
 	node.name = Identifier(p.expect(TTIdentifier).literal)
 	p.expect(TTLBrace)
 
-	for tok := p.lex.PeekToken_(); tok != nil && tok.typ != TTRBrace; tok = p.lex.PeekToken_() {
+	for tok := p.lex.PeekToken(); tok != nil && tok.typ != TTRBrace; tok = p.lex.PeekToken() {
 		arg := Var{}
 		arg.name = Identifier(p.expect(TTIdentifier).literal)
 
@@ -214,7 +214,7 @@ func (p *Parser) parseFunc() (FnNode, bool) {
 
 		node.Args = append(node.Args, arg)
 
-		tok = p.lex.PeekToken_()
+		tok = p.lex.PeekToken()
 		if tok == nil || tok.typ != TTComma {
 			break
 		}
@@ -224,7 +224,7 @@ func (p *Parser) parseFunc() (FnNode, bool) {
 
 	p.expect(TTRBrace)
 
-	tok := p.lex.PeekToken_()
+	tok := p.lex.PeekToken()
 	if tok.typ == TTColon {
 		p.lex.NextToken()
 		node.returnType = Type(p.lex.NextToken().literal)
@@ -248,7 +248,7 @@ func (p *Parser) expect(typ TokenType) *Token {
 }
 
 func (p *Parser) expectPeek(typ TokenType) *Token {
-	tok := p.lex.PeekToken_()
+	tok := p.lex.PeekToken()
 	if tok.typ != typ {
 		panic(tok.loc.String() + " " + tok.literal + " syntax error expected: " + typ.String()) // TODO: better error handling
 	}
@@ -271,7 +271,7 @@ func (p *Parser) parseBinary(precedence int) Expression {
 	}
 
 	if LeftToRight(precedence) {
-		tok := p.lex.PeekToken_()
+		tok := p.lex.PeekToken()
 		opp := tok.typ.TokenTypeToBinOp()
 		for (tok != nil && tok.typ != TTEOF && opp != -1 && opp.Precedence() == precedence) || tok.typ == TTComment {
 			p.lex.NextToken()
@@ -285,11 +285,11 @@ func (p *Parser) parseBinary(precedence int) Expression {
 			}
 
 			lhs = BinaryOpNode{lhs, rhs, opp}
-			tok = p.lex.PeekToken_()
+			tok = p.lex.PeekToken()
 			opp = tok.typ.TokenTypeToBinOp()
 		}
 	} else {
-		tok := p.lex.PeekToken_()
+		tok := p.lex.PeekToken()
 		opp := tok.typ.TokenTypeToBinOp()
 		for tok.typ != TTEOF && opp != -1 && opp.Precedence() == precedence {
 			p.lex.NextToken()
@@ -299,7 +299,7 @@ func (p *Parser) parseBinary(precedence int) Expression {
 			}
 
 			lhs = BinaryOpNode{lhs, rhs, opp}
-			tok = p.lex.PeekToken_()
+			tok = p.lex.PeekToken()
 			opp = tok.typ.TokenTypeToBinOp()
 		}
 	}
@@ -313,7 +313,7 @@ func (p *Parser) parseUnary() Expression {
 }
 
 func (p *Parser) parsePrimary() Expression {
-	tok := p.lex.PeekToken_()
+	tok := p.lex.PeekToken()
 	if tok.typ == TTEOF {
 		panic("opperand expected")
 	}
@@ -322,7 +322,7 @@ func (p *Parser) parsePrimary() Expression {
 	case TTIdentifier:
 		p.lex.NextToken()
 
-		if next := p.lex.PeekToken_(); next == nil || next.typ != TTLBrace {
+		if next := p.lex.PeekToken(); next == nil || next.typ != TTLBrace {
 			return VarLit{Identifier(tok.literal)}
 		}
 
@@ -330,10 +330,10 @@ func (p *Parser) parsePrimary() Expression {
 
 		p.lex.NextToken() // always`(` because of if condition
 
-		for tok := p.lex.PeekToken_(); tok != nil && tok.typ != TTRBrace; tok = p.lex.PeekToken_() {
+		for tok := p.lex.PeekToken(); tok != nil && tok.typ != TTRBrace; tok = p.lex.PeekToken() {
 			expr.Args = append(expr.Args, p.parseExpression())
 
-			tok = p.lex.PeekToken_()
+			tok = p.lex.PeekToken()
 			if tok == nil || tok.typ != TTComma {
 				break
 			}

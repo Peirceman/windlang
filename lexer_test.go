@@ -123,7 +123,7 @@ var str: string = "\u0009string\n\tmulti line";
 
 	lex := LexerFromString(code)
 	exitNext := false
-	for tok := lex.NextToken(); !exitNext; tok, i = lex.NextToken(), i+1 {
+	for tok := lex.nextToken(); !exitNext; tok, i = lex.nextToken(), i+1 {
 		if *tok != expected[i] {
 			t.Logf("expected `%s`, but got `%s`", expected[i].String(), tok.String())
 			t.Fail()
@@ -154,7 +154,7 @@ func TestLexer_2(t *testing.T) {
 
 	lex := LexerFromString(code)
 	exitNext := false
-	for tok := lex.NextToken(); !exitNext; tok, i = lex.NextToken(), i+1 {
+	for tok := lex.nextToken(); !exitNext; tok, i = lex.nextToken(), i+1 {
 		if *tok != expected[i] {
 			t.Logf("expected `%s`, but got `%s`", expected[i].String(), tok.String())
 			t.Fail()
