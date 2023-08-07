@@ -6,12 +6,16 @@ import (
 )
 
 func main() {
+
 	fileName := os.Args[1]
 
 	lex := LexerFromFilename(fileName)
 	par := &Parser{lex}
-	for line := par.parseFunctionBody(); line != nil; line = par.parseFunctionBody() {
-		fmt.Println(line.String())
+	for line, eof := par.ParseTopLevel(); !eof; line, eof = par.ParseTopLevel() {
+		if line == nil {
+			continue
+		}
+
+		fmt.Printf("%v\n", line.String())
 	}
-	lex = LexerFromFilename(fileName)
 }

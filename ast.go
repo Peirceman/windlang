@@ -12,14 +12,23 @@ type AstNode interface {
 	String() string
 }
 
-// //////////////
-// Expression //
-// //////////////
-type Expression interface {
-	String() string
+/////////////////
+//  Expression //
+/////////////////
+
+type ExpressionNode struct {
+	expr Expression
 }
 
-var _ AstNode = (Expression)(nil)
+func (e ExpressionNode) String() string {
+	return e.expr.string() + ";"
+}
+
+type Expression interface {
+	string() string
+}
+
+var _ AstNode = (*ExpressionNode)(nil)
 
 type IntLit struct {
 	value int
@@ -33,16 +42,46 @@ type FloatLit struct {
 
 var _ Expression = (*FloatLit)(nil)
 
+type StrLit struct {
+	value    string
+	litteral string
+}
+
+var _ Expression = (*StrLit)(nil)
+
+type CharLit struct {
+	value    rune
+	litteral string
+}
+
+var _ Expression = (*CharLit)(nil)
+
+type BoolLit struct {
+	value bool
+}
+
+var _ Expression = (*BoolLit)(nil)
+
 type VarLit struct {
-	varname string
+	varname Identifier
 }
 
 var _ Expression = (*VarLit)(nil)
 
+type FuncCall struct {
+	funcName Identifier
+	Args     []Expression
+}
+
+var _ Expression = (*FuncCall)(nil)
+
+// TODO: use Assignment struct instead of binary op for assignment
 type Assignment struct {
 	name  Identifier
 	value Expression
 }
+
+var _ Expression = (*Assignment)(nil)
 
 type BinaryOp int
 
@@ -91,7 +130,7 @@ type BinaryOpNode struct {
 
 var _ Expression = (*BinaryOpNode)(nil)
 
-func (b BinaryOp) String() string {
+func (b BinaryOp) string() string {
 	if BOCount != 27 {
 		panic("Binary Opperation enum length changed")
 	}
@@ -266,7 +305,7 @@ func (t TokenType) TokenTypeToBinOp() BinaryOp {
 		panic("Binary opperation enum length changed")
 	}
 
-	if TTCount != 58 {
+	if TTCount != 59 {
 		panic("Token type enum length changed")
 	}
 
@@ -330,31 +369,70 @@ func (t TokenType) TokenTypeToBinOp() BinaryOp {
 	return -1
 }
 
-var _ Expression = (*Assignment)(nil)
-
-func (i IntLit) String() string {
+func (i IntLit) string() string {
 	return strconv.Itoa(i.value)
 }
 
-func (f FloatLit) String() string {
+func (f FloatLit) string() string {
 	return f.value
 }
 
-func (v VarLit) String() string {
-	return v.varname
+func (f StrLit) string() string {
+	return f.litteral
 }
 
-func (c Assignment) String() string {
-	return string(c.name) + " = " + c.value.String() + ";"
+func (f CharLit) string() string {
+	return f.litteral
 }
 
-func (b BinaryOpNode) String() string {
-	return "(" + b.lhs.String() + " " + b.op.String() + " " + b.rhs.String() + ")"
+func (f BoolLit) string() string {
+	if f.value {
+		return "true"
+	}
+
+	return "false"
+}
+
+func (v VarLit) string() string {
+	return string(v.varname)
+}
+
+func (f FuncCall) string() string {
+	sb := strings.Builder{}
+	sb.WriteString(string(f.funcName))
+	sb.WriteRune('(')
+
+	if len(f.Args) > 0 {
+		sb.WriteString(f.Args[0].string())
+
+		for _, arg := range f.Args[1:] {
+			sb.WriteString(", ")
+			sb.WriteString(arg.string())
+		}
+
+	}
+
+	sb.WriteRune(')')
+
+	return sb.String()
+}
+
+func (c Assignment) string() string {
+	return string(c.name) + " = " + c.value.string()
+}
+
+func (b BinaryOpNode) string() string {
+	return "(" + b.lhs.string() + " " + b.op.string() + " " + b.rhs.string() + ")"
 }
 
 ////////////////////
 // End Expression //
 ////////////////////
+
+type Var struct {
+	name Identifier
+	typ  Type
+}
 
 type ConstNode struct {
 	name  Identifier
@@ -372,34 +450,113 @@ type VarNode struct {
 
 var _ AstNode = (*VarNode)(nil)
 
+type FnNode struct {
+	name       Identifier
+	Args       []Var
+	returnType Type
+	body       CodeBlockNode
+}
+
+var _ AstNode = (*FnNode)(nil)
+
+type ReturnNode struct {
+	expr Expression
+}
+
+var _ AstNode = (*ReturnNode)(nil)
+
 type CodeBlockNode struct {
 	Statements []AstNode
 }
+
+var _ AstNode = (*CodeBlockNode)(nil)
 
 type IfChain struct {
 	ifCondition    Expression
 	ifStatement    CodeBlockNode
 	elifConditions []Expression
-	elifStatement  []CodeBlockNode
-	elseCondition  Expression // nil if no else condition
+	elifStatements []CodeBlockNode
+	hasElse        bool
 	elseStatement  CodeBlockNode
 }
 
 var _ AstNode = (*IfChain)(nil)
 
 func (c ConstNode) String() string {
-	return "const " + string(c.name) + ": " + string(c.typ) + " = " + c.value.String() + ";"
+	return "const " + string(c.name) + ": " + string(c.typ) + " = " + c.value.string() + ";"
 }
 
-func (c VarNode) String() string {
-	return "var " + string(c.name) + ": " + string(c.typ) + " = " + c.value.String() + ";"
+func (v VarNode) String() string {
+	return "var " + string(v.name) + ": " + string(v.typ) + " = " + v.value.string() + ";"
+}
+
+func (f FnNode) String() string {
+	sb := strings.Builder{}
+
+	sb.WriteString("fn ")
+	sb.WriteString(string(f.name))
+	sb.WriteRune('(')
+
+	if len(f.Args) > 0 {
+		sb.WriteString(string(f.Args[0].name))
+		sb.WriteString(": ")
+		sb.WriteString(string(f.Args[0].typ))
+		for _, arg := range f.Args[1:] {
+			sb.WriteString(", ")
+			sb.WriteString(string(arg.name))
+			sb.WriteString(": ")
+			sb.WriteString(string(arg.typ))
+		}
+	}
+
+	sb.WriteRune(')')
+
+	if f.returnType != "" {
+		sb.WriteString(": ")
+		sb.WriteString(string(f.returnType))
+		sb.WriteRune(' ')
+	}
+
+	sb.WriteString(f.body.String())
+
+	return sb.String()
+}
+
+func (r ReturnNode) String() string {
+	return "return " + r.expr.string() + ";"
+}
+
+func (b CodeBlockNode) String() string {
+	sb := strings.Builder{}
+	sb.WriteRune('{')
+	for _, node := range b.Statements {
+		sb.WriteString("\n\t")
+		sb.WriteString(strings.ReplaceAll(node.String(), "\n", "\n\t"))
+	}
+	sb.WriteString("\n}")
+
+	return sb.String()
 }
 
 func (c IfChain) String() string {
 	sb := strings.Builder{}
+
 	sb.WriteString("if ")
-	sb.WriteString(c.ifCondition.String())
-	sb.WriteString("{\n\t")
+	sb.WriteString(c.ifCondition.string())
+	sb.WriteString(" ")
+	sb.WriteString(c.ifStatement.String())
+
+	for i := range c.elifConditions {
+		sb.WriteString(" elif ")
+		sb.WriteString(c.elifConditions[i].string())
+		sb.WriteString(" ")
+		sb.WriteString(c.elifStatements[i].String())
+	}
+
+	if c.hasElse {
+		sb.WriteString(" else ")
+		sb.WriteString(c.elseStatement.String())
+	}
 
 	return sb.String()
 }

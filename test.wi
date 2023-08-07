@@ -1,22 +1,26 @@
 /* this is a block comment
  * it can go on multiple lines
  */
-const αConst: int = 69;
-var a: int = 0x1A4;
-
-a = αConst * 3 + 1;
-
-// line comment
-if a == 50 {
-	io.print(50);
-} elif a != 30 {
-	print(!true);
-} else {
-	print('\x41');
-}
-
-fn get(ints: int[], idx: int): int {
-	return ints[idx];
-}
 
 var str: string = "\u0009string\n\tmulti line";
+
+fn main() {
+	const αConst: int = 69;
+	var a: int = 0x1A4;
+
+	a = αConst * 3 + 1.0;
+
+	// line comment
+	if a == 50 {
+		println("value of a:", 50);
+	} elif a != 30 {
+		a += 3;
+	} else {
+		print('\x41');
+	}
+}
+
+fn get(ints: int, idx: int): int {
+	return ints+idx;
+}
+

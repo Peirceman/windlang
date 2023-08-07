@@ -14,12 +14,14 @@ type NextRuneFunc func() (r rune, eof bool)
 
 type Lexer struct {
 	nextRuneFunc   NextRuneFunc
+	curLoc         Location
 	peekedRune     rune
 	peekEOF        bool
 	hasPeekedRune  bool
 	peekedToken    *Token
 	hasPeekedToken bool
-	curLoc         Location
+	idx            int
+	tokens         []Token
 }
 
 func ReaderRuneReader(r *bufio.Reader) NextRuneFunc {
@@ -49,17 +51,22 @@ func LexerFromFilename(filename string) *Lexer {
 
 	r := bufio.NewReader(f)
 
-	return &Lexer{
-		nextRuneFunc: ReaderRuneReader(r),
-		curLoc:       Location{filename, 1, 1},
-	}
+	return NewLexer(ReaderRuneReader(r), Location{filename, 1, 1})
 }
 
 func LexerFromString(str string) *Lexer {
-	return &Lexer{
-		nextRuneFunc: StringRuneReader(str),
-		curLoc:       Location{"--", 1, 1},
+	return NewLexer(StringRuneReader(str), Location{"--", 1, 1})
+}
+
+func NewLexer(nextRuneFunc NextRuneFunc, loc Location) *Lexer {
+	lex := &Lexer{
+		nextRuneFunc: nextRuneFunc,
+		curLoc:       loc,
 	}
+
+	lex.readAllTokens()
+
+	return lex
 }
 
 func (l *Lexer) peekRune() (rune, bool) {
@@ -98,12 +105,32 @@ func (l *Lexer) skipWhitespace() {
 }
 
 func (l *Lexer) NextToken() *Token {
-	l.PeekToken()
+	l.PeekToken_()
 	l.hasPeekedToken = false
 	return l.peekedToken
 }
 
+func (l *Lexer) readAllTokens() {
+	return
+	tok := l.NextToken()
+	for ; tok.typ != TTEOF; tok = l.NextToken() {
+		l.tokens = append(l.tokens, *tok)
+	}
+
+	l.tokens = append(l.tokens, *tok)
+}
+
 func (l *Lexer) PeekToken() *Token {
+	return &l.tokens[l.idx]
+}
+
+func (l *Lexer) NextToken__() *Token {
+	tok := &l.tokens[l.idx]
+	l.idx++
+	return tok
+}
+
+func (l *Lexer) PeekToken_() *Token {
 	if l.hasPeekedToken {
 		return l.peekedToken
 	}
@@ -123,7 +150,7 @@ func (l *Lexer) PeekToken() *Token {
 		return l.peekedToken
 	}
 
-	if TTCount != 58 {
+	if TTCount != 59 {
 		panic("TokenType enum length changed: " + strconv.Itoa(int(TTCount)))
 	}
 
@@ -423,13 +450,13 @@ func (l *Lexer) readStringLitteral() (string, string) {
 					panic(l.curLoc.String() + " unterminated char litteral") // TODO: better error handling
 				}
 
-				val, contains := decimalCharset[r]
+				val, contains := hexCharset[r]
 				if !contains {
 					panic(l.curLoc.String() + " illegal char in escape sequence") // TODO: better error handling
 				}
 
 				litteral.WriteRune(r)
-				codepoint = codepoint*10 + rune(val)
+				codepoint = codepoint*16 + rune(val)
 			}
 
 			text.WriteRune(codepoint)
@@ -541,12 +568,12 @@ func (l *Lexer) readCharLitteral() (string, rune) {
 					panic(l.curLoc.String() + " unterminated char litteral") // TODO: better error handling
 				}
 
-				val, contains := decimalCharset[r]
+				val, contains := hexCharset[r]
 				if !contains {
 					panic(l.curLoc.String() + " illegal char in escape sequence") // TODO: better error handling
 				}
 
-				codepoint = codepoint*10 + rune(val)
+				codepoint = codepoint*16 + rune(val)
 				litteral.WriteRune(r)
 			}
 
@@ -613,12 +640,12 @@ func (l *Lexer) readAfterDigit() *Token {
 	tokenText := strings.Builder{}
 	tok := &Token{
 		loc: l.curLoc,
-		typ: TTNumber,
 	}
 
 	var charsetName string = "decimal"
 	var charset map[rune]int = decimalCharset
 	var contains bool
+	isDecimal := true
 
 	r, _ := l.nextRune() // cannot be eof, because this function would otherwise not be called
 	tokenText.WriteRune(r)
@@ -634,12 +661,15 @@ func (l *Lexer) readAfterDigit() *Token {
 		case 'b':
 			charsetName = "binary"
 			charset = binaryCharset
+			isDecimal = false
 		case 'o':
 			charsetName = "octal"
 			charset = octalCharset
+			isDecimal = false
 		case 'x':
 			charsetName = "hex"
 			charset = hexCharset
+			isDecimal = false
 		default:
 			if _, contains = charset[r]; !contains {
 				tok.literal = tokenText.String()
@@ -653,9 +683,17 @@ func (l *Lexer) readAfterDigit() *Token {
 
 	r, eof := l.peekRune()
 	_, contains = charset[r]
-	for !eof && contains {
+	hasDecimalPoint := false
+	for !eof && (contains || r == '.' && isDecimal) {
 		l.nextRune()
 		tokenText.WriteRune(r)
+		if r == '.' {
+			if hasDecimalPoint {
+				panic(l.curLoc.String() + ": Error: to many decimal points in number")
+			}
+
+			hasDecimalPoint = true
+		}
 
 		r, eof = l.peekRune()
 		_, contains = charset[r]
@@ -663,6 +701,12 @@ func (l *Lexer) readAfterDigit() *Token {
 
 	if _, contains := decimalCharset[r]; !eof && contains {
 		panic(fmt.Sprintf(l.curLoc.String()+" illegal digit `"+string(r)+"` in %s literal", charsetName)) // TODO: better error handling
+	}
+
+	if hasDecimalPoint {
+		tok.typ = TTFloat
+	} else {
+		tok.typ = TTInt
 	}
 
 	tok.literal = tokenText.String()

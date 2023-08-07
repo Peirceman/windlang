@@ -88,7 +88,8 @@ const (
 	// text
 
 	TTIdentifier
-	TTNumber
+	TTInt
+	TTFloat
 	TTComment
 
 	TTChar
@@ -98,7 +99,7 @@ const (
 )
 
 func (t TokenType) String() string {
-	if TTCount != 58 {
+	if TTCount != 59 {
 		panic("Token Type count changed")
 	}
 
@@ -211,8 +212,10 @@ func (t TokenType) String() string {
 		return "TTRSquirly"
 	case TTIdentifier:
 		return "TTIdentifier"
-	case TTNumber:
-		return "TTNumber"
+	case TTInt:
+		return "TTInt"
+	case TTFloat:
+		return "TTFloat"
 	case TTComment:
 		return "TTComment"
 	case TTChar:
@@ -225,7 +228,7 @@ func (t TokenType) String() string {
 }
 
 func (t TokenType) SymbolToString() string {
-	if TTCount != 58 {
+	if TTCount != 59 {
 		panic("Token Type count changed")
 	}
 
