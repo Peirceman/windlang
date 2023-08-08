@@ -12,9 +12,9 @@ type AstNode interface {
 	String() string
 }
 
-//////////////////////
-// Start Expression //
-//////////////////////
+/////////////////
+//  Expression //
+/////////////////
 
 type ExpressionNode struct {
 	expr Expression
@@ -74,6 +74,14 @@ type FuncCall struct {
 }
 
 var _ Expression = (*FuncCall)(nil)
+
+// TODO: use Assignment struct instead of binary op for assignment
+type Assignment struct {
+	name  Identifier
+	value Expression
+}
+
+var _ Expression = (*Assignment)(nil)
 
 type BinaryOp int
 
@@ -356,9 +364,9 @@ func (t TokenType) TokenTypeToBinOp() BinaryOp {
 		return BOEquals
 	case TTNotEqual:
 		return BONotEqual
-	default:
-		return -1
 	}
+
+	return -1
 }
 
 func (i IntLit) string() string {
@@ -407,6 +415,10 @@ func (f FuncCall) string() string {
 	sb.WriteRune(')')
 
 	return sb.String()
+}
+
+func (c Assignment) string() string {
+	return string(c.name) + " = " + c.value.string()
 }
 
 func (b BinaryOpNode) string() string {
