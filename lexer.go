@@ -20,6 +20,7 @@ type Lexer struct {
 
 	curLoc Location
 	idx    int
+	marks  []int
 	tokens []Token
 }
 
@@ -124,8 +125,18 @@ func (l *Lexer) NextToken() *Token {
 	return tok
 }
 
+func (l *Lexer) SetMark() {
+	l.marks = append(l.marks, l.idx)
+}
+
+func (l *Lexer) ToMark() {
+	l.idx = l.marks[len(l.marks)-1]
+	l.marks = l.marks[:len(l.marks)-1]
+}
+
 func (l *Lexer) Reset() {
 	l.idx = 0
+	l.marks = []int{}
 	l.curLoc = l.tokens[0].loc
 }
 

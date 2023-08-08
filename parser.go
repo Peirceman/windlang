@@ -265,6 +265,39 @@ func (p *Parser) parseBinary(precedence int) Expression {
 		return p.parseUnary()
 	}
 
+	/*
+		if precedence == BOAssign.Precedence() {
+			p.lex.SetMark()
+			lhs := p.parseUnary()
+			if lhs == nil {
+				return nil
+			}
+
+			tok := p.lex.PeekToken()
+			binop := tok.typ.TokenTypeToBinOp()
+
+			// if it is an assignment opperator
+			if binop != -1 && binop.Precedence() == precedence {
+				fmt.Printf("unary: %s, %T\n", lhs.string(), lhs)
+				fmt.Println(binop.string())
+				if _, ok := lhs.(VarLit); !ok {
+					panic(p.lex.curLoc.String() + ": Error: cannot assign to non variable") // TODO: better error handling
+				}
+			} else {
+				fmt.Printf("fake unary: %s, %T\n", lhs.string(), lhs)
+				if binop != -1 {
+					fmt.Println(binop.string())
+				}
+				p.lex.ToMark()
+				lhs = p.parseBinary(precedence + 1)
+				if lhs == nil {
+					return nil
+				}
+			}
+			return nil
+		}
+	*/
+
 	lhs := p.parseBinary(precedence + 1)
 	if lhs == nil {
 		return nil
@@ -277,6 +310,14 @@ func (p *Parser) parseBinary(precedence int) Expression {
 			p.lex.NextToken()
 			if tok.typ == TTComment {
 				continue
+			}
+
+			if precedence == BOAssign.Precedence() {
+				switch lhs.(type) {
+				case VarLit:
+				default:
+					panic(tok.loc.String() + ": Error: can only assign to variable") // TODO: better error handling
+				}
 			}
 
 			rhs := p.parseBinary(precedence + 1)
@@ -296,6 +337,14 @@ func (p *Parser) parseBinary(precedence int) Expression {
 			rhs := p.parseBinary(precedence)
 			if rhs == nil {
 				panic(p.lex.curLoc.String() + " opperand expected") // TODO: better error handling
+			}
+
+			if precedence == BOAssign.Precedence() {
+				switch lhs.(type) {
+				case VarLit:
+				default:
+					panic(tok.loc.String() + ": Error: can only assign to variable") // TODO: better error handling
+				}
 			}
 
 			lhs = BinaryOpNode{lhs, rhs, opp}
@@ -374,10 +423,7 @@ func (p *Parser) parsePrimary() Expression {
 		p.lex.NextToken()
 		result := p.parseBinary(0)
 
-		if p.lex.NextToken().typ != TTRBrace {
-			panic(p.lex.curLoc.String() + " `)` expected") // TODO: better error handling
-		}
-
+		p.expect(TTRBrace)
 		return result
 
 	case TTComment:
