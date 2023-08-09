@@ -121,7 +121,10 @@ func (l *Lexer) PeekToken() *Token {
 
 func (l *Lexer) NextToken() *Token {
 	tok := &l.tokens[l.idx]
-	l.idx++
+	if l.idx < len(l.tokens)-1 {
+		l.idx++
+	}
+
 	l.curLoc = l.tokens[l.idx].loc
 	return tok
 }

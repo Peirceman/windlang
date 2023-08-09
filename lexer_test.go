@@ -29,9 +29,7 @@ fn get(ints: int[], idx: int): int {
 var str: string = "\u0009string\n\tmulti line";
 `
 
-	i := 0
 	expected := []Token{
-		{typ: TTComment, loc: Location{"--", 1, 1}, literal: "/* this is a block comment\n * it can go on multiple lines\n */"},
 		{typ: TTConst, loc: Location{"--", 4, 1}, literal: "const"},
 		{typ: TTIdentifier, loc: Location{"--", 4, 7}, literal: "αConst"},
 		{typ: TTColon, loc: Location{"--", 4, 13}, literal: ":"},
@@ -48,13 +46,12 @@ var str: string = "\u0009string\n\tmulti line";
 		{typ: TTSemiColon, loc: Location{"--", 5, 19}, literal: ";"},
 		{typ: TTIdentifier, loc: Location{"--", 7, 1}, literal: "a"},
 		{typ: TTAssign, loc: Location{"--", 7, 3}, literal: "="},
-		{typ: TTIdentifier, loc: Location{"--", 7, 5}, literal: "aConst"},
+		{typ: TTIdentifier, loc: Location{"--", 7, 5}, literal: "αConst"},
 		{typ: TTStar, loc: Location{"--", 7, 12}, literal: "*"},
 		{typ: TTInt, loc: Location{"--", 7, 14}, literal: "3"},
 		{typ: TTPlus, loc: Location{"--", 7, 16}, literal: "+"},
 		{typ: TTInt, loc: Location{"--", 7, 18}, literal: "1"},
 		{typ: TTSemiColon, loc: Location{"--", 7, 19}, literal: ";"},
-		{typ: TTComment, loc: Location{"--", 9, 1}, literal: "// line comment"},
 		{typ: TTIf, loc: Location{"--", 10, 1}, literal: "if"},
 		{typ: TTIdentifier, loc: Location{"--", 10, 4}, literal: "a"},
 		{typ: TTEqual, loc: Location{"--", 10, 6}, literal: "=="},
@@ -123,7 +120,7 @@ var str: string = "\u0009string\n\tmulti line";
 
 	lex := LexerFromString(code)
 	exitNext := false
-	for tok := lex.nextToken(); !exitNext; tok, i = lex.nextToken(), i+1 {
+	for tok, i := lex.NextToken(), 0; !exitNext; tok, i = lex.NextToken(), i+1 {
 		if *tok != expected[i] {
 			t.Logf("expected `%s`, but got `%s`", expected[i].String(), tok.String())
 			t.Fail()
@@ -140,7 +137,6 @@ func TestLexer_2(t *testing.T) {
 *=
 /=`
 
-	i := 0
 	expected := []Token{
 		{typ: TTPlus, loc: Location{"--", 1, 1}, literal: "+"},
 		{typ: TTDash, loc: Location{"--", 1, 2}, literal: "-"},
@@ -154,12 +150,11 @@ func TestLexer_2(t *testing.T) {
 
 	lex := LexerFromString(code)
 	exitNext := false
-	for tok := lex.nextToken(); !exitNext; tok, i = lex.nextToken(), i+1 {
+	for tok, i := lex.NextToken(), 0; !exitNext; tok, i = lex.NextToken(), i+1 {
+		exitNext = tok.typ == TTEOF
 		if *tok != expected[i] {
 			t.Logf("expected `%s`, but got `%s`", expected[i].String(), tok.String())
 			t.Fail()
 		}
-
-		exitNext = tok.typ == TTEOF
 	}
 }
