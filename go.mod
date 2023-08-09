@@ -1,3 +1,3 @@
-module github.com/Peirceman/my_programming_language
+module github.com/Peirceman/windlang
 
 go 1.20
