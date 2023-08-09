@@ -284,6 +284,14 @@ func (p *Parser) parseBinary(precedence int) Expression {
 				panic(p.lex.curLoc.String() + " opperand expected") // TODO: better error handling
 			}
 
+			if precedence == BOAssign.Precedence() {
+				switch lhs.(type) {
+				case VarLit:
+				default:
+					panic(p.lex.curLoc.String() + " Error: can only assign to variable")
+				}
+			}
+
 			lhs = BinaryOpNode{lhs, rhs, opp}
 			tok = p.lex.PeekToken()
 			opp = tok.typ.TokenTypeToBinOp()
@@ -296,6 +304,14 @@ func (p *Parser) parseBinary(precedence int) Expression {
 			rhs := p.parseBinary(precedence)
 			if rhs == nil {
 				panic(p.lex.curLoc.String() + " opperand expected") // TODO: better error handling
+			}
+
+			if precedence == BOAssign.Precedence() {
+				switch lhs.(type) {
+				case VarLit:
+				default:
+					panic(p.lex.curLoc.String() + " Error: can only assign to variable")
+				}
 			}
 
 			lhs = BinaryOpNode{lhs, rhs, opp}
