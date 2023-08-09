@@ -265,39 +265,6 @@ func (p *Parser) parseBinary(precedence int) Expression {
 		return p.parseUnary()
 	}
 
-	/*
-		if precedence == BOAssign.Precedence() {
-			p.lex.SetMark()
-			lhs := p.parseUnary()
-			if lhs == nil {
-				return nil
-			}
-
-			tok := p.lex.PeekToken()
-			binop := tok.typ.TokenTypeToBinOp()
-
-			// if it is an assignment opperator
-			if binop != -1 && binop.Precedence() == precedence {
-				fmt.Printf("unary: %s, %T\n", lhs.string(), lhs)
-				fmt.Println(binop.string())
-				if _, ok := lhs.(VarLit); !ok {
-					panic(p.lex.curLoc.String() + ": Error: cannot assign to non variable") // TODO: better error handling
-				}
-			} else {
-				fmt.Printf("fake unary: %s, %T\n", lhs.string(), lhs)
-				if binop != -1 {
-					fmt.Println(binop.string())
-				}
-				p.lex.ToMark()
-				lhs = p.parseBinary(precedence + 1)
-				if lhs == nil {
-					return nil
-				}
-			}
-			return nil
-		}
-	*/
-
 	lhs := p.parseBinary(precedence + 1)
 	if lhs == nil {
 		return nil
