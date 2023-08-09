@@ -123,9 +123,9 @@ func (l *Lexer) NextToken() *Token {
 	tok := &l.tokens[l.idx]
 	if l.idx < len(l.tokens)-1 {
 		l.idx++
+		l.curLoc = l.tokens[l.idx].loc
 	}
 
-	l.curLoc = l.tokens[l.idx].loc
 	return tok
 }
 

@@ -2,6 +2,14 @@
 
 ## a language I am creating for fun
 
+## Todo:
+ - [ ] testing:  
+    use testdata dir with files for files to parse and expected output
+ - [ ] checking definition for vars / scoping
+ - [ ] checking return type of expressions
+ - [ ] first codegen
+ - [ ] fix the rest of this readme
+
 ## spec:
 
 ### keywords
