@@ -7,10 +7,11 @@
     use testdata dir with files for files to parse and expected output
  - [ ] checking definition for vars / scoping
  - [ ] checking return type of expressions
- - [ ] first codegen
+ - [ ] codegen
  - [ ] fix the rest of this readme
+ - [ ] add type modifiers: array, pointer
 
-## spec:
+# spec:
 
 ### keywords
 ```

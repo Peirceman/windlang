@@ -18,9 +18,18 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 	case TTConst:
 		p.lex.NextToken()
 		nameToken := p.expect(TTIdentifier)
-		_ = p.expect(TTColon)
+		p.expect(TTColon)
 		typeToken := p.expect(TTIdentifier)
-		_ = p.expect(TTAssign)
+
+		if tok := p.lex.PeekToken(); tok.typ != TTAssign {
+			p.expect(TTSemiColon)
+			return ConstNode{
+				name: Identifier(nameToken.literal),
+				typ:  Type(typeToken.literal),
+			}, false
+		}
+
+		p.expect(TTAssign)
 
 		node := ConstNode{
 			name:  Identifier(nameToken.literal),
@@ -35,9 +44,18 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 	case TTVar:
 		p.lex.NextToken()
 		nameToken := p.expect(TTIdentifier)
-		_ = p.expect(TTColon)
+		p.expect(TTColon)
 		typeToken := p.expect(TTIdentifier)
-		_ = p.expect(TTAssign)
+
+		if tok := p.lex.PeekToken(); tok.typ != TTAssign {
+			p.expect(TTSemiColon)
+			return VarNode{
+				name: Identifier(nameToken.literal),
+				typ:  Type(typeToken.literal),
+			}, false
+		}
+
+		p.expect(TTAssign)
 
 		node := VarNode{
 			name:  Identifier(nameToken.literal),
@@ -72,6 +90,15 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 		nameToken := p.expect(TTIdentifier)
 		p.expect(TTColon)
 		typeToken := p.expect(TTIdentifier)
+
+		if tok := p.lex.PeekToken(); tok.typ != TTAssign {
+			p.expect(TTSemiColon)
+			return ConstNode{
+				name: Identifier(nameToken.literal),
+				typ:  Type(typeToken.literal),
+			}, false
+		}
+
 		p.expect(TTAssign)
 
 		node := ConstNode{
@@ -89,6 +116,15 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 		nameToken := p.expect(TTIdentifier)
 		p.expect(TTColon)
 		typeToken := p.expect(TTIdentifier)
+
+		if tok := p.lex.PeekToken(); tok.typ != TTAssign {
+			p.expect(TTSemiColon)
+			return VarNode{
+				name: Identifier(nameToken.literal),
+				typ:  Type(typeToken.literal),
+			}, false
+		}
+
 		p.expect(TTAssign)
 
 		node := VarNode{
@@ -193,9 +229,9 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 	panic(tok.String() + " syntax error ") // TODO: better error handling
 }
 
-func (p *Parser) parseFunc() (FnNode, bool) {
+func (p *Parser) parseFunc() (FuncNode, bool) {
 	p.lex.NextToken()
-	node := FnNode{}
+	node := FuncNode{}
 
 	node.name = Identifier(p.expect(TTIdentifier).literal)
 	p.expect(TTLBrace)

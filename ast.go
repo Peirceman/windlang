@@ -429,6 +429,14 @@ func (b BinaryOpNode) string() string {
 // End Expression //
 ////////////////////
 
+type Scope struct {
+	vars  VarScope
+	funcs FuncScope
+}
+
+type VarScope map[Identifier]Var
+type FuncScope map[Identifier]FuncNode
+
 type Var struct {
 	name Identifier
 	typ  Type
@@ -450,14 +458,14 @@ type VarNode struct {
 
 var _ AstNode = (*VarNode)(nil)
 
-type FnNode struct {
+type FuncNode struct {
 	name       Identifier
 	Args       []Var
 	returnType Type
 	body       CodeBlockNode
 }
 
-var _ AstNode = (*FnNode)(nil)
+var _ AstNode = (*FuncNode)(nil)
 
 type ReturnNode struct {
 	expr Expression
@@ -485,14 +493,20 @@ type IfChain struct {
 var _ AstNode = (*IfChain)(nil)
 
 func (c ConstNode) String() string {
+	if c.value == nil {
+		return "const " + string(c.name) + ": " + string(c.typ) + ";"
+	}
 	return "const " + string(c.name) + ": " + string(c.typ) + " = " + c.value.string() + ";"
 }
 
 func (v VarNode) String() string {
+	if v.value == nil {
+		return "var " + string(v.name) + ": " + string(v.typ) + ";"
+	}
 	return "var " + string(v.name) + ": " + string(v.typ) + " = " + v.value.string() + ";"
 }
 
-func (f FnNode) String() string {
+func (f FuncNode) String() string {
 	sb := strings.Builder{}
 
 	sb.WriteString("fn ")

@@ -3,6 +3,7 @@
  */
 
 var str: string = "\u0009string\n\tmulti line";
+var something: bool;
 
 fn get(ints: int, idx: int): int {
 	return ints+idx;
