@@ -53,10 +53,6 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 	case TTType:
 		panic("not implemented")
 
-	case TTComment: // skip token
-		p.lex.NextToken()
-		return nil, false
-
 	case TTEOF:
 		return nil, true
 	}
@@ -141,7 +137,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 
 		return node, false
 
-	case TTSemiColon, TTComment: // skip token
+	case TTSemiColon: // skip token
 		p.lex.NextToken()
 		return nil, false
 
@@ -273,11 +269,8 @@ func (p *Parser) parseBinary(precedence int) Expression {
 	if LeftToRight(precedence) {
 		tok := p.lex.PeekToken()
 		opp := tok.typ.TokenTypeToBinOp()
-		for (tok != nil && tok.typ != TTEOF && opp != -1 && opp.Precedence() == precedence) || tok.typ == TTComment {
+		for tok != nil && tok.typ != TTEOF && opp != -1 && opp.Precedence() == precedence {
 			p.lex.NextToken()
-			if tok.typ == TTComment {
-				continue
-			}
 
 			rhs := p.parseBinary(precedence + 1)
 			if rhs == nil {
@@ -395,10 +388,6 @@ func (p *Parser) parsePrimary() Expression {
 		}
 
 		return result
-
-	case TTComment:
-		p.lex.NextToken()
-		return p.parsePrimary()
 	}
 
 	panic(p.lex.NextToken().String() + " illegal token") // TODO: better error handling

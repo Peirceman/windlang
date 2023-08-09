@@ -106,7 +106,9 @@ func (l *Lexer) skipWhitespace() {
 func (l *Lexer) readAllTokens() {
 	tok := l.nextToken()
 	for ; tok.typ != TTEOF; tok = l.nextToken() {
-		l.tokens = append(l.tokens, *tok)
+		if tok.typ != TTComment {
+			l.tokens = append(l.tokens, *tok)
+		}
 	}
 
 	l.tokens = append(l.tokens, *tok)

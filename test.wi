@@ -4,6 +4,10 @@
 
 var str: string = "\u0009string\n\tmulti line";
 
+fn get(ints: int, idx: int): int {
+	return ints+idx;
+}
+
 fn main() {
 	const αConst: int = 69;
 	var a: int = 0x1A4;
@@ -15,12 +19,12 @@ fn main() {
 		println("value of a:", 50);
 	} elif a != 30 {
 		a += 3;
+		println(string);
 	} else {
-		print('\x41');
+		print('\x41' /* dikke neuke */ );
 	}
-}
 
-fn get(ints: int, idx: int): int {
-	return ints+idx;
+	var ints: int = 1 + // nikke deuke
+	1;
+	println("ints[a] =", get(ints, a), "| a =", a);
 }
-
