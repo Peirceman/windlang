@@ -5,7 +5,62 @@ import (
 )
 
 type Parser struct {
-	lex *Lexer
+	lex          *Lexer
+	currentScope []*Scope
+}
+
+func ParserFromFilename(filename string) *Parser {
+	return &Parser{
+		lex: LexerFromFilename(filename),
+		currentScope: []*Scope{
+			{make(VarScope), make(ConstScope), make(FuncScope)},
+		},
+	}
+}
+
+func ParserFromString(str string) *Parser {
+	return &Parser{
+		lex: LexerFromString(str),
+		currentScope: []*Scope{
+			{make(VarScope), make(ConstScope), make(FuncScope)},
+		},
+	}
+}
+
+func (p *Parser) get(iden Identifier) any {
+	for i := len(p.currentScope) - 1; i >= 0; i-- {
+		if p.currentScope[i].Contains(iden) {
+			return p.currentScope[i].Get(iden)
+		}
+	}
+
+	return nil
+}
+
+func (p *Parser) exists(iden Identifier) bool {
+	for i := len(p.currentScope) - 1; i >= 0; i-- {
+		if p.currentScope[i].Contains(iden) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (p *Parser) defined(iden Identifier) bool {
+	return p.currentScope[len(p.currentScope)-1].Contains(iden)
+}
+
+func (p *Parser) addVar(v Var) {
+	p.currentScope[len(p.currentScope)-1].AddVar(v)
+}
+
+func (p *Parser) addConst(c Const) {
+	p.currentScope[len(p.currentScope)-1].AddConst(c)
+}
+
+func (p *Parser) addFunc(f Func) {
+	p.currentScope[len(p.currentScope)-1].AddFunc(f)
 }
 
 func (p *Parser) ParseTopLevel() (AstNode, bool) {
@@ -17,52 +72,80 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 	switch tok.typ {
 	case TTConst:
 		p.lex.NextToken()
-		nameToken := p.expect(TTIdentifier)
+		name := p.expect(TTIdentifier)
 		p.expect(TTColon)
-		typeToken := p.expect(TTIdentifier)
+		typ := p.expect(TTIdentifier)
 
 		if tok := p.lex.PeekToken(); tok.typ != TTAssign {
 			p.expect(TTSemiColon)
-			return ConstNode{
-				name: Identifier(nameToken.literal),
-				typ:  Type(typeToken.literal),
-			}, false
+
+			if p.defined(Identifier(name.literal)) {
+				panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
+			}
+
+			node := ConstNode{
+				name: Identifier(name.literal),
+				typ:  Type(typ.literal),
+			}
+
+			p.addConst(Const{node.name, node.typ})
+
+			return node, false
 		}
 
 		p.expect(TTAssign)
 
 		node := ConstNode{
-			name:  Identifier(nameToken.literal),
-			typ:   Type(typeToken.literal),
-			value: p.parseExpression(),
+			name:  Identifier(name.literal),
+			typ:   Type(typ.literal),
+			Value: p.parseExpression(),
 		}
 
 		p.expect(TTSemiColon)
+
+		if p.defined(Identifier(name.literal)) {
+			panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
+		}
+
+		p.addConst(Const{node.name, node.typ})
 
 		return node, false
 
 	case TTVar:
 		p.lex.NextToken()
-		nameToken := p.expect(TTIdentifier)
+		name := p.expect(TTIdentifier)
 		p.expect(TTColon)
-		typeToken := p.expect(TTIdentifier)
+		typ := p.expect(TTIdentifier)
 
 		if tok := p.lex.PeekToken(); tok.typ != TTAssign {
 			p.expect(TTSemiColon)
-			return VarNode{
-				name: Identifier(nameToken.literal),
-				typ:  Type(typeToken.literal),
-			}, false
+			if p.defined(Identifier(name.literal)) {
+				panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
+			}
+			node := VarNode{
+				name: Identifier(name.literal),
+				typ:  Type(typ.literal),
+			}
+
+			p.addVar(Var{node.name, node.typ})
+
+			return node, false
 		}
 
 		p.expect(TTAssign)
 
 		node := VarNode{
-			name:  Identifier(nameToken.literal),
-			typ:   Type(typeToken.literal),
-			value: p.parseExpression(),
+			name:  Identifier(name.literal),
+			typ:   Type(typ.literal),
+			Value: p.parseExpression(),
 		}
 		p.expect(TTSemiColon)
+
+		if p.defined(Identifier(name.literal)) {
+			panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
+		}
+
+		p.addVar(Var{node.name, node.typ})
 
 		return node, false
 
@@ -87,54 +170,74 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 	switch tok.typ {
 	case TTConst:
 		p.lex.NextToken()
-		nameToken := p.expect(TTIdentifier)
+		name := p.expect(TTIdentifier)
 		p.expect(TTColon)
-		typeToken := p.expect(TTIdentifier)
+		typ := p.expect(TTIdentifier)
 
 		if tok := p.lex.PeekToken(); tok.typ != TTAssign {
 			p.expect(TTSemiColon)
-			return ConstNode{
-				name: Identifier(nameToken.literal),
-				typ:  Type(typeToken.literal),
-			}, false
+			if p.defined(Identifier(name.literal)) {
+				panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
+			}
+			node := ConstNode{
+				name: Identifier(name.literal),
+				typ:  Type(typ.literal),
+			}
+
+			p.addConst(Const{node.name, node.typ})
+
+			return node, false
 		}
 
 		p.expect(TTAssign)
 
 		node := ConstNode{
-			name:  Identifier(nameToken.literal),
-			typ:   Type(typeToken.literal),
-			value: p.parseExpression(),
+			name:  Identifier(name.literal),
+			typ:   Type(typ.literal),
+			Value: p.parseExpression(),
 		}
 
 		p.expect(TTSemiColon)
 
+		if p.defined(Identifier(name.literal)) {
+			panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
+		}
+
+		p.addConst(Const{node.name, node.typ})
 		return node, false
 
 	case TTVar:
 		p.lex.NextToken()
-		nameToken := p.expect(TTIdentifier)
+		name := p.expect(TTIdentifier)
 		p.expect(TTColon)
-		typeToken := p.expect(TTIdentifier)
+		typ := p.expect(TTIdentifier)
 
 		if tok := p.lex.PeekToken(); tok.typ != TTAssign {
 			p.expect(TTSemiColon)
+			if p.defined(Identifier(name.literal)) {
+				panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
+			}
 			return VarNode{
-				name: Identifier(nameToken.literal),
-				typ:  Type(typeToken.literal),
+				name: Identifier(name.literal),
+				typ:  Type(typ.literal),
 			}, false
 		}
 
 		p.expect(TTAssign)
 
 		node := VarNode{
-			name:  Identifier(nameToken.literal),
-			typ:   Type(typeToken.literal),
-			value: p.parseExpression(),
+			name:  Identifier(name.literal),
+			typ:   Type(typ.literal),
+			Value: p.parseExpression(),
 		}
 
 		p.expect(TTSemiColon)
 
+		if p.defined(Identifier(name.literal)) {
+			panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
+		}
+
+		p.addVar(Var{node.name, node.typ})
 		return node, false
 
 	case TTFn:
@@ -149,22 +252,8 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 
 	case TTLSquirly:
 		p.lex.NextToken()
-		block := CodeBlockNode{make([]AstNode, 0)}
-
-		for tok := p.lex.PeekToken(); tok.typ != TTEOF && tok.typ != TTRSquirly; tok = p.lex.PeekToken() {
-			statement, eof := p.parseFunctionBody()
-			if eof {
-				panic(tok.loc.String() + " `}` excpected")
-			}
-			if statement == nil {
-				continue
-			}
-			block.Statements = append(block.Statements, statement)
-		}
-
-		block.Statements = block.Statements[:len(block.Statements):len(block.Statements)]
-		p.expect(TTRSquirly)
-		return block, false
+		scope := Scope{make(VarScope), make(ConstScope), make(FuncScope)}
+		return p.parseCodeBlock(scope)
 
 	case TTIdentifier:
 		node := ExpressionNode{p.parseExpression()}
@@ -180,7 +269,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 	case TTIf:
 		p.lex.NextToken()
 		node := IfChain{}
-		node.ifCondition = p.parseExpression()
+		node.IfCondition = p.parseExpression()
 		p.expectPeek(TTLSquirly)
 
 		statements, eof := p.parseFunctionBody()
@@ -188,13 +277,13 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 			panic("unreachable")
 		}
 
-		node.ifStatement = statements.(CodeBlockNode)
+		node.IfStatement = statements.(CodeBlockNode)
 
 		for nextToken := p.lex.PeekToken(); nextToken.typ == TTElif; nextToken = p.lex.PeekToken() {
 			p.lex.NextToken()
 
 			condition := p.parseExpression()
-			node.elifConditions = append(node.elifConditions, condition)
+			node.ElifConditions = append(node.ElifConditions, condition)
 
 			p.expectPeek(TTLSquirly)
 
@@ -203,7 +292,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 				panic("unreachable")
 			}
 
-			node.elifStatements = append(node.elifStatements, statements.(CodeBlockNode))
+			node.ElifStatements = append(node.ElifStatements, statements.(CodeBlockNode))
 		}
 
 		if nextToken := p.lex.PeekToken(); nextToken != nil && nextToken.typ == TTElse {
@@ -217,7 +306,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 				panic("unreachable")
 			}
 
-			node.elseStatement = statements.(CodeBlockNode)
+			node.ElseStatement = statements.(CodeBlockNode)
 		}
 
 		return node, false
@@ -229,12 +318,51 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 	panic(tok.String() + " syntax error ") // TODO: better error handling
 }
 
+func (p *Parser) parseCodeBlock(scope Scope) (CodeBlockNode, bool) {
+	var block CodeBlockNode
+
+	// if scope is empty
+	if scope.vars == nil {
+		block = CodeBlockNode{make([]AstNode, 0), Scope{make(VarScope), make(ConstScope), make(FuncScope)}}
+	} else {
+		block = CodeBlockNode{make([]AstNode, 0), scope}
+	}
+
+	p.currentScope = append(p.currentScope, &block.scope)
+
+	for tok := p.lex.PeekToken(); tok.typ != TTEOF && tok.typ != TTRSquirly; tok = p.lex.PeekToken() {
+		statement, eof := p.parseFunctionBody()
+		if eof {
+			panic(tok.loc.String() + " `}` excpected")
+		}
+
+		if statement == nil {
+			continue
+		}
+
+		block.Statements = append(block.Statements, statement)
+	}
+
+	block.Statements = block.Statements[:len(block.Statements):len(block.Statements)]
+	p.expect(TTRSquirly)
+
+	p.currentScope = p.currentScope[:len(p.currentScope)-1]
+
+	return block, false
+}
+
 func (p *Parser) parseFunc() (FuncNode, bool) {
 	p.lex.NextToken()
 	node := FuncNode{}
 
-	node.name = Identifier(p.expect(TTIdentifier).literal)
+	name := p.expect(TTIdentifier)
+	node.name = Identifier(name.literal)
+	if p.defined(node.name) {
+		panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
+	}
+
 	p.expect(TTLBrace)
+	scope := Scope{make(VarScope), make(ConstScope), make(FuncScope)}
 
 	for tok := p.lex.PeekToken(); tok != nil && tok.typ != TTRBrace; tok = p.lex.PeekToken() {
 		arg := Var{}
@@ -245,6 +373,7 @@ func (p *Parser) parseFunc() (FuncNode, bool) {
 		arg.typ = Type(p.expect(TTIdentifier).literal)
 
 		node.Args = append(node.Args, arg)
+		scope.AddVar(arg)
 
 		tok = p.lex.PeekToken()
 		if tok == nil || tok.typ != TTComma {
@@ -262,10 +391,12 @@ func (p *Parser) parseFunc() (FuncNode, bool) {
 		node.returnType = Type(p.lex.NextToken().literal)
 	}
 
-	p.expectPeek(TTLSquirly)
+	p.expect(TTLSquirly)
 
-	body, eof := p.parseFunctionBody()
-	node.body = body.(CodeBlockNode)
+	body, eof := p.parseCodeBlock(scope)
+	node.Body = body
+
+	p.addFunc(Func{node.name, node.Args, node.returnType})
 
 	return node, eof
 }

@@ -17,11 +17,11 @@ type AstNode interface {
 /////////////////
 
 type ExpressionNode struct {
-	expr Expression
+	Expr Expression
 }
 
 func (e ExpressionNode) String() string {
-	return e.expr.string() + ";"
+	return e.Expr.string() + ";"
 }
 
 type Expression interface {
@@ -124,13 +124,13 @@ const (
 )
 
 type BinaryOpNode struct {
-	lhs, rhs Expression
-	op       BinaryOp
+	Lhs, Rhs Expression
+	Op       BinaryOp
 }
 
 var _ Expression = (*BinaryOpNode)(nil)
 
-func (b BinaryOp) string() string {
+func (b BinaryOp) String() string {
 	if BOCount != 27 {
 		panic("Binary Opperation enum length changed")
 	}
@@ -422,30 +422,43 @@ func (c Assignment) string() string {
 }
 
 func (b BinaryOpNode) string() string {
-	return "(" + b.lhs.string() + " " + b.op.string() + " " + b.rhs.string() + ")"
+	return "(" + b.Lhs.string() + " " + b.Op.String() + " " + b.Rhs.string() + ")"
 }
 
 ////////////////////
 // End Expression //
 ////////////////////
 
-type Scope struct {
-	vars  VarScope
-	funcs FuncScope
-}
-
+type ConstScope map[Identifier]Const
 type VarScope map[Identifier]Var
-type FuncScope map[Identifier]FuncNode
+type FuncScope map[Identifier]Func
+
+type Scope struct {
+	vars   VarScope
+	consts ConstScope
+	Funcs  FuncScope
+}
 
 type Var struct {
 	name Identifier
 	typ  Type
 }
 
+type Const struct {
+	name Identifier
+	typ  Type
+}
+
+type Func struct {
+	name       Identifier
+	Args       []Var
+	returnType Type
+}
+
 type ConstNode struct {
 	name  Identifier
 	typ   Type
-	value Expression
+	Value Expression
 }
 
 var _ AstNode = (*ConstNode)(nil)
@@ -453,7 +466,7 @@ var _ AstNode = (*ConstNode)(nil)
 type VarNode struct {
 	name  Identifier
 	typ   Type
-	value Expression
+	Value Expression
 }
 
 var _ AstNode = (*VarNode)(nil)
@@ -462,48 +475,93 @@ type FuncNode struct {
 	name       Identifier
 	Args       []Var
 	returnType Type
-	body       CodeBlockNode
+	Body       CodeBlockNode
 }
 
 var _ AstNode = (*FuncNode)(nil)
 
 type ReturnNode struct {
-	expr Expression
+	Expr Expression
 }
 
 var _ AstNode = (*ReturnNode)(nil)
 
 type CodeBlockNode struct {
 	Statements []AstNode
+	scope      Scope
 }
 
 var _ AstNode = (*CodeBlockNode)(nil)
 
 type IfChain struct {
-	ifCondition Expression
-	ifStatement CodeBlockNode
+	IfCondition Expression
+	IfStatement CodeBlockNode
 
-	elifConditions []Expression
-	elifStatements []CodeBlockNode
+	ElifConditions []Expression
+	ElifStatements []CodeBlockNode
 
 	hasElse       bool
-	elseStatement CodeBlockNode
+	ElseStatement CodeBlockNode
 }
 
 var _ AstNode = (*IfChain)(nil)
 
+func (s *Scope) Contains(iden Identifier) bool {
+	if _, contains := s.vars[iden]; contains {
+		return true
+	}
+
+	if _, contains := s.consts[iden]; contains {
+		return true
+	}
+
+	if _, contains := s.Funcs[iden]; contains {
+		return true
+	}
+
+	return false
+}
+
+func (s *Scope) Get(iden Identifier) any {
+	if val, contains := s.vars[iden]; contains {
+		return val
+	}
+
+	if val, contains := s.consts[iden]; contains {
+		return val
+	}
+
+	if val, contains := s.Funcs[iden]; contains {
+		return val
+	}
+
+	return nil
+}
+
+func (s *Scope) AddVar(v Var) {
+	s.vars[v.name] = v
+}
+
+func (s *Scope) AddConst(c Const) {
+	s.consts[c.name] = c
+}
+
+func (s *Scope) AddFunc(f Func) {
+	s.Funcs[f.name] = f
+}
+
 func (c ConstNode) String() string {
-	if c.value == nil {
+	if c.Value == nil {
 		return "const " + string(c.name) + ": " + string(c.typ) + ";"
 	}
-	return "const " + string(c.name) + ": " + string(c.typ) + " = " + c.value.string() + ";"
+	return "const " + string(c.name) + ": " + string(c.typ) + " = " + c.Value.string() + ";"
 }
 
 func (v VarNode) String() string {
-	if v.value == nil {
+	if v.Value == nil {
 		return "var " + string(v.name) + ": " + string(v.typ) + ";"
 	}
-	return "var " + string(v.name) + ": " + string(v.typ) + " = " + v.value.string() + ";"
+	return "var " + string(v.name) + ": " + string(v.typ) + " = " + v.Value.string() + ";"
 }
 
 func (f FuncNode) String() string {
@@ -533,13 +591,13 @@ func (f FuncNode) String() string {
 	}
 
 	sb.WriteRune(' ')
-	sb.WriteString(f.body.String())
+	sb.WriteString(f.Body.String())
 
 	return sb.String()
 }
 
 func (r ReturnNode) String() string {
-	return "return " + r.expr.string() + ";"
+	return "return " + r.Expr.string() + ";"
 }
 
 func (b CodeBlockNode) String() string {
@@ -558,20 +616,20 @@ func (c IfChain) String() string {
 	sb := strings.Builder{}
 
 	sb.WriteString("if ")
-	sb.WriteString(c.ifCondition.string())
+	sb.WriteString(c.IfCondition.string())
 	sb.WriteString(" ")
-	sb.WriteString(c.ifStatement.String())
+	sb.WriteString(c.IfStatement.String())
 
-	for i := range c.elifConditions {
+	for i := range c.ElifConditions {
 		sb.WriteString(" elif ")
-		sb.WriteString(c.elifConditions[i].string())
+		sb.WriteString(c.ElifConditions[i].string())
 		sb.WriteString(" ")
-		sb.WriteString(c.elifStatements[i].String())
+		sb.WriteString(c.ElifStatements[i].String())
 	}
 
 	if c.hasElse {
 		sb.WriteString(" else ")
-		sb.WriteString(c.elseStatement.String())
+		sb.WriteString(c.ElseStatement.String())
 	}
 
 	return sb.String()
