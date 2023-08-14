@@ -5,8 +5,41 @@ import (
 	"strings"
 )
 
+type Kind int
+
+const (
+	KindInvalid Kind = iota
+	KindInt
+	KindFloat
+	KindBool
+	KindString
+	KindCount
+)
+
+func KindFromString(str string) Kind {
+	if KindCount != 5 {
+		panic("Kind enum length changed: " + strconv.Itoa(int(KindCount)))
+	}
+
+	switch str {
+	case "int":
+		return KindInt
+	case "float":
+		return KindFloat
+	case "bool":
+		return KindBool
+	case "string":
+		return KindString
+	}
+
+	return KindInvalid
+}
+
 type Identifier string
-type Type Identifier
+type Type struct {
+	kind Kind
+	name Identifier // unused until user-defined types exist
+}
 
 type AstNode interface {
 	String() string
@@ -552,16 +585,16 @@ func (s *Scope) AddFunc(f Func) {
 
 func (c ConstNode) String() string {
 	if c.Value == nil {
-		return "const " + string(c.name) + ": " + string(c.typ) + ";"
+		return "const " + string(c.name) + ": " + string(c.typ.name) + ";"
 	}
-	return "const " + string(c.name) + ": " + string(c.typ) + " = " + c.Value.string() + ";"
+	return "const " + string(c.name) + ": " + string(c.typ.name) + " = " + c.Value.string() + ";"
 }
 
 func (v VarNode) String() string {
 	if v.Value == nil {
-		return "var " + string(v.name) + ": " + string(v.typ) + ";"
+		return "var " + string(v.name) + ": " + string(v.typ.name) + ";"
 	}
-	return "var " + string(v.name) + ": " + string(v.typ) + " = " + v.Value.string() + ";"
+	return "var " + string(v.name) + ": " + string(v.typ.name) + " = " + v.Value.string() + ";"
 }
 
 func (f FuncNode) String() string {
@@ -574,20 +607,20 @@ func (f FuncNode) String() string {
 	if len(f.Args) > 0 {
 		sb.WriteString(string(f.Args[0].name))
 		sb.WriteString(": ")
-		sb.WriteString(string(f.Args[0].typ))
+		sb.WriteString(string(f.Args[0].typ.name))
 		for _, arg := range f.Args[1:] {
 			sb.WriteString(", ")
 			sb.WriteString(string(arg.name))
 			sb.WriteString(": ")
-			sb.WriteString(string(arg.typ))
+			sb.WriteString(string(arg.typ.name))
 		}
 	}
 
 	sb.WriteRune(')')
 
-	if f.returnType != "" {
+	if f.returnType.kind != KindInvalid {
 		sb.WriteString(": ")
-		sb.WriteString(string(f.returnType))
+		sb.WriteString(string(f.returnType.name))
 	}
 
 	sb.WriteRune(' ')

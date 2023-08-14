@@ -13,7 +13,7 @@ type Token struct {
 	typ       TokenType
 	loc       Location
 	literal   string
-	extraInfo any // optional extra info
+	extraInfo any // optional
 }
 
 const (

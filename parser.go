@@ -85,7 +85,7 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 
 			node := ConstNode{
 				name: Identifier(name.literal),
-				typ:  Type(typ.literal),
+				typ:  Type{KindFromString(typ.literal), Identifier(typ.literal)},
 			}
 
 			p.addConst(Const{node.name, node.typ})
@@ -97,7 +97,7 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 
 		node := ConstNode{
 			name:  Identifier(name.literal),
-			typ:   Type(typ.literal),
+			typ:   Type{KindFromString(typ.literal), Identifier(typ.literal)},
 			Value: p.parseExpression(),
 		}
 
@@ -124,7 +124,7 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 			}
 			node := VarNode{
 				name: Identifier(name.literal),
-				typ:  Type(typ.literal),
+				typ:  Type{KindFromString(typ.literal), Identifier(typ.literal)},
 			}
 
 			p.addVar(Var{node.name, node.typ})
@@ -136,7 +136,7 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 
 		node := VarNode{
 			name:  Identifier(name.literal),
-			typ:   Type(typ.literal),
+			typ:   Type{KindFromString(typ.literal), Identifier(typ.literal)},
 			Value: p.parseExpression(),
 		}
 		p.expect(TTSemiColon)
@@ -181,7 +181,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 			}
 			node := ConstNode{
 				name: Identifier(name.literal),
-				typ:  Type(typ.literal),
+				typ:  Type{KindFromString(typ.literal), Identifier(typ.literal)},
 			}
 
 			p.addConst(Const{node.name, node.typ})
@@ -193,7 +193,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 
 		node := ConstNode{
 			name:  Identifier(name.literal),
-			typ:   Type(typ.literal),
+			typ:   Type{KindFromString(typ.literal), Identifier(typ.literal)},
 			Value: p.parseExpression(),
 		}
 
@@ -219,7 +219,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 			}
 			return VarNode{
 				name: Identifier(name.literal),
-				typ:  Type(typ.literal),
+				typ:  Type{KindFromString(typ.literal), Identifier(typ.literal)},
 			}, false
 		}
 
@@ -227,7 +227,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 
 		node := VarNode{
 			name:  Identifier(name.literal),
-			typ:   Type(typ.literal),
+			typ:   Type{KindFromString(typ.literal), Identifier(typ.literal)},
 			Value: p.parseExpression(),
 		}
 
@@ -370,7 +370,8 @@ func (p *Parser) parseFunc() (FuncNode, bool) {
 
 		p.expect(TTColon)
 
-		arg.typ = Type(p.expect(TTIdentifier).literal)
+		arg.typ.name = Identifier(p.expect(TTIdentifier).literal)
+		arg.typ.kind = KindFromString(string(arg.typ.name))
 
 		node.Args = append(node.Args, arg)
 		scope.AddVar(arg)
@@ -388,7 +389,8 @@ func (p *Parser) parseFunc() (FuncNode, bool) {
 	tok := p.lex.PeekToken()
 	if tok.typ == TTColon {
 		p.lex.NextToken()
-		node.returnType = Type(p.lex.NextToken().literal)
+		node.returnType.name = Identifier(p.lex.NextToken().literal)
+		node.returnType.kind = KindFromString(string(node.returnType.name))
 	}
 
 	p.expect(TTLSquirly)
