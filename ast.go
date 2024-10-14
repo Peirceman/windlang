@@ -9,29 +9,40 @@ import (
 type Kind int
 
 const (
-	KindVoid Kind = iota
-	KindInt
-	KindFloat
-	KindBool
-	KindString
+	KindVoid Kind = 0
 
-	KindCount
+	// TODO: update string Kind when pointer and array types are implemented
+	KindInt        Kind = 0x1
+	KindFloat      Kind = 0x2
+	KindBool       Kind = 0x4 // always 32bits
+	KindString     Kind = 0x8 // always 64bits
+	KindTypeMask   Kind = 0xf
+	KindNumberMask Kind = 0x3
+	Kind8          Kind = 0x10
+	Kind16         Kind = 0x20
+	Kind32         Kind = 0x40
+	Kind64         Kind = 0x80
+	KindSizeMask   Kind = 0xf0
 )
 
 func KindFromString(str string) Kind {
-	if KindCount != 5 {
-		panic("Kind enum length changed: " + strconv.Itoa(int(KindCount)))
-	}
-
 	switch str {
-	case "int":
-		return KindInt
-	case "float":
-		return KindFloat
+	case "int8":
+		return KindInt | Kind8
+	case "int16":
+		return KindInt | Kind16
+	case "int32":
+		return KindInt | Kind32
+	case "int64", "int":
+		return KindInt | Kind64
+	case "float32":
+		return KindFloat | Kind32
+	case "float64", "float":
+		return KindFloat | Kind64
 	case "bool":
-		return KindBool
+		return KindBool | Kind32
 	case "string":
-		return KindString
+		return KindString | Kind64
 	default:
 		return KindVoid
 	}
@@ -39,17 +50,31 @@ func KindFromString(str string) Kind {
 }
 
 func (k Kind) String() string {
-	if KindCount != 5 {
-		panic("Kind enum length changed: " + strconv.Itoa(int(KindCount)))
-	}
-
-	switch k {
+	switch k & KindTypeMask {
 	case KindVoid:
 		return "void"
 	case KindInt:
-		return "int"
+		switch k & KindSizeMask {
+		case Kind8:
+			return "int8"
+		case Kind16:
+			return "int16"
+		case Kind32:
+			return "int32"
+		case Kind64:
+			return "int64"
+		default:
+			panic("unreachable " + strconv.Itoa(int(k)))
+		}
 	case KindFloat:
-		return "float"
+		switch k & KindSizeMask {
+		case Kind32:
+			return "float32"
+		case Kind64:
+			return "float64"
+		default:
+			panic("unreachable")
+		}
 	case KindBool:
 		return "bool"
 	case KindString:
@@ -201,6 +226,10 @@ func NewBinaryOpNode(lhs, rhs Expression, op BinaryOp) (BinaryOpNode, error) {
 		return BinaryOpNode{}, errors.New("lhs and rhs types dont match: " + lhs.returnType().kind.String() + " " + rhs.returnType().kind.String())
 	}
 
+	if !op.InputAllowed(lhs.returnType().kind) {
+		return BinaryOpNode{}, errors.New("invalid opperation " + op.String() + " on " + lhs.returnType().kind.String())
+	}
+
 	return BinaryOpNode{lhs, rhs, op}, nil
 }
 
@@ -343,6 +372,135 @@ func (b BinaryOp) Precedence() int {
 	panic("illegal")
 }
 
+func (b BinaryOp) InputAllowed(input Kind) bool {
+	if BOCount != 27 {
+		panic("Binary Opperation enum length changed")
+	}
+
+	switch b {
+	case BOPlus:
+		return input&KindNumberMask != 0
+	case BOMinus:
+		return input&KindNumberMask != 0
+	case BOMul:
+		return input&KindNumberMask != 0
+	case BODiv:
+		return input&KindNumberMask != 0
+	case BOBinAnd:
+		return input&KindInt != 0
+	case BOBinOr:
+		return input&KindInt != 0
+	case BOBinXor:
+		return input&KindInt != 0
+	case BOBoolAnd:
+		return input&KindBool != 0
+	case BOBoolOr:
+		return input&KindBool != 0
+	case BOShl:
+		return input&KindInt != 0
+	case BOShr:
+		return input&KindInt != 0
+	case BOGt:
+		return input&KindInt != 0
+	case BOLt:
+		return input&KindInt != 0
+	case BOGtEq:
+		return input&KindInt != 0
+	case BOLtEq:
+		return input&KindInt != 0
+	case BOEquals:
+		return true
+	case BONotEqual:
+		return true
+	case BOAssign:
+		return true
+	case BOPlusAssign:
+		return input&KindNumberMask != 0
+	case BODashAssign:
+		return input&KindNumberMask != 0
+	case BOStarAssign:
+		return input&KindNumberMask != 0
+	case BOSlashAssign:
+		return input&KindNumberMask != 0
+	case BoAndAssign:
+		return input&KindInt != 0
+	case BoOrAssign:
+		return input&KindInt != 0
+	case BoXorAssign:
+		return input&KindInt != 0
+	case BOShrAssign:
+		return input&KindInt != 0
+	case BOShlAssign:
+		return input&KindInt != 0
+	}
+
+	panic("illegal")
+}
+func (b BinaryOp) returnType(input Kind) Kind {
+	if BOCount != 27 {
+		panic("Binary Opperation enum length changed")
+	}
+
+	switch b {
+	case BOPlus:
+		return input
+	case BOMinus:
+		return input
+	case BOMul:
+		return input
+	case BODiv:
+		return input
+	case BOBinAnd:
+		return input
+	case BOBinOr:
+		return input
+	case BOBinXor:
+		return input
+	case BOBoolAnd:
+		return input
+	case BOBoolOr:
+		return input
+	case BOShl:
+		return input
+	case BOShr:
+		return input
+	case BOGt:
+		return KindBool & Kind32
+	case BOLt:
+		return KindBool & Kind32
+	case BOGtEq:
+		return KindBool & Kind32
+	case BOLtEq:
+		return KindBool & Kind32
+	case BOEquals:
+		return KindBool & Kind32
+	case BONotEqual:
+		return KindBool & Kind32
+	case BOAssign:
+		return input
+	case BOPlusAssign:
+		return input
+	case BODashAssign:
+		return input
+	case BOStarAssign:
+		return input
+	case BOSlashAssign:
+		return input
+	case BoAndAssign:
+		return input
+	case BoOrAssign:
+		return input
+	case BoXorAssign:
+		return input
+	case BOShrAssign:
+		return input
+	case BOShlAssign:
+		return input
+	}
+
+	panic("illegal")
+}
+
 func LeftToRight(precedence int) bool {
 	switch precedence {
 	case 0:
@@ -448,7 +606,8 @@ func (i IntLit) string() string {
 }
 
 func (i IntLit) returnType() Type {
-	return Type{KindInt, Identifier(KindInt.String())}
+	kind := KindInt | Kind64
+	return Type{kind, Identifier(kind.String())}
 }
 
 func (f FloatLit) string() string {
@@ -456,7 +615,8 @@ func (f FloatLit) string() string {
 }
 
 func (i FloatLit) returnType() Type {
-	return Type{KindFloat, Identifier(KindFloat.String())}
+	kind := KindFloat | Kind64
+	return Type{kind, Identifier(kind.String())}
 }
 
 func (f StrLit) string() string {
@@ -464,7 +624,8 @@ func (f StrLit) string() string {
 }
 
 func (i StrLit) returnType() Type {
-	return Type{KindString, Identifier(KindString.String())}
+	kind := KindString | Kind64
+	return Type{kind, Identifier(kind.String())}
 }
 
 func (f CharLit) string() string {
@@ -472,7 +633,8 @@ func (f CharLit) string() string {
 }
 
 func (i CharLit) returnType() Type {
-	return Type{KindInt, Identifier(KindInt.String())}
+	kind := KindInt | Kind32
+	return Type{kind, Identifier(kind.String())}
 }
 
 func (f BoolLit) string() string {
@@ -484,7 +646,8 @@ func (f BoolLit) string() string {
 }
 
 func (f BoolLit) returnType() Type {
-	return Type{KindBool, Identifier(KindBool.String())}
+	kind := KindBool | Kind32
+	return Type{kind, Identifier(kind.String())}
 }
 
 func (v Var) string() string {
@@ -539,7 +702,8 @@ func (b BinaryOpNode) string() string {
 }
 
 func (b BinaryOpNode) returnType() Type {
-	return b.Lhs.returnType()
+	kind := b.Op.returnType(b.Lhs.returnType().kind)
+	return Type{kind, Identifier(kind.String())}
 }
 
 ////////////////////

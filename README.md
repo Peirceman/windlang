@@ -5,7 +5,6 @@
 ## Todo:
  - [ ] testing:  
     use testdata dir with files for files to parse and expected output
- - [ ] checking return type of expressions
  - [ ] codegen
  - [ ] fix the rest of this readme
  - [ ] add type modifiers: array, pointer

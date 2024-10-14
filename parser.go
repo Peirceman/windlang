@@ -503,6 +503,7 @@ func (p *Parser) parseBinary(precedence int) Expression {
 			var err error
 			lhs, err = NewBinaryOpNode(lhs, rhs, opp)
 			if err != nil {
+				fmt.Println(opp.String())
 				panic(p.lex.curLoc.String() + err.Error()) // TODO: better error handling
 			}
 
