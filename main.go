@@ -8,7 +8,6 @@ import (
 )
 
 func main() {
-
 	fileName := os.Args[1]
 
 	par := ParserFromFilename(fileName)
@@ -17,7 +16,7 @@ func main() {
 			continue
 		}
 
-		fmt.Printf("%v\n", line.String())
+		fmt.Println(line.String())
 		// PPrintln(line)
 		fmt.Println()
 	}
@@ -33,11 +32,6 @@ func PPrintln(a any) {
 func pPrint(val reflect.Value, indent int) {
 	if val.Type().Name() == "BinaryOp" {
 		fmt.Print(val.MethodByName("String").Call(nil))
-		return
-	}
-
-	if val.IsZero() {
-		fmt.Print("nil")
 		return
 	}
 
@@ -70,7 +64,8 @@ func pPrint(val reflect.Value, indent int) {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		fmt.Print(val.Int())
 
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+	case reflect.Uint, reflect.Uint8, reflect.Uint16,
+		reflect.Uint32, reflect.Uint64, reflect.Uintptr:
 		fmt.Print(val.Uint())
 
 	case reflect.Float32, reflect.Float64:
@@ -100,8 +95,8 @@ func pPrint(val reflect.Value, indent int) {
 			fmt.Printf("\n%s", ind2)
 		}
 
-		for i := 1; i < length; i++ {
-			pPrint(val.Index(i-1), indent)
+		for i := 0; i < length-1; i++ {
+			pPrint(val.Index(i), indent)
 			if length < newlineLength {
 				fmt.Print(", ")
 			} else {
@@ -109,7 +104,9 @@ func pPrint(val reflect.Value, indent int) {
 			}
 		}
 
-		pPrint(val.Index(length-1), indent)
+		if length >= 1 {
+			pPrint(val.Index(length-1), indent)
+		}
 
 		if length >= newlineLength {
 			fmt.Printf(",\n%s", ind)

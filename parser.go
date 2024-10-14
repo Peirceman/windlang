@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strconv"
 )
 
@@ -9,22 +10,43 @@ type Parser struct {
 	currentScope []*Scope
 }
 
-func ParserFromFilename(filename string) *Parser {
-	return &Parser{
+func ParserFromFilename(filename string) (p *Parser) {
+	p = &Parser{
 		lex: LexerFromFilename(filename),
 		currentScope: []*Scope{
 			{make(VarScope), make(ConstScope), make(FuncScope)},
 		},
 	}
+
+	p.addBuiltIns()
+
+	return
 }
 
-func ParserFromString(str string) *Parser {
-	return &Parser{
+func ParserFromString(str string) (p *Parser) {
+	p = &Parser{
 		lex: LexerFromString(str),
 		currentScope: []*Scope{
 			{make(VarScope), make(ConstScope), make(FuncScope)},
 		},
 	}
+	p.addBuiltIns()
+
+	return
+}
+
+func (p *Parser) addBuiltIns() {
+	p.addFunc(Func{
+		"println",
+		[]Var{{"str", Type{KindString, Identifier(KindString.String())}}},
+		Type{},
+	})
+
+	p.addFunc(Func{
+		"print",
+		[]Var{{"str", Type{KindString, Identifier(KindString.String())}}},
+		Type{},
+	})
 }
 
 func (p *Parser) get(iden Identifier) any {
@@ -252,8 +274,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 
 	case TTLSquirly:
 		p.lex.NextToken()
-		scope := Scope{make(VarScope), make(ConstScope), make(FuncScope)}
-		return p.parseCodeBlock(scope)
+		return p.parseCodeBlock()
 
 	case TTIdentifier:
 		node := ExpressionNode{p.parseExpression()}
@@ -318,16 +339,8 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 	panic(tok.String() + " syntax error ") // TODO: better error handling
 }
 
-func (p *Parser) parseCodeBlock(scope Scope) (CodeBlockNode, bool) {
-	var block CodeBlockNode
-
-	// if scope is empty
-	if scope.vars == nil {
-		block = CodeBlockNode{make([]AstNode, 0), Scope{make(VarScope), make(ConstScope), make(FuncScope)}}
-	} else {
-		block = CodeBlockNode{make([]AstNode, 0), scope}
-	}
-
+func (p *Parser) parseCodeBlock() (CodeBlockNode, bool) {
+	block := CodeBlockNode{make([]AstNode, 0), Scope{make(VarScope), make(ConstScope), make(FuncScope)}}
 	p.currentScope = append(p.currentScope, &block.scope)
 
 	for tok := p.lex.PeekToken(); tok.typ != TTEOF && tok.typ != TTRSquirly; tok = p.lex.PeekToken() {
@@ -395,8 +408,12 @@ func (p *Parser) parseFunc() (FuncNode, bool) {
 
 	p.expect(TTLSquirly)
 
-	body, eof := p.parseCodeBlock(scope)
+	p.currentScope = append(p.currentScope, &scope)
+
+	body, eof := p.parseCodeBlock()
 	node.Body = body
+
+	p.currentScope = p.currentScope[:len(p.currentScope)-1]
 
 	p.addFunc(Func{node.name, node.Args, node.returnType})
 
@@ -430,6 +447,7 @@ func (p *Parser) parseBinary(precedence int) Expression {
 		return p.parseUnary()
 	}
 
+	loc := p.lex.curLoc;
 	lhs := p.parseBinary(precedence + 1)
 	if lhs == nil {
 		return nil
@@ -448,13 +466,19 @@ func (p *Parser) parseBinary(precedence int) Expression {
 
 			if precedence == BOAssign.Precedence() {
 				switch lhs.(type) {
-				case VarLit:
+				case Var:
 				default:
-					panic(p.lex.curLoc.String() + " Error: can only assign to variable")
+					panic(p.lex.curLoc.String() + " Error: can only assign to variable") // TODO: better error handling
 				}
 			}
 
-			lhs = BinaryOpNode{lhs, rhs, opp}
+			var err error
+			lhs, err = NewBinaryOpNode(lhs, rhs, opp)
+			if err != nil {
+				fmt.Println(opp.String())
+				panic(loc.String() + err.Error()) // TODO: better error handling
+			}
+
 			tok = p.lex.PeekToken()
 			opp = tok.typ.TokenTypeToBinOp()
 		}
@@ -465,18 +489,23 @@ func (p *Parser) parseBinary(precedence int) Expression {
 			p.lex.NextToken()
 			rhs := p.parseBinary(precedence)
 			if rhs == nil {
-				panic(p.lex.curLoc.String() + " opperand expected") // TODO: better error handling
+				panic(loc.String() + " opperand expected") // TODO: better error handling
 			}
 
 			if precedence == BOAssign.Precedence() {
 				switch lhs.(type) {
-				case VarLit:
+				case Var:
 				default:
-					panic(p.lex.curLoc.String() + " Error: can only assign to variable")
+					panic(p.lex.curLoc.String() + " Error: can only assign to variable") // TODO: better error handling
 				}
 			}
 
-			lhs = BinaryOpNode{lhs, rhs, opp}
+			var err error
+			lhs, err = NewBinaryOpNode(lhs, rhs, opp)
+			if err != nil {
+				panic(p.lex.curLoc.String() + err.Error()) // TODO: better error handling
+			}
+
 			tok = p.lex.PeekToken()
 			opp = tok.typ.TokenTypeToBinOp()
 		}
@@ -499,12 +528,34 @@ func (p *Parser) parsePrimary() Expression {
 	switch tok.typ {
 	case TTIdentifier:
 		p.lex.NextToken()
-
-		if next := p.lex.PeekToken(); next == nil || next.typ != TTLBrace {
-			return VarLit{Identifier(tok.literal)}
+		if !p.exists(Identifier(tok.literal)) {
+			panic(tok.loc.String() + " Undefinded name: " + tok.literal)
 		}
 
-		expr := FuncCall{funcName: Identifier(tok.literal)}
+		if next := p.lex.PeekToken(); next == nil || next.typ != TTLBrace {
+			switch val := p.get(Identifier(tok.literal)); val.(type) {
+			case Var:
+				return val.(Var)
+			case Const:
+				return val.(Const)
+			case Func:
+				return val.(Func)
+			default:
+				panic("unreachable")
+			}
+		}
+
+		funcName := Identifier(tok.literal)
+
+		expr := FuncCall{}
+		switch val := p.get(funcName); val.(type) {
+		case Func:
+			expr.fun = val.(Func)
+		default:
+			p.lex.NextToken()
+			fmt.Println(val)
+			panic(p.lex.curLoc.String() + " Can only call functions")
+		}
 
 		p.lex.NextToken() // always`(` because of if condition
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 )
@@ -8,11 +9,12 @@ import (
 type Kind int
 
 const (
-	KindInvalid Kind = iota
+	KindVoid Kind = iota
 	KindInt
 	KindFloat
 	KindBool
 	KindString
+
 	KindCount
 )
 
@@ -30,9 +32,31 @@ func KindFromString(str string) Kind {
 		return KindBool
 	case "string":
 		return KindString
+	default:
+		return KindVoid
 	}
 
-	return KindInvalid
+}
+
+func (k Kind) String() string {
+	if KindCount != 5 {
+		panic("Kind enum length changed: " + strconv.Itoa(int(KindCount)))
+	}
+
+	switch k {
+	case KindVoid:
+		return "void"
+	case KindInt:
+		return "int"
+	case KindFloat:
+		return "float"
+	case KindBool:
+		return "bool"
+	case KindString:
+		return "string"
+	default:
+		panic("unreachable")
+	}
 }
 
 type Identifier string
@@ -57,11 +81,12 @@ func (e ExpressionNode) String() string {
 	return e.Expr.string() + ";"
 }
 
+var _ AstNode = (*ExpressionNode)(nil)
+
 type Expression interface {
 	string() string
+	returnType() Type
 }
-
-var _ AstNode = (*ExpressionNode)(nil)
 
 type IntLit struct {
 	value int
@@ -95,26 +120,34 @@ type BoolLit struct {
 
 var _ Expression = (*BoolLit)(nil)
 
-type VarLit struct {
-	varname Identifier
+type Var struct {
+	name Identifier
+	typ  Type
 }
 
-var _ Expression = (*VarLit)(nil)
+var _ Expression = (*Var)(nil)
+
+type Const struct {
+	name Identifier
+	typ  Type
+}
+
+var _ Expression = (*Const)(nil)
+
+type Func struct {
+	name    Identifier
+	Args    []Var
+	retType Type
+}
+
+var _ Expression = (*Func)(nil)
 
 type FuncCall struct {
-	funcName Identifier
-	Args     []Expression
+	fun  Func
+	Args []Expression
 }
 
 var _ Expression = (*FuncCall)(nil)
-
-// TODO: use Assignment struct instead of binary op for assignment
-type Assignment struct {
-	name  Identifier
-	value Expression
-}
-
-var _ Expression = (*Assignment)(nil)
 
 type BinaryOp int
 
@@ -162,6 +195,14 @@ type BinaryOpNode struct {
 }
 
 var _ Expression = (*BinaryOpNode)(nil)
+
+func NewBinaryOpNode(lhs, rhs Expression, op BinaryOp) (BinaryOpNode, error) {
+	if lhs.returnType().kind != rhs.returnType().kind {
+		return BinaryOpNode{}, errors.New("lhs and rhs types dont match: " + lhs.returnType().kind.String() + " " + rhs.returnType().kind.String())
+	}
+
+	return BinaryOpNode{lhs, rhs, op}, nil
+}
 
 func (b BinaryOp) String() string {
 	if BOCount != 27 {
@@ -406,16 +447,32 @@ func (i IntLit) string() string {
 	return strconv.Itoa(i.value)
 }
 
+func (i IntLit) returnType() Type {
+	return Type{KindInt, Identifier(KindInt.String())}
+}
+
 func (f FloatLit) string() string {
 	return f.value
+}
+
+func (i FloatLit) returnType() Type {
+	return Type{KindFloat, Identifier(KindFloat.String())}
 }
 
 func (f StrLit) string() string {
 	return f.litteral
 }
 
+func (i StrLit) returnType() Type {
+	return Type{KindString, Identifier(KindString.String())}
+}
+
 func (f CharLit) string() string {
 	return f.litteral
+}
+
+func (i CharLit) returnType() Type {
+	return Type{KindInt, Identifier(KindInt.String())}
 }
 
 func (f BoolLit) string() string {
@@ -426,13 +483,36 @@ func (f BoolLit) string() string {
 	return "false"
 }
 
-func (v VarLit) string() string {
-	return string(v.varname)
+func (f BoolLit) returnType() Type {
+	return Type{KindBool, Identifier(KindBool.String())}
+}
+
+func (v Var) string() string {
+	return string(v.name)
+}
+
+func (v Var) returnType() Type {
+	return v.typ
+}
+
+func (c Const) string() string {
+	return string(c.name)
+}
+
+func (c Const) returnType() Type {
+	return c.typ
+}
+func (f Func) string() string {
+	return string(f.name)
+}
+
+func (f Func) returnType() Type {
+	return f.retType // TODO: change this when function objects exist
 }
 
 func (f FuncCall) string() string {
 	sb := strings.Builder{}
-	sb.WriteString(string(f.funcName))
+	sb.WriteString(string(f.fun.name))
 	sb.WriteRune('(')
 
 	if len(f.Args) > 0 {
@@ -450,12 +530,16 @@ func (f FuncCall) string() string {
 	return sb.String()
 }
 
-func (c Assignment) string() string {
-	return string(c.name) + " = " + c.value.string()
+func (f FuncCall) returnType() Type {
+	return f.fun.returnType()
 }
 
 func (b BinaryOpNode) string() string {
 	return "(" + b.Lhs.string() + " " + b.Op.String() + " " + b.Rhs.string() + ")"
+}
+
+func (b BinaryOpNode) returnType() Type {
+	return b.Lhs.returnType()
 }
 
 ////////////////////
@@ -470,22 +554,6 @@ type Scope struct {
 	vars   VarScope
 	consts ConstScope
 	Funcs  FuncScope
-}
-
-type Var struct {
-	name Identifier
-	typ  Type
-}
-
-type Const struct {
-	name Identifier
-	typ  Type
-}
-
-type Func struct {
-	name       Identifier
-	Args       []Var
-	returnType Type
 }
 
 type ConstNode struct {
@@ -618,7 +686,7 @@ func (f FuncNode) String() string {
 
 	sb.WriteRune(')')
 
-	if f.returnType.kind != KindInvalid {
+	if f.returnType.kind != KindVoid {
 		sb.WriteString(": ")
 		sb.WriteString(string(f.returnType.name))
 	}
