@@ -7,13 +7,13 @@ import (
 
 type Parser struct {
 	lex          *Lexer
-	currentScope []*Scope
+	currentScope []Scope
 }
 
 func ParserFromFilename(filename string) (p *Parser) {
 	p = &Parser{
 		lex: LexerFromFilename(filename),
-		currentScope: []*Scope{
+		currentScope: []Scope{
 			{make(VarScope), make(ConstScope), make(FuncScope)},
 		},
 	}
@@ -26,7 +26,7 @@ func ParserFromFilename(filename string) (p *Parser) {
 func ParserFromString(str string) (p *Parser) {
 	p = &Parser{
 		lex: LexerFromString(str),
-		currentScope: []*Scope{
+		currentScope: []Scope{
 			{make(VarScope), make(ConstScope), make(FuncScope)},
 		},
 	}
@@ -38,13 +38,13 @@ func ParserFromString(str string) (p *Parser) {
 func (p *Parser) addBuiltIns() {
 	p.addFunc(Func{
 		"println",
-		[]Var{{"str", Type{KindString, Identifier(KindString.String())}}},
+		[]Var{{"any", Type{KindAny, Identifier(KindAny.String())}}},
 		Type{},
 	})
 
 	p.addFunc(Func{
 		"print",
-		[]Var{{"str", Type{KindString, Identifier(KindString.String())}}},
+		[]Var{{"any", Type{KindAny, Identifier(KindAny.String())}}},
 		Type{},
 	})
 }
@@ -341,7 +341,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 
 func (p *Parser) parseCodeBlock() (CodeBlockNode, bool) {
 	block := CodeBlockNode{make([]AstNode, 0), Scope{make(VarScope), make(ConstScope), make(FuncScope)}}
-	p.currentScope = append(p.currentScope, &block.scope)
+	p.currentScope = append(p.currentScope, block.scope)
 
 	for tok := p.lex.PeekToken(); tok.typ != TTEOF && tok.typ != TTRSquirly; tok = p.lex.PeekToken() {
 		statement, eof := p.parseFunctionBody()
@@ -408,7 +408,7 @@ func (p *Parser) parseFunc() (FuncNode, bool) {
 
 	p.expect(TTLSquirly)
 
-	p.currentScope = append(p.currentScope, &scope)
+	p.currentScope = append(p.currentScope, scope)
 
 	body, eof := p.parseCodeBlock()
 	node.Body = body
@@ -447,7 +447,7 @@ func (p *Parser) parseBinary(precedence int) Expression {
 		return p.parseUnary()
 	}
 
-	loc := p.lex.curLoc;
+	loc := p.lex.curLoc
 	lhs := p.parseBinary(precedence + 1)
 	if lhs == nil {
 		return nil

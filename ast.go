@@ -2,47 +2,71 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 )
 
+/*
+ * Kind is an integer which stores all the built-in types and some extra info
+ * Note: multiple pieces of information are stored in the Kind, so it should
+ * never be compared with `==` but with a mask and != 0
+ * for example:
+ * WRONG: k == KindInt
+ * RIGHT: k & KindInt != 0
+ */
 type Kind int
 
 const (
 	KindVoid Kind = 0
+	KindAny  Kind = ^0
+
+	Kind8        Kind = 0x1
+	Kind16       Kind = 0x2
+	Kind32       Kind = 0x4
+	Kind64       Kind = 0x8
+	KindSizeMask Kind = 0xf
 
 	// TODO: update string Kind when pointer and array types are implemented
-	KindInt        Kind = 0x1
-	KindFloat      Kind = 0x2
-	KindBool       Kind = 0x4 // always 32bits
-	KindString     Kind = 0x8 // always 64bits
-	KindTypeMask   Kind = 0xf
-	KindNumberMask Kind = 0x3
-	Kind8          Kind = 0x10
-	Kind16         Kind = 0x20
-	Kind32         Kind = 0x40
-	Kind64         Kind = 0x80
-	KindSizeMask   Kind = 0xf0
+	// TODO: add struct Kind
+	KindInt        Kind = 0x10
+	KindFloat      Kind = 0x20
+	KindBool       Kind = 0x40 | Kind32
+	KindString     Kind = 0x80 | Kind64
+	KindTypeMask   Kind = 0xf0
+	KindNumberMask Kind = 0x30
+
+	KindInt8    Kind = KindInt | Kind8
+	KindInt16   Kind = KindInt | Kind16
+	KindInt32   Kind = KindInt | Kind32
+	KindInt64   Kind = KindInt | Kind64
+	KindFloat32 Kind = KindFloat | Kind32
+	KindFloat64 Kind = KindFloat | Kind64
+
+	// reserved, but not used
+	KindPointer Kind = 0x100
 )
 
 func KindFromString(str string) Kind {
 	switch str {
 	case "int8":
-		return KindInt | Kind8
+		return KindInt8
 	case "int16":
-		return KindInt | Kind16
+		return KindInt16
 	case "int32":
-		return KindInt | Kind32
-	case "int64", "int":
-		return KindInt | Kind64
+		return KindInt32
+	case "int64", "int": // TODO: `int` and `float` shouldn't just return the 64 bit variation
+		return KindInt64
 	case "float32":
-		return KindFloat | Kind32
+		return KindFloat32
 	case "float64", "float":
-		return KindFloat | Kind64
+		return KindFloat64
 	case "bool":
-		return KindBool | Kind32
+		return KindBool
 	case "string":
-		return KindString | Kind64
+		return KindString
+	case "any":
+		return KindString
 	default:
 		return KindVoid
 	}
@@ -50,37 +74,27 @@ func KindFromString(str string) Kind {
 }
 
 func (k Kind) String() string {
-	switch k & KindTypeMask {
-	case KindVoid:
-		return "void"
-	case KindInt:
-		switch k & KindSizeMask {
-		case Kind8:
-			return "int8"
-		case Kind16:
-			return "int16"
-		case Kind32:
-			return "int32"
-		case Kind64:
-			return "int64"
-		default:
-			panic("unreachable " + strconv.Itoa(int(k)))
-		}
-	case KindFloat:
-		switch k & KindSizeMask {
-		case Kind32:
-			return "float32"
-		case Kind64:
-			return "float64"
-		default:
-			panic("unreachable")
-		}
+	switch k {
 	case KindBool:
 		return "bool"
 	case KindString:
 		return "string"
+	case KindInt8:
+		return "int8"
+	case KindInt16:
+		return "int16"
+	case KindInt32:
+		return "int32"
+	case KindInt64:
+		return "int64"
+	case KindFloat32:
+		return "float32"
+	case KindFloat64:
+		return "float64"
+	case KindAny:
+		return "any"
 	default:
-		panic("unreachable")
+		panic(fmt.Sprintf("Unkown kind: %x", int(k)))
 	}
 }
 
@@ -465,17 +479,17 @@ func (b BinaryOp) returnType(input Kind) Kind {
 	case BOShr:
 		return input
 	case BOGt:
-		return KindBool & Kind32
+		return KindBool
 	case BOLt:
-		return KindBool & Kind32
+		return KindBool
 	case BOGtEq:
-		return KindBool & Kind32
+		return KindBool
 	case BOLtEq:
-		return KindBool & Kind32
+		return KindBool
 	case BOEquals:
-		return KindBool & Kind32
+		return KindBool
 	case BONotEqual:
-		return KindBool & Kind32
+		return KindBool
 	case BOAssign:
 		return input
 	case BOPlusAssign:
@@ -624,7 +638,7 @@ func (f StrLit) string() string {
 }
 
 func (i StrLit) returnType() Type {
-	kind := KindString | Kind64
+	kind := KindString
 	return Type{kind, Identifier(kind.String())}
 }
 
@@ -646,7 +660,7 @@ func (f BoolLit) string() string {
 }
 
 func (f BoolLit) returnType() Type {
-	kind := KindBool | Kind32
+	kind := KindBool
 	return Type{kind, Identifier(kind.String())}
 }
 
