@@ -423,7 +423,7 @@ func (p *Parser) parseFunc() (FuncNode, bool) {
 func (p *Parser) expect(typ TokenType) *Token {
 	tok := p.lex.NextToken()
 	if tok.typ != typ {
-		panic(tok.loc.String() + " " + tok.literal + " syntax error expected: " + typ.String()) // TODO: better error handling
+		panic(tok.loc.String() + " " + tok.literal + " syntax error, expected: " + typ.String()) // TODO: better error handling
 	}
 
 	return tok
@@ -432,7 +432,7 @@ func (p *Parser) expect(typ TokenType) *Token {
 func (p *Parser) expectPeek(typ TokenType) *Token {
 	tok := p.lex.PeekToken()
 	if tok.typ != typ {
-		panic(tok.loc.String() + " " + tok.literal + " syntax error expected: " + typ.String()) // TODO: better error handling
+		panic(tok.loc.String() + " " + tok.literal + " syntax error, expected: " + typ.String()) // TODO: better error handling
 	}
 
 	return tok
