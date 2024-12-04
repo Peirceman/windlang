@@ -1,4 +1,4 @@
-package WindBytecode
+package main
 
 type Opcode int8
 

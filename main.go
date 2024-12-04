@@ -5,50 +5,15 @@ import (
 	"os"
 	"reflect"
 	"strings"
-
-	"github.com/Peirceman/windlang/WindBytecode"
 )
 
 func main() {
 	fileName := os.Args[1]
 
-	file, err := os.Open(fileName)
-
-	if err != nil {
-		panic(err)
-	}
-
-	defer file.Close()
-
-	interpereter, err := WindBytecode.InterpeterFromReader(file)
-	if err != nil {
-		panic(err)
-	}
-
-	interpereter.Execute()
-
-	fmt.Println()
-	fmt.Println("*** stack dump ***")
-	fmt.Println(interpereter.Stack)
-	fmt.Println()
-	fmt.Println("*** vars dump ***")
-	fmt.Println(interpereter.Data)
-
-	return
-	fileName = os.Args[2]
-
 	par := ParserFromFilename(fileName)
-	for line, eof := par.ParseTopLevel(); !eof; line, eof = par.ParseTopLevel() {
-		if line == nil {
-			continue
-		}
+	ast := par.ParseAll()
 
-		fmt.Println(line.String())
-		// PPrintln(line)
-		fmt.Println()
-	}
-
-	PPrintln(par.currentScope)
+	PPrintln(ast)
 }
 
 func PPrintln(a any) {

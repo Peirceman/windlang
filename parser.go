@@ -85,6 +85,20 @@ func (p *Parser) addFunc(f Func) {
 	p.currentScope[len(p.currentScope)-1].AddFunc(f)
 }
 
+func (p *Parser) ParseAll() CodeBlockNode {
+	result := CodeBlockNode{
+		Statements: make([]AstNode, 0),
+	}
+
+	for statement, eof := p.ParseTopLevel(); !eof; statement, eof = p.ParseTopLevel() {
+		result.Statements = append(result.Statements, statement)
+	}
+
+	result.scope = p.currentScope[0]
+
+	return result
+}
+
 func (p *Parser) ParseTopLevel() (AstNode, bool) {
 	if TTCount != 59 {
 		panic("TokenType enum length changed: " + strconv.Itoa(int(TTCount)))

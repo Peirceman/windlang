@@ -1,4 +1,4 @@
-package WindBytecode
+package main
 
 import (
 	"encoding/binary"
