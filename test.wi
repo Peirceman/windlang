@@ -2,12 +2,36 @@
  * it can go on multiple lines
  */
 
-var str: string = "\u0009string\n\tmulti line";
-var something: bool;
-
-fn get(ints: int, idx: int): int {
-	return ints+idx;
-}
+// var str: string = "\u0009string\n\tmulti line";
+// var something: bool;
+// 
+// fn get(ints: int, idx: int): int {
+// 	return ints+idx;
+// }
+// 
+// fn main() {
+// 	const αConst: int = 69;
+// 	var a: int = 0x1A4;
+// 	var b: bool = true;
+// 	var c: string = 3;
+// 
+// 	a = αConst * 3 + 1;
+// 
+// 	// line comment
+// 	if a == 50 {
+// 		var a: int = 35 + 34;
+// 		println("value of a:", a);
+// 	} elif a != 30 {
+// 		a += 3;
+// 		println(str);
+// 	} else {
+// 		print('\x41' /* dikke neuke */ );
+// 	}
+// 
+// 	var ints: int = 1 + // nikke deuke
+// 	1;
+// 	println("ints[a] =", get(ints, a), "| a =", a);
+// }
 
 fn main() {
 	const αConst: int = 69;
@@ -16,19 +40,4 @@ fn main() {
 	var c: string = 3;
 
 	a = αConst * 3 + 1;
-
-	// line comment
-	if a == 50 {
-		var a: int = 35 + 34;
-		println("value of a:", a);
-	} elif a != 30 {
-		a += 3;
-		println(str);
-	} else {
-		print('\x41' /* dikke neuke */ );
-	}
-
-	var ints: int = 1 + // nikke deuke
-	1;
-	println("ints[a] =", get(ints, a), "| a =", a);
 }
