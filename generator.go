@@ -3,20 +3,20 @@ package main
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"strconv"
 )
 
 // TODO: shadowing wont work
 type BytecodeGenerator struct {
-	Output io.WriteSeeker
-	data map[uint32][]byte
-	instructionIdx int
-	bytesWritten int
-	vars map[Identifier]uint32
-	nextRuntimeVarIdx uint32
+	Output                io.WriteSeeker
+	data                  map[uint32][]byte
+	instructionIdx        int
+	bytesWritten          int
+	vars                  map[Identifier]uint32
+	nextRuntimeVarIdx     uint32
 	nextCompiletimeVarIdx uint32
-	
 }
 
 func (g *BytecodeGenerator) GenerateBytecode(code CodeBlockNode) error {
@@ -39,13 +39,13 @@ func (g *BytecodeGenerator) GenerateBytecode(code CodeBlockNode) error {
 	}
 
 	g.Output.Write([]byte("code"))
-	codeSectionLengthSeek, err := g.Output.Seek(4, io.SeekCurrent)
+	seek, err := g.Output.Seek(4, io.SeekCurrent)
 
 	if err != nil {
 		return err
 	}
 
-	codeSectionLengthSeek -= 4
+	seek -= 4
 
 	err = g.writeCodeBlock(code)
 
@@ -53,7 +53,7 @@ func (g *BytecodeGenerator) GenerateBytecode(code CodeBlockNode) error {
 		return err
 	}
 
-	_, err = g.Output.Seek(codeSectionLengthSeek, io.SeekStart)
+	_, err = g.Output.Seek(seek, io.SeekStart)
 
 	if err != nil {
 		return err
@@ -66,7 +66,76 @@ func (g *BytecodeGenerator) GenerateBytecode(code CodeBlockNode) error {
 		byte(g.bytesWritten >> (0 * 8)),
 	})
 
-	return err
+	if err != nil {
+		return err
+	}
+
+	_, err = g.Output.Seek(0, io.SeekEnd)
+
+	if err != nil {
+		return err
+	}
+
+	_, err = g.Output.Write([]byte("data"))
+
+	if err != nil {
+		return err
+	}
+
+	seek, err = g.Output.Seek(4, io.SeekCurrent)
+
+	if err != nil {
+		return err
+	}
+
+	seek -= 4
+
+	g.bytesWritten = 0
+
+	for id, data := range g.data {
+		err = binary.Write(g.Output, binary.BigEndian, id)
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 4
+
+		err = binary.Write(g.Output, binary.BigEndian, uint32(len(data)))
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 4
+
+		_, err = g.Output.Write(data)
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += len(data)
+	}
+
+	_, err = g.Output.Seek(seek, io.SeekStart)
+
+	if err != nil {
+		return err
+	}
+
+	_, err = g.Output.Write([]byte{
+		byte(g.bytesWritten >> (3 * 8)),
+		byte(g.bytesWritten >> (2 * 8)),
+		byte(g.bytesWritten >> (1 * 8)),
+		byte(g.bytesWritten >> (0 * 8)),
+	})
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
@@ -104,7 +173,7 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 			}
 
 			g.Output.Write([]byte{byte(popv), byte(node.typ.kind & KindSizeMask)})
-			binary.Write(g.Output, binary.BigEndian, g.nextRuntimeVarIdx - 1)
+			binary.Write(g.Output, binary.BigEndian, g.nextRuntimeVarIdx-1)
 			g.bytesWritten += 6
 			g.instructionIdx++
 		case VarNode:
@@ -132,7 +201,7 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 			}
 
 			g.Output.Write([]byte{byte(popv), byte(node.typ.kind & KindSizeMask)})
-			binary.Write(g.Output, binary.BigEndian, g.nextRuntimeVarIdx - 1)
+			binary.Write(g.Output, binary.BigEndian, g.nextRuntimeVarIdx-1)
 			g.bytesWritten += 6
 			g.instructionIdx++
 
@@ -231,7 +300,6 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 		g.nextCompiletimeVarIdx++
 		return nil // cant realy push a pointer yet but this should only be used by prts? so handle on that level?
 
-
 	case CharLit:
 		_, err := g.Output.Write([]byte{byte(push), 4})
 
@@ -248,7 +316,6 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 			return err
 		}
 
-
 	case BoolLit:
 		if expression.value {
 			_, err := g.Output.Write([]byte{byte(push), 4, 0, 0, 0, 1})
@@ -263,6 +330,9 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 				return err
 			}
 		}
+
+		g.bytesWritten += 6
+		g.instructionIdx++
 
 	case Var:
 		_, err := g.Output.Write([]byte{byte(pshv), byte(expression.typ.kind & KindSizeMask)})
@@ -320,7 +390,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 		}
 
 		kind := binopnode.Lhs.returnType().kind
-		if kind & KindInt != 0 {
+		if kind&KindInt != 0 {
 			_, err = g.Output.Write([]byte{byte(adds), byte(kind & KindSizeMask)})
 		} else {
 			_, err = g.Output.Write([]byte{byte(addf), byte(kind & KindSizeMask)})
@@ -347,7 +417,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 		}
 
 		kind := binopnode.Lhs.returnType().kind
-		if kind & KindInt != 0 {
+		if kind&KindInt != 0 {
 			_, err = g.Output.Write([]byte{byte(subs), byte(kind & KindSizeMask)})
 		} else {
 			_, err = g.Output.Write([]byte{byte(subf), byte(kind & KindSizeMask)})
@@ -374,7 +444,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 		}
 
 		kind := binopnode.Lhs.returnType().kind
-		if kind & KindInt != 0 {
+		if kind&KindInt != 0 {
 			_, err = g.Output.Write([]byte{byte(muls), byte(kind & KindSizeMask)})
 		} else {
 			_, err = g.Output.Write([]byte{byte(mulf), byte(kind & KindSizeMask)})
@@ -401,7 +471,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 		}
 
 		kind := binopnode.Lhs.returnType().kind
-		if kind & KindInt != 0 {
+		if kind&KindInt != 0 {
 			_, err = g.Output.Write([]byte{byte(divs), byte(kind & KindSizeMask)})
 		} else {
 			_, err = g.Output.Write([]byte{byte(divf), byte(kind & KindSizeMask)})
@@ -448,10 +518,17 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			panic("assigning to not variable???")
 		}
 
+
 		g.writeExpression(binopnode.Rhs)
 
-
 		idx := g.vars[lhs.name]
+
+		// TODO: this is the hackiest shit ever, should be solved when pointers exist
+		if (lhs.returnType().kind & KindString) != 0 {
+			fmt.Println(binopnode.Rhs)
+			break
+		}
+
 		size := lhs.returnType().kind & KindSizeMask
 
 		_, err := g.Output.Write([]byte{byte(popv), byte(size)})

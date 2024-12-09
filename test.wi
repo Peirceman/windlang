@@ -36,7 +36,8 @@
 fn main() {
 	const αConst: int = 34 + 35;
 	var a: int = 0x1A4;
-	// var b: bool = true;
+	var b: bool = true;
+	var s: string = "Hello, World!";
 
 	 a = αConst * 3 + 1;
 }

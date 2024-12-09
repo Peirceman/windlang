@@ -32,8 +32,8 @@ const (
 	// TODO: no unsigned int
 	KindInt        Kind = 0x10
 	KindFloat      Kind = 0x20
-	KindBool       Kind = 0x40 | Kind32
-	KindString     Kind = 0x80 | Kind64
+	KindBool       Kind = 0x40
+	KindString     Kind = 0x80
 	KindTypeMask   Kind = 0xf0
 	KindNumberMask Kind = KindInt | KindFloat
 
@@ -63,7 +63,7 @@ func KindFromString(str string) Kind {
 	case "float64", "float":
 		return KindFloat64
 	case "bool":
-		return KindBool
+		return KindBool | Kind32
 	case "string":
 		return KindString
 	case "any":
@@ -76,9 +76,9 @@ func KindFromString(str string) Kind {
 
 func (k Kind) String() string {
 	switch k {
-	case KindBool:
+	case KindBool | Kind32:
 		return "bool"
-	case KindString:
+	case KindString | Kind64:
 		return "string"
 	case KindInt8:
 		return "int8"
