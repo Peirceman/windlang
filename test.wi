@@ -34,10 +34,9 @@
 // }
 
 fn main() {
-	const αConst: int = 69;
+	const αConst: int = 34 + 35;
 	var a: int = 0x1A4;
-	var b: bool = true;
-	var c: string = 3;
+	// var b: bool = true;
 
-	a = αConst * 3 + 1;
+	 a = αConst * 3 + 1;
 }

@@ -500,6 +500,8 @@ func parseCodeSection(data []byte) (instructions []Instruction, choppedData []by
 		switch opcode {
 		case push:
 			if len(instructionBytes)-i < int(size) {
+				fmt.Println(i)
+				fmt.Println(opcode)
 				return nil, data, errors.New("Missing argument for opperation")
 			}
 
@@ -513,6 +515,7 @@ func parseCodeSection(data []byte) (instructions []Instruction, choppedData []by
 			case 8:
 				args, _, _ = readUint64(instructionBytes[i:])
 			default:
+				fmt.Println(i)
 				panic("unreachable")
 			}
 
@@ -520,6 +523,7 @@ func parseCodeSection(data []byte) (instructions []Instruction, choppedData []by
 
 		case popv, pshv, decl, jump, jpgt, jpge, jpeq, jple, jplt, prts:
 			if len(instructionBytes)-i < 4 {
+				fmt.Println(opcode)
 				return nil, data, errors.New("Missing argument for opperation")
 			}
 

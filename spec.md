@@ -70,3 +70,10 @@ section type "data"
 its just many times this format:
 id (4bytes) len (4bytes) data (n bytes)
 len is in bytes
+for compiletime data the id is:
+0b1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+for runtime data the id is
+0b0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+so an implementation of an interpreter must be able to handle "high" id's

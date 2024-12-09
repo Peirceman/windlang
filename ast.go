@@ -29,12 +29,13 @@ const (
 
 	// TODO: update string Kind when pointer and array types are implemented
 	// TODO: add struct Kind
+	// TODO: no unsigned int
 	KindInt        Kind = 0x10
 	KindFloat      Kind = 0x20
 	KindBool       Kind = 0x40 | Kind32
 	KindString     Kind = 0x80 | Kind64
 	KindTypeMask   Kind = 0xf0
-	KindNumberMask Kind = 0x30
+	KindNumberMask Kind = KindInt | KindFloat
 
 	KindInt8    Kind = KindInt | Kind8
 	KindInt16   Kind = KindInt | Kind16

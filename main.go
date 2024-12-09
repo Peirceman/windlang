@@ -10,10 +10,51 @@ import (
 func main() {
 	fileName := os.Args[1]
 
-	par := ParserFromFilename(fileName)
-	ast := par.ParseAll()
+	if fileName[len(fileName)-2:] == "wi" {
 
-	PPrintln(ast)
+		par := ParserFromFilename(fileName)
+		ast := par.ParseAll()
+
+
+		// PPrintln(ast)
+
+		out, err := os.Create("out.wbc")
+
+		if err != nil {
+			panic(err)
+		}
+
+		defer out.Close()
+
+		generator := BytecodeGenerator{Output: out}
+
+		err = generator.GenerateBytecode(ast)
+
+		if err != nil {
+			panic(err)
+		}
+	} else {
+		file, err := os.Open(fileName)
+
+		if err != nil {
+			panic(err)
+		}
+
+		defer file.Close()
+
+		interpreter, err := InterpeterFromReader(file)
+
+		if err != nil {
+			panic(err)
+		}
+
+		interpreter.Execute()
+
+		fmt.Println("\n *** stack dump ***")
+		fmt.Println(interpreter.Stack)
+		fmt.Println("\n *** vars dump ***")
+		fmt.Println(interpreter.Data)
+	}
 }
 
 func PPrintln(a any) {
@@ -24,6 +65,11 @@ func PPrintln(a any) {
 func pPrint(val reflect.Value, indent int) {
 	if val.Type().Name() == "BinaryOp" {
 		fmt.Print(val.MethodByName("String").Call(nil))
+		return
+	}
+
+	if val.IsZero() {
+		fmt.Print("<not set>")
 		return
 	}
 

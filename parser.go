@@ -548,13 +548,13 @@ func (p *Parser) parsePrimary() Expression {
 		}
 
 		if next := p.lex.PeekToken(); next == nil || next.typ != TTLBrace {
-			switch val := p.get(Identifier(tok.literal)); val.(type) {
+			switch val := p.get(Identifier(tok.literal)).(type) {
 			case Var:
-				return val.(Var)
+				return val
 			case Const:
-				return val.(Const)
+				return val
 			case Func:
-				return val.(Func)
+				return val
 			default:
 				panic("unreachable")
 			}
