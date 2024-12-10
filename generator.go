@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"io"
 	"strconv"
 )
@@ -273,14 +272,62 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 }
 
 func (g *BytecodeGenerator) writeIfChain(chain IfChain) error {
-
-	err := g.writeExpression(chain.IfCondition)
-
-	if err != nil {
-		return err
-	}
-
 	if _, ok := chain.IfCondition.(Var); ok {
+		err := g.writeExpression(chain.IfCondition)
+
+		if err != nil {
+			return err
+		}
+
+		_, err = g.Output.Write([]byte{byte(jpeq), byte(chain.IfCondition.returnType().kind & KindSizeMask)})
+
+		if err != nil {
+			return err
+		}
+
+		seek, err := g.Output.Seek(4, io.SeekCurrent)
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 6
+		g.instructionIdx++
+
+		seek -= 4
+
+		err = g.writeCodeBlock(chain.IfStatement)
+
+		if err != nil {
+			return err
+		}
+
+		_, err = g.Output.Write([]byte{byte(noop), 0})
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 2
+		g.instructionIdx++
+
+		_, err = g.Output.Seek(seek, io.SeekStart)
+
+		if err != nil {
+			return err
+		}
+
+		err = binary.Write(g.Output, binary.BigEndian, uint32(g.instructionIdx))
+
+		if err != nil {
+			return err
+		}
+
+		_, err = g.Output.Seek(0, io.SeekEnd)
+
+		if err != nil {
+			return err
+		}
 
 	} else if _, ok := chain.IfCondition.(BinaryOpNode); ok {
 
@@ -570,7 +617,6 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 
 		// TODO: this is the hackiest shit ever, should be solved when pointers exist
 		if (lhs.returnType().kind & (KindString & KindTypeMask)) != 0 {
-			fmt.Println(binopnode.Rhs)
 			break
 		}
 

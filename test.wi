@@ -18,13 +18,18 @@ fn main() {
 	a = αConst * 3 + 1;
 
 	// line comment
-	// if a == 50 {
-		b = false;
+
+	if b {
+		something = true;
+	}
+
+	// // if a == 50 {
+		// b = false;
 		// println("value of a:", a);
 	// }
 
 	// if a == 208 {
-		b = true;
+		// b = true;
 	// }
 	// elif a != 30 {
 	// 	a += 3;
