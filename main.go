@@ -26,9 +26,8 @@ func main() {
 
 		defer out.Close()
 
-		generator := BytecodeGenerator{Output: out}
 
-		err = generator.GenerateBytecode(ast)
+		err = GenerateBytecode(out, ast)
 
 		if err != nil {
 			panic(err)

@@ -19,7 +19,9 @@ type BytecodeGenerator struct {
 	nextCompiletimeVarIdx uint32
 }
 
-func (g *BytecodeGenerator) GenerateBytecode(code CodeBlockNode) error {
+func GenerateBytecode(Output io.WriteSeeker, code CodeBlockNode) error {
+	g := &BytecodeGenerator{Output: Output}
+
 	_, exists := code.scope.Funcs["main"]
 	if !exists {
 		return errors.New("Error generating bytecode: no main function found")
