@@ -31,6 +31,7 @@ const (
 	jpgt
 	jpge
 	jpeq
+	jpne
 	jple
 	jplt
 	prti
