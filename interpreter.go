@@ -391,6 +391,24 @@ func (i *Interpreter) Execute() {
 			}
 
 			i.Stack = i.Stack[:len(i.Stack)-int(instruction.Size)]
+		case jpne:
+			var shouldJump bool
+			switch instruction.Size {
+			case 1:
+				shouldJump = int8(i.Stack[len(i.Stack)-1]) != 0
+			case 2:
+				shouldJump = int16(binary.BigEndian.Uint16(i.Stack[len(i.Stack)-2:])) != 0
+			case 4:
+				shouldJump = int32(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-4:])) != 0
+			case 8:
+				shouldJump = int64(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-8:])) != 0
+			}
+
+			if shouldJump {
+				idx = int(instruction.Args.(uint32))-1
+			}
+
+			i.Stack = i.Stack[:len(i.Stack)-int(instruction.Size)]
 		case jple:
 			var shouldJump bool
 			switch instruction.Size {
