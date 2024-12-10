@@ -137,6 +137,11 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 			Value: p.parseExpression(),
 		}
 
+		if node.typ.kind != node.Value.returnType().kind {
+			panic(p.lex.curLoc.String() + " lhs and rhs types dont match")
+		}
+
+
 		p.expect(TTSemiColon)
 
 		if p.defined(Identifier(name.literal)) {
@@ -175,6 +180,11 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 			typ:   Type{KindFromString(typ.literal), Identifier(typ.literal)},
 			Value: p.parseExpression(),
 		}
+
+		if node.typ.kind != node.Value.returnType().kind {
+			panic(p.lex.curLoc.String() + " lhs and rhs types dont match")
+		}
+
 		p.expect(TTSemiColon)
 
 		if p.defined(Identifier(name.literal)) {
@@ -233,6 +243,11 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 			Value: p.parseExpression(),
 		}
 
+		if node.typ.kind != node.Value.returnType().kind {
+			panic(fmt.Sprintf(p.lex.curLoc.String() + " lhs and rhs types dont match: %v, %v" , node.typ , node.Value.returnType()))
+		}
+
+
 		p.expect(TTSemiColon)
 
 		if p.defined(Identifier(name.literal)) {
@@ -265,6 +280,10 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 			name:  Identifier(name.literal),
 			typ:   Type{KindFromString(typ.literal), Identifier(typ.literal)},
 			Value: p.parseExpression(),
+		}
+
+		if node.typ.kind != node.Value.returnType().kind {
+			panic(p.lex.curLoc.String() + " lhs and rhs types dont match")
 		}
 
 		p.expect(TTSemiColon)
@@ -305,6 +324,11 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 		p.lex.NextToken()
 		node := IfChain{}
 		node.IfCondition = p.parseExpression()
+
+		if node.IfCondition.returnType().kind & KindBool != 0 {
+			panic(p.lex.curLoc.String() + " boolean expression expected")
+		}
+
 		p.expectPeek(TTLSquirly)
 
 		statements, eof := p.parseFunctionBody()
@@ -318,6 +342,11 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 			p.lex.NextToken()
 
 			condition := p.parseExpression()
+
+			if condition.returnType().kind & KindBool != 0 {
+				panic(p.lex.curLoc.String() + " boolean expression expected")
+			}
+
 			node.ElifConditions = append(node.ElifConditions, condition)
 
 			p.expectPeek(TTLSquirly)

@@ -168,7 +168,7 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 			g.vars[node.name] = g.nextRuntimeVarIdx
 			g.nextRuntimeVarIdx++
 
-			if node.Value == nil || (node.typ.kind & (KindString & KindTypeMask)) != 0 {
+			if node.Value == nil {
 				break
 			}
 
@@ -176,6 +176,12 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 
 			if err != nil {
 				return err
+			}
+
+			if (node.typ.kind & (KindString & KindTypeMask)) != 0 {
+				g.vars[node.name] = g.nextCompiletimeVarIdx - 1
+				g.nextRuntimeVarIdx--
+				break
 			}
 
 			g.Output.Write([]byte{byte(popv), byte(node.typ.kind & KindSizeMask)})
@@ -201,15 +207,21 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 			g.vars[node.name] = g.nextRuntimeVarIdx
 			g.nextRuntimeVarIdx++
 
-			if node.Value == nil || (node.typ.kind & (KindString & KindTypeMask)) != 0 {
+			if node.Value == nil {
 				break
 			}
-
 
 			err = g.writeExpression(node.Value)
 
 			if err != nil {
 				return err
+			}
+
+			// very stupid
+			if (node.typ.kind & (KindString & KindTypeMask)) != 0 {
+				g.vars[node.name] = g.nextCompiletimeVarIdx - 1
+				g.nextRuntimeVarIdx--
+				break
 			}
 
 			g.Output.Write([]byte{byte(popv), byte(node.typ.kind & KindSizeMask)})
@@ -246,7 +258,7 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 			g.nextRuntimeVarIdx = startingRuntimeIdx
 
 		case IfChain:
-			err := g.writeExpression(node.IfCondition)
+			err := g.writeIfChain(node)
 
 			if err != nil {
 				return err
@@ -255,6 +267,23 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 		default:
 			panic("Unimplemented type: " + node.String())
 		}
+	}
+
+	return nil
+}
+
+func (g *BytecodeGenerator) writeIfChain(chain IfChain) error {
+
+	err := g.writeExpression(chain.IfCondition)
+
+	if err != nil {
+		return err
+	}
+
+	if _, ok := chain.IfCondition.(Var); ok {
+
+	} else if _, ok := chain.IfCondition.(BinaryOpNode); ok {
+
 	}
 
 	return nil
@@ -534,7 +563,6 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 		if !ok {
 			panic("assigning to not variable???")
 		}
-
 
 		g.writeExpression(binopnode.Rhs)
 

@@ -13,7 +13,7 @@ fn main() {
 	const αConst: int = 69;
 	var a: int = 0x1A4;
 	var b: bool = true;
-	var c: string = 3;
+	var c: string = "3";
 
 	a = αConst * 3 + 1;
 
