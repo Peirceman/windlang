@@ -325,7 +325,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 		node := IfChain{}
 		node.IfCondition = p.parseExpression()
 
-		if node.IfCondition.returnType().kind & KindBool != 0 {
+		if node.IfCondition.returnType().kind & KindBool & KindTypeMask == 0 {
 			panic(p.lex.curLoc.String() + " boolean expression expected")
 		}
 
