@@ -32,8 +32,8 @@ const (
 	// TODO: no unsigned int
 	KindInt        Kind = 0x10
 	KindFloat      Kind = 0x20
-	KindBool       Kind = 0x40
-	KindString     Kind = 0x80
+	KindBool       Kind = 0x40 | Kind32
+	KindString     Kind = 0x80 | Kind64
 	KindTypeMask   Kind = 0xf0
 	KindNumberMask Kind = KindInt | KindFloat
 
@@ -63,11 +63,11 @@ func KindFromString(str string) Kind {
 	case "float64", "float":
 		return KindFloat64
 	case "bool":
-		return KindBool | Kind32
+		return KindBool
 	case "string":
 		return KindString
 	case "any":
-		return KindString
+		return KindAny
 	default:
 		return KindVoid
 	}
@@ -76,9 +76,9 @@ func KindFromString(str string) Kind {
 
 func (k Kind) String() string {
 	switch k {
-	case KindBool | Kind32:
+	case KindBool:
 		return "bool"
-	case KindString | Kind64:
+	case KindString:
 		return "string"
 	case KindInt8:
 		return "int8"
@@ -95,7 +95,7 @@ func (k Kind) String() string {
 	case KindAny:
 		return "any"
 	default:
-		panic(fmt.Sprintf("Unkown kind: %x", int(k)))
+		panic(fmt.Sprintf("Unkown kind: 0x%x", int(k)))
 	}
 }
 

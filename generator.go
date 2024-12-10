@@ -168,6 +168,10 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 			g.vars[node.name] = g.nextRuntimeVarIdx
 			g.nextRuntimeVarIdx++
 
+			if node.Value == nil || (node.typ.kind & (KindString & KindTypeMask)) != 0 {
+				break
+			}
+
 			err = g.writeExpression(node.Value)
 
 			if err != nil {
@@ -178,6 +182,7 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 			binary.Write(g.Output, binary.BigEndian, g.nextRuntimeVarIdx-1)
 			g.bytesWritten += 6
 			g.instructionIdx++
+
 		case VarNode:
 			_, err := g.Output.Write([]byte{byte(decl), byte(node.typ.kind & KindSizeMask)})
 
@@ -195,6 +200,11 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 			g.instructionIdx++
 			g.vars[node.name] = g.nextRuntimeVarIdx
 			g.nextRuntimeVarIdx++
+
+			if node.Value == nil || (node.typ.kind & (KindString & KindTypeMask)) != 0 {
+				break
+			}
+
 
 			err = g.writeExpression(node.Value)
 
@@ -236,7 +246,12 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 			g.nextRuntimeVarIdx = startingRuntimeIdx
 
 		case IfChain:
-			panic("TODO: implement ifchains")
+			err := g.writeExpression(node.IfCondition)
+
+			if err != nil {
+				return err
+			}
+
 		default:
 			panic("Unimplemented type: " + node.String())
 		}
@@ -526,7 +541,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 		idx := g.vars[lhs.name]
 
 		// TODO: this is the hackiest shit ever, should be solved when pointers exist
-		if (lhs.returnType().kind & KindString) != 0 {
+		if (lhs.returnType().kind & (KindString & KindTypeMask)) != 0 {
 			fmt.Println(binopnode.Rhs)
 			break
 		}
