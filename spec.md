@@ -66,6 +66,14 @@ iseq | 0x25 | / | chekcs if the result of cmp is equal (0) and pushes 1 if true,
 isne | 0x26 | / | chekcs if the result of cmp is not equal (not 0) and pushes 1 if true, 0 if false
 isle | 0x27 | / | chekcs if the result of cmp is less or equal (0 or negative) and pushes 1 if true, 0 if false
 islt | 0x28 | / | chekcs if the result of cmp is less (negative) and pushes 1 if true, 0 if false
+over | 0x29 | / | copies the second value on the stack to the top
+swap | 0x2A | / | swaps the top two values on the stack
+rote | 0x2B | / | moves third value to second place, second value to top and top value to third c b a -> a c b
+sgne | 0x2C | / | extends top signed integer to be one size larger: 8 bits becomes 16, 16 32 and 32 64 janky but works i guess
+
+over swap and rote assume all elements are of same size because they probably are, otherwise
+what are you doing. These instructions were inspired by porth: [https://gitlab.com/tsoding/porth/-/blob/master/porth.porth?ref_type=heads]
+
 
 Todo:
 - function calling

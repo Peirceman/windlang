@@ -366,6 +366,34 @@ func (i *Interpreter) Execute() {
 				i.pushUnsigned(0, instruction.Size)
 			}
 
+		case over:
+			a := i.popUnsigned(instruction.Size)
+			b := i.popUnsigned(instruction.Size)
+
+			i.pushUnsigned(b, instruction.Size)
+			i.pushUnsigned(a, instruction.Size)
+			i.pushUnsigned(b, instruction.Size)
+
+		case swap:
+			a := i.popUnsigned(instruction.Size)
+			b := i.popUnsigned(instruction.Size)
+
+			i.pushUnsigned(a, instruction.Size)
+			i.pushUnsigned(b, instruction.Size)
+
+		case rote:
+			a := i.popUnsigned(instruction.Size)
+			b := i.popUnsigned(instruction.Size)
+			c := i.popUnsigned(instruction.Size)
+
+			i.pushUnsigned(a, instruction.Size)
+			i.pushUnsigned(c, instruction.Size)
+			i.pushUnsigned(b, instruction.Size)
+
+		case sgne:
+			a := (0xffffffffffffffff << (instruction.Size * 8)) | i.popUnsigned(instruction.Size)
+			i.pushUnsigned(a, instruction.Size * 2)
+
 		default:
 			fmt.Println("unknown: ", instruction.Code)
 		}

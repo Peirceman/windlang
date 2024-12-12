@@ -44,6 +44,10 @@ const (
 	isne
 	isle
 	islt
+	over
+	swap
+	rote
+	sgne
 
 	jptr = jpne
 	jpfl = jpeq
