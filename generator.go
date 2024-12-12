@@ -610,6 +610,12 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 
 		g.bytesWritten += 2
 		g.instructionIdx++
+
+		requiredSize:= byte(binopnode.returnType().kind & KindSizeMask)
+		curSize := byte(binopnode.Lhs.returnType().kind & KindSizeMask)
+
+		g.castUnsigned(requiredSize, curSize)
+
 	case BOLt:
 		err := g.writeExpression(binopnode.Lhs)
 
@@ -640,6 +646,11 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 
 		g.bytesWritten += 2
 		g.instructionIdx++
+
+		requiredSize:= byte(binopnode.returnType().kind & KindSizeMask)
+		curSize := byte(binopnode.Lhs.returnType().kind & KindSizeMask)
+
+		g.castUnsigned(requiredSize, curSize)
 	case BOGtEq:
 		err := g.writeExpression(binopnode.Lhs)
 
@@ -670,6 +681,12 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 
 		g.bytesWritten += 2
 		g.instructionIdx++
+
+		requiredSize:= byte(binopnode.returnType().kind & KindSizeMask)
+		curSize := byte(binopnode.Lhs.returnType().kind & KindSizeMask)
+
+		g.castUnsigned(requiredSize, curSize)
+
 	case BOLtEq:
 		err := g.writeExpression(binopnode.Lhs)
 
@@ -700,6 +717,12 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 
 		g.bytesWritten += 2
 		g.instructionIdx++
+
+		requiredSize:= byte(binopnode.returnType().kind & KindSizeMask)
+		curSize := byte(binopnode.Lhs.returnType().kind & KindSizeMask)
+
+		g.castUnsigned(requiredSize, curSize)
+
 	case BOEquals:
 		err := g.writeExpression(binopnode.Lhs)
 
@@ -722,7 +745,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 		g.bytesWritten += 2
 		g.instructionIdx++
 
-		_, err = g.Output.Write([]byte{byte(iseq), byte(binopnode.returnType().kind & KindSizeMask)})
+		_, err = g.Output.Write([]byte{byte(iseq), byte(binopnode.Lhs.returnType().kind & KindSizeMask)})
 
 		if err != nil {
 			return err
@@ -730,6 +753,12 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 
 		g.bytesWritten += 2
 		g.instructionIdx++
+
+		requiredSize:= byte(binopnode.returnType().kind & KindSizeMask)
+		curSize := byte(binopnode.Lhs.returnType().kind & KindSizeMask)
+
+		g.castUnsigned(requiredSize, curSize)
+
 
 	case BONotEqual:
 		err := g.writeExpression(binopnode.Lhs)
@@ -761,6 +790,11 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 
 		g.bytesWritten += 2
 		g.instructionIdx++
+
+		requiredSize:= byte(binopnode.returnType().kind & KindSizeMask)
+		curSize := byte(binopnode.Lhs.returnType().kind & KindSizeMask)
+
+		g.castUnsigned(requiredSize, curSize)
 
 	case BOAssign:
 		lhs, ok := binopnode.Lhs.(Var)
@@ -815,6 +849,58 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 
 	default:
 		panic("unreachable")
+	}
+
+	return nil
+}
+
+func (g *BytecodeGenerator) castUnsigned(requiredSize, currentSize byte) (err error) {
+	for currentSize > requiredSize {
+		currentSize /= 2
+
+		_, err = g.Output.Write([]byte{byte(swap), currentSize})
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 2
+		g.instructionIdx++
+
+		_, err = g.Output.Write([]byte{byte(pops), currentSize})
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 2
+		g.instructionIdx++
+	}
+
+	for currentSize < requiredSize {
+
+		_, err = g.Output.Write([]byte{byte(push), currentSize})
+
+		if err != nil {
+			return err
+		}
+
+		_, err = g.Output.Write(make([]byte, currentSize))
+
+		if err != nil {
+			return err
+		}
+
+		g.instructionIdx++
+		g.bytesWritten += 2 + int(currentSize)
+
+		_, err = g.Output.Write([]byte{byte(swap), currentSize})
+
+		if err != nil {
+			return err
+		}
+
+		currentSize *= 2
 	}
 
 	return nil
