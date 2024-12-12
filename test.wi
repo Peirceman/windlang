@@ -28,9 +28,9 @@ fn main() {
 		// println("value of a:", a);
 	// }
 
-	// if a == 208 {
-		// b = true;
-	// }
+	if a == 208 {
+		something = false;
+	}
 	// elif a != 30 {
 	// 	a += 3;
 	// 	// println(str);
