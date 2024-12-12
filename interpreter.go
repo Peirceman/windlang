@@ -20,7 +20,6 @@ func InterpeterFromReader(r io.Reader) (*Interpreter, error) {
 		return &Interpreter{}, err
 	}
 
-
 	return InterpeterFromRawBytes(data)
 }
 
@@ -81,411 +80,238 @@ func (i *Interpreter) Execute() {
 	for idx := 0; idx < len(i.instructions); idx++ {
 		instruction := i.instructions[idx]
 		switch instruction.Code {
+
 		case noop:
 			continue
+
 		case push:
 			switch instruction.Size {
+
 			case 1:
 				i.Stack = append(i.Stack, byte(instruction.Args.(uint8)))
+
 			case 2:
 				i.Stack = binary.BigEndian.AppendUint16(i.Stack, instruction.Args.(uint16))
+
 			case 4:
 				i.Stack = binary.BigEndian.AppendUint32(i.Stack, instruction.Args.(uint32))
+
 			case 8:
 				i.Stack = binary.BigEndian.AppendUint64(i.Stack, instruction.Args.(uint64))
 			}
+
 		case decl:
 			i.Data[instruction.Args.(uint32)] = make([]byte, instruction.Size)
+
 		case popv:
 			copy(i.Data[instruction.Args.(uint32)], i.Stack[len(i.Stack)-int(instruction.Size):])
 			i.Stack = i.Stack[:len(i.Stack)-int(instruction.Size)]
+
 		case pshv:
 			i.Stack = append(i.Stack, i.Data[instruction.Args.(uint32)]...)
+
 		case adds:
-			switch instruction.Size {
-			case 1:
-				a := int8(i.Stack[len(i.Stack)-2]) + int8(i.Stack[len(i.Stack)-1])
-				i.Stack[len(i.Stack)-1] = uint8(a)
-				i.Stack = i.Stack[:len(i.Stack)-1]
-			case 2:
-				b := int16(binary.BigEndian.Uint16(i.Stack[len(i.Stack)-2:]))
-				a := int16(binary.BigEndian.Uint16(i.Stack[len(i.Stack)-4:]))
-				i.Stack = binary.BigEndian.AppendUint16(i.Stack[:len(i.Stack)-4], uint16(a+b))
-			case 4:
-				b := int32(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-4:]))
-				a := int32(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-8:]))
-				i.Stack = binary.BigEndian.AppendUint32(i.Stack[:len(i.Stack)-8], uint32(a+b))
-			case 8:
-				b := int64(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-8:]))
-				a := int64(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-16:]))
-				i.Stack = binary.BigEndian.AppendUint64(i.Stack[:len(i.Stack)-16], uint64(a+b))
-			}
+			b := i.popSigned(instruction.Size)
+			a := i.popSigned(instruction.Size)
+			i.pushSigned(a + b, instruction.Size)
+
 		case addu:
-			switch instruction.Size {
-			case 1:
-				i.Stack[len(i.Stack)-2] += i.Stack[len(i.Stack)-1]
-				i.Stack = i.Stack[:len(i.Stack)-1]
-			case 2:
-				b := binary.BigEndian.Uint16(i.Stack[len(i.Stack)-2:])
-				a := binary.BigEndian.Uint16(i.Stack[len(i.Stack)-4:])
-				i.Stack = binary.BigEndian.AppendUint16(i.Stack[:len(i.Stack)-4], a+b)
-			case 4:
-				b := binary.BigEndian.Uint32(i.Stack[len(i.Stack)-4:])
-				a := binary.BigEndian.Uint32(i.Stack[len(i.Stack)-8:])
-				i.Stack = binary.BigEndian.AppendUint32(i.Stack[:len(i.Stack)-8], a+b)
-			case 8:
-				b := binary.BigEndian.Uint64(i.Stack[len(i.Stack)-8:])
-				a := binary.BigEndian.Uint64(i.Stack[len(i.Stack)-16:])
-				i.Stack = binary.BigEndian.AppendUint64(i.Stack[:len(i.Stack)-16], a+b)
-			}
+			b := i.popUnsigned(instruction.Size)
+			a := i.popUnsigned(instruction.Size)
+			i.pushUnsigned(a + b, instruction.Size)
+
 		case addf:
-			switch instruction.Size {
-			case 4:
-				b := math.Float32frombits(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-4:]))
-				a := math.Float32frombits(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-8:]))
-				i.Stack = binary.BigEndian.AppendUint32(i.Stack[:len(i.Stack)-8], math.Float32bits(a+b))
-			case 8:
-				b := math.Float64frombits(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-8:]))
-				a := math.Float64frombits(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-16:]))
-				i.Stack = binary.BigEndian.AppendUint64(i.Stack[:len(i.Stack)-16], math.Float64bits(a+b))
+			if instruction.Size == 4 {
+				b := math.Float32frombits(uint32(i.popUnsigned(4)))
+				a := math.Float32frombits(uint32(i.popUnsigned(4)))
+				i.pushUnsigned(uint64(math.Float32bits(a+b)), 4)
+			} else {
+				b := math.Float64frombits(uint64(i.popUnsigned(8)))
+				a := math.Float64frombits(uint64(i.popUnsigned(8)))
+				i.pushUnsigned(uint64(math.Float64bits(a+b)), 8)
 			}
+
 		case subs, cmps:
-			switch instruction.Size {
-			case 1:
-				a := int8(i.Stack[len(i.Stack)-2]) - int8(i.Stack[len(i.Stack)-1])
-				i.Stack[len(i.Stack)-1] = uint8(a)
-				i.Stack = i.Stack[:len(i.Stack)-1]
-			case 2:
-				b := int16(binary.BigEndian.Uint16(i.Stack[len(i.Stack)-2:]))
-				a := int16(binary.BigEndian.Uint16(i.Stack[len(i.Stack)-4:]))
-				i.Stack = binary.BigEndian.AppendUint16(i.Stack[:len(i.Stack)-4], uint16(a-b))
-			case 4:
-				b := int32(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-4:]))
-				a := int32(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-8:]))
-				i.Stack = binary.BigEndian.AppendUint32(i.Stack[:len(i.Stack)-8], uint32(a-b))
-			case 8:
-				b := int64(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-8:]))
-				a := int64(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-16:]))
-				i.Stack = binary.BigEndian.AppendUint64(i.Stack[:len(i.Stack)-16], uint64(a-b))
-			}
+			b := i.popSigned(instruction.Size)
+			a := i.popSigned(instruction.Size)
+			i.pushSigned(a - b, instruction.Size)
+
 		case subu, cmpu:
-			switch instruction.Size {
-			case 1:
-				i.Stack[len(i.Stack)-2] -= i.Stack[len(i.Stack)-1]
-				i.Stack = i.Stack[:len(i.Stack)-1]
-			case 2:
-				b := binary.BigEndian.Uint16(i.Stack[len(i.Stack)-2:])
-				a := binary.BigEndian.Uint16(i.Stack[len(i.Stack)-4:])
-				i.Stack = binary.BigEndian.AppendUint16(i.Stack[:len(i.Stack)-4], a-b)
-			case 4:
-				b := binary.BigEndian.Uint32(i.Stack[len(i.Stack)-4:])
-				// fmt.Println(idx)
-				a := binary.BigEndian.Uint32(i.Stack[len(i.Stack)-8:])
-				i.Stack = binary.BigEndian.AppendUint32(i.Stack[:len(i.Stack)-8], a-b)
-			case 8:
-				b := binary.BigEndian.Uint64(i.Stack[len(i.Stack)-8:])
-				a := binary.BigEndian.Uint64(i.Stack[len(i.Stack)-16:])
-				i.Stack = binary.BigEndian.AppendUint64(i.Stack[:len(i.Stack)-16], a-b)
-			}
+			b := i.popUnsigned(instruction.Size)
+			a := i.popUnsigned(instruction.Size)
+			i.pushUnsigned(a - b, instruction.Size)
+
 		case subf, cmpf:
-			switch instruction.Size {
-			case 4:
-				b := math.Float32frombits(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-4:]))
-				a := math.Float32frombits(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-8:]))
-				i.Stack = binary.BigEndian.AppendUint32(i.Stack[:len(i.Stack)-8], math.Float32bits(a-b))
-			case 8:
-				b := math.Float64frombits(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-8:]))
-				a := math.Float64frombits(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-16:]))
-				i.Stack = binary.BigEndian.AppendUint64(i.Stack[:len(i.Stack)-16], math.Float64bits(a-b))
+			if instruction.Size == 4 {
+				b := math.Float32frombits(uint32(i.popUnsigned(4)))
+				a := math.Float32frombits(uint32(i.popUnsigned(4)))
+				i.pushUnsigned(uint64(math.Float32bits(a-b)), 4)
+			} else {
+				b := math.Float64frombits(uint64(i.popUnsigned(8)))
+				a := math.Float64frombits(uint64(i.popUnsigned(8)))
+				i.pushUnsigned(uint64(math.Float64bits(a-b)), 8)
 			}
+
 		case muls:
-			switch instruction.Size {
-			case 1:
-				a := int8(i.Stack[len(i.Stack)-2]) * int8(i.Stack[len(i.Stack)-1])
-				i.Stack[len(i.Stack)-1] = uint8(a)
-				i.Stack = i.Stack[:len(i.Stack)-1]
-			case 2:
-				b := int16(binary.BigEndian.Uint16(i.Stack[len(i.Stack)-2:]))
-				a := int16(binary.BigEndian.Uint16(i.Stack[len(i.Stack)-4:]))
-				i.Stack = binary.BigEndian.AppendUint16(i.Stack[:len(i.Stack)-4], uint16(a*b))
-			case 4:
-				b := int32(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-4:]))
-				a := int32(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-8:]))
-				i.Stack = binary.BigEndian.AppendUint32(i.Stack[:len(i.Stack)-8], uint32(a*b))
-			case 8:
-				b := int64(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-8:]))
-				a := int64(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-16:]))
-				i.Stack = binary.BigEndian.AppendUint64(i.Stack[:len(i.Stack)-16], uint64(a*b))
-			}
+			b := i.popSigned(instruction.Size)
+			a := i.popSigned(instruction.Size)
+			i.pushSigned(a*b, instruction.Size)
+
 		case mulu:
-			switch instruction.Size {
-			case 1:
-				i.Stack[len(i.Stack)-2] *= i.Stack[len(i.Stack)-1]
-				i.Stack = i.Stack[:len(i.Stack)-1]
-			case 2:
-				b := binary.BigEndian.Uint16(i.Stack[len(i.Stack)-2:])
-				a := binary.BigEndian.Uint16(i.Stack[len(i.Stack)-4:])
-				i.Stack = binary.BigEndian.AppendUint16(i.Stack[:len(i.Stack)-4], a*b)
-			case 4:
-				b := binary.BigEndian.Uint32(i.Stack[len(i.Stack)-4:])
-				a := binary.BigEndian.Uint32(i.Stack[len(i.Stack)-8:])
-				i.Stack = binary.BigEndian.AppendUint32(i.Stack[:len(i.Stack)-8], a*b)
-			case 8:
-				b := binary.BigEndian.Uint64(i.Stack[len(i.Stack)-8:])
-				a := binary.BigEndian.Uint64(i.Stack[len(i.Stack)-16:])
-				i.Stack = binary.BigEndian.AppendUint64(i.Stack[:len(i.Stack)-16], a*b)
-			}
+			b := i.popUnsigned(instruction.Size)
+			a := i.popUnsigned(instruction.Size)
+			i.pushUnsigned(a*b, instruction.Size)
+
 		case mulf:
-			switch instruction.Size {
-			case 4:
-				b := math.Float32frombits(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-4:]))
-				a := math.Float32frombits(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-8:]))
-				i.Stack = binary.BigEndian.AppendUint32(i.Stack[:len(i.Stack)-8], math.Float32bits(a*b))
-			case 8:
-				b := math.Float64frombits(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-8:]))
-				a := math.Float64frombits(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-16:]))
-				i.Stack = binary.BigEndian.AppendUint64(i.Stack[:len(i.Stack)-16], math.Float64bits(a*b))
+			if instruction.Size == 4 {
+				b := math.Float32frombits(uint32(i.popUnsigned(4)))
+				a := math.Float32frombits(uint32(i.popUnsigned(4)))
+				i.pushUnsigned(uint64(math.Float32bits(a*b)), 4)
+			} else {
+				b := math.Float64frombits(uint64(i.popUnsigned(8)))
+				a := math.Float64frombits(uint64(i.popUnsigned(8)))
+				i.pushUnsigned(uint64(math.Float64bits(a*b)), 8)
 			}
+
 		case divs:
-			switch instruction.Size {
-			case 1:
-				a := int8(i.Stack[len(i.Stack)-2]) / int8(i.Stack[len(i.Stack)-1])
-				i.Stack[len(i.Stack)-1] = uint8(a)
-				i.Stack = i.Stack[:len(i.Stack)-1]
-			case 2:
-				b := int16(binary.BigEndian.Uint16(i.Stack[len(i.Stack)-2:]))
-				a := int16(binary.BigEndian.Uint16(i.Stack[len(i.Stack)-4:]))
-				i.Stack = binary.BigEndian.AppendUint16(i.Stack[:len(i.Stack)-4], uint16(a/b))
-			case 4:
-				b := int32(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-4:]))
-				a := int32(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-8:]))
-				i.Stack = binary.BigEndian.AppendUint32(i.Stack[:len(i.Stack)-8], uint32(a/b))
-			case 8:
-				b := int64(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-8:]))
-				a := int64(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-16:]))
-				i.Stack = binary.BigEndian.AppendUint64(i.Stack[:len(i.Stack)-16], uint64(a/b))
-			}
+			b := i.popSigned(instruction.Size)
+			a := i.popSigned(instruction.Size)
+			i.pushSigned(a/b, instruction.Size)
+
 		case divu:
-			switch instruction.Size {
-			case 1:
-				i.Stack[len(i.Stack)-2] /= i.Stack[len(i.Stack)-1]
-				i.Stack = i.Stack[:len(i.Stack)-1]
-			case 2:
-				b := binary.BigEndian.Uint16(i.Stack[len(i.Stack)-2:])
-				a := binary.BigEndian.Uint16(i.Stack[len(i.Stack)-4:])
-				i.Stack = binary.BigEndian.AppendUint16(i.Stack[:len(i.Stack)-4], a/b)
-			case 4:
-				b := binary.BigEndian.Uint32(i.Stack[len(i.Stack)-4:])
-				a := binary.BigEndian.Uint32(i.Stack[len(i.Stack)-8:])
-				i.Stack = binary.BigEndian.AppendUint32(i.Stack[:len(i.Stack)-8], a/b)
-			case 8:
-				b := binary.BigEndian.Uint64(i.Stack[len(i.Stack)-8:])
-				a := binary.BigEndian.Uint64(i.Stack[len(i.Stack)-16:])
-				i.Stack = binary.BigEndian.AppendUint64(i.Stack[:len(i.Stack)-16], a/b)
-			}
+			b := i.popUnsigned(instruction.Size)
+			a := i.popUnsigned(instruction.Size)
+			i.pushUnsigned(a/b, instruction.Size)
+
 		case divf:
-			switch instruction.Size {
-			case 4:
-				b := math.Float32frombits(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-4:]))
-				a := math.Float32frombits(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-8:]))
-				i.Stack = binary.BigEndian.AppendUint32(i.Stack[:len(i.Stack)-8], math.Float32bits(a/b))
-			case 8:
-				b := math.Float64frombits(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-8:]))
-				a := math.Float64frombits(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-16:]))
-				i.Stack = binary.BigEndian.AppendUint64(i.Stack[:len(i.Stack)-16], math.Float64bits(a/b))
+			if instruction.Size == 4 {
+				b := math.Float32frombits(uint32(i.popUnsigned(4)))
+				a := math.Float32frombits(uint32(i.popUnsigned(4)))
+				i.pushUnsigned(uint64(math.Float32bits(a/b)), 4)
+			} else {
+				b := math.Float64frombits(uint64(i.popUnsigned(8)))
+				a := math.Float64frombits(uint64(i.popUnsigned(8)))
+				i.pushUnsigned(uint64(math.Float64bits(a/b)), 8)
 			}
+
 		case mods:
-			switch instruction.Size {
-			case 1:
-				a := int8(i.Stack[len(i.Stack)-2]) % int8(i.Stack[len(i.Stack)-1])
-				i.Stack[len(i.Stack)-1] = uint8(a)
-				i.Stack = i.Stack[:len(i.Stack)-1]
-			case 2:
-				b := int16(binary.BigEndian.Uint16(i.Stack[len(i.Stack)-2:]))
-				a := int16(binary.BigEndian.Uint16(i.Stack[len(i.Stack)-4:]))
-				i.Stack = binary.BigEndian.AppendUint16(i.Stack[:len(i.Stack)-4], uint16(a%b))
-			case 4:
-				b := int32(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-4:]))
-				a := int32(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-8:]))
-				i.Stack = binary.BigEndian.AppendUint32(i.Stack[:len(i.Stack)-8], uint32(a%b))
-			case 8:
-				b := int64(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-8:]))
-				a := int64(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-16:]))
-				i.Stack = binary.BigEndian.AppendUint64(i.Stack[:len(i.Stack)-16], uint64(a%b))
-			}
+			b := i.popSigned(instruction.Size)
+			a := i.popSigned(instruction.Size)
+			i.pushSigned(a%b, instruction.Size)
+
 		case modu:
-			switch instruction.Size {
-			case 1:
-				i.Stack[len(i.Stack)-2] %= i.Stack[len(i.Stack)-1]
-				i.Stack = i.Stack[:len(i.Stack)-1]
-			case 2:
-				b := binary.BigEndian.Uint16(i.Stack[len(i.Stack)-2:])
-				a := binary.BigEndian.Uint16(i.Stack[len(i.Stack)-4:])
-				i.Stack = binary.BigEndian.AppendUint16(i.Stack[:len(i.Stack)-4], a%b)
-			case 4:
-				b := binary.BigEndian.Uint32(i.Stack[len(i.Stack)-4:])
-				a := binary.BigEndian.Uint32(i.Stack[len(i.Stack)-8:])
-				i.Stack = binary.BigEndian.AppendUint32(i.Stack[:len(i.Stack)-8], a%b)
-			case 8:
-				b := binary.BigEndian.Uint64(i.Stack[len(i.Stack)-8:])
-				a := binary.BigEndian.Uint64(i.Stack[len(i.Stack)-16:])
-				i.Stack = binary.BigEndian.AppendUint64(i.Stack[:len(i.Stack)-16], a%b)
-			}
+			b := i.popUnsigned(instruction.Size)
+			a := i.popUnsigned(instruction.Size)
+			i.pushUnsigned(a%b, instruction.Size)
+
 		case dupe:
-			i.Stack = append(i.Stack, i.Stack[len(i.Stack)-int(instruction.Size):]...)
+			a := i.popUnsigned(instruction.Size)
+			i.pushUnsigned(a, instruction.Size)
+			i.pushUnsigned(a, instruction.Size)
+
 		case pops:
-			i.Stack = i.Stack[:len(i.Stack)-int(instruction.Size)]
+			i.popUnsigned(instruction.Size)
+
 		case jump:
-			idx = int(instruction.Args.(uint32))-1
+			idx = int(instruction.Args.(uint32)) - 1
+
 		case jpgt:
-			var shouldJump bool
-			switch instruction.Size {
-			case 1:
-				shouldJump = int8(i.Stack[len(i.Stack)-1]) > 0
-			case 2:
-				shouldJump = int16(binary.BigEndian.Uint16(i.Stack[len(i.Stack)-2:])) > 0
-			case 4:
-				shouldJump = int32(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-4:])) > 0
-			case 8:
-				shouldJump = int64(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-8:])) > 0
+			value := i.popSigned(instruction.Size)
+			if value > 0 {
+				idx = int(instruction.Args.(uint32)) - 1
 			}
 
-			if shouldJump {
-				idx = int(instruction.Args.(uint32))-1
-			}
 
-			i.Stack = i.Stack[:len(i.Stack)-int(instruction.Size)]
 		case jpge:
-			var shouldJump bool
-			switch instruction.Size {
-			case 1:
-				shouldJump = int8(i.Stack[len(i.Stack)-1]) >= 0
-			case 2:
-				shouldJump = int16(binary.BigEndian.Uint16(i.Stack[len(i.Stack)-2:])) >= 0
-			case 4:
-				shouldJump = int32(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-4:])) >= 0
-			case 8:
-				shouldJump = int64(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-8:])) >= 0
+			value := i.popSigned(instruction.Size)
+			if value >= 0 {
+				idx = int(instruction.Args.(uint32)) - 1
 			}
 
-			if shouldJump {
-				idx = int(instruction.Args.(uint32))-1
-			}
 
-			i.Stack = i.Stack[:len(i.Stack)-int(instruction.Size)]
 		case jpeq:
-			var shouldJump bool
-			switch instruction.Size {
-			case 1:
-				shouldJump = int8(i.Stack[len(i.Stack)-1]) == 0
-			case 2:
-				shouldJump = int16(binary.BigEndian.Uint16(i.Stack[len(i.Stack)-2:])) == 0
-			case 4:
-				shouldJump = int32(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-4:])) == 0
-			case 8:
-				shouldJump = int64(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-8:])) == 0
+			value := i.popSigned(instruction.Size)
+			if value == 0 {
+				idx = int(instruction.Args.(uint32)) - 1
 			}
 
-			if shouldJump {
-				idx = int(instruction.Args.(uint32))-1
-			}
 
-			i.Stack = i.Stack[:len(i.Stack)-int(instruction.Size)]
 		case jpne:
-			var shouldJump bool
-			switch instruction.Size {
-			case 1:
-				shouldJump = int8(i.Stack[len(i.Stack)-1]) != 0
-			case 2:
-				shouldJump = int16(binary.BigEndian.Uint16(i.Stack[len(i.Stack)-2:])) != 0
-			case 4:
-				shouldJump = int32(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-4:])) != 0
-			case 8:
-				shouldJump = int64(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-8:])) != 0
+			value := i.popSigned(instruction.Size)
+			if value != 0 {
+				idx = int(instruction.Args.(uint32)) - 1
 			}
 
-			if shouldJump {
-				idx = int(instruction.Args.(uint32))-1
-			}
 
-			i.Stack = i.Stack[:len(i.Stack)-int(instruction.Size)]
 		case jple:
-			var shouldJump bool
-			switch instruction.Size {
-			case 1:
-				shouldJump = int8(i.Stack[len(i.Stack)-1]) <= 0
-			case 2:
-				shouldJump = int16(binary.BigEndian.Uint16(i.Stack[len(i.Stack)-2:])) <= 0
-			case 4:
-				shouldJump = int32(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-4:])) <= 0
-			case 8:
-				shouldJump = int64(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-8:])) <= 0
+			value := i.popSigned(instruction.Size)
+			if value <= 0 {
+				idx = int(instruction.Args.(uint32)) - 1
 			}
 
-			if shouldJump {
-				idx = int(instruction.Args.(uint32))-1
-			}
 
-			i.Stack = i.Stack[:len(i.Stack)-int(instruction.Size)]
 		case jplt:
-			var shouldJump bool
-			switch instruction.Size {
-			case 1:
-				shouldJump = int8(i.Stack[len(i.Stack)-1]) < 0
-			case 2:
-				shouldJump = int16(binary.BigEndian.Uint16(i.Stack[len(i.Stack)-2:])) < 0
-			case 4:
-				shouldJump = int32(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-4:])) < 0
-			case 8:
-				shouldJump = int64(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-8:])) < 0
+			value := i.popSigned(instruction.Size)
+			if value < 0 {
+				idx = int(instruction.Args.(uint32)) - 1
 			}
 
-			if shouldJump {
-				idx = int(instruction.Args.(uint32))-1
-			}
 
-			i.Stack = i.Stack[:len(i.Stack)-int(instruction.Size)]
 		case prti:
 			switch instruction.Size {
+
 			case 1:
 				fmt.Println(int8(i.Stack[len(i.Stack)-1]))
 				i.Stack = i.Stack[:len(i.Stack)-1]
+
 			case 2:
 				fmt.Println(int16(binary.BigEndian.Uint16(i.Stack[len(i.Stack)-2:])))
 				i.Stack = i.Stack[:len(i.Stack)-2]
+
 			case 4:
 				fmt.Println(int32(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-4:])))
 				i.Stack = i.Stack[:len(i.Stack)-4]
+
 			case 8:
 				fmt.Println(int64(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-8:])))
 				i.Stack = i.Stack[:len(i.Stack)-8]
 			}
+
 		case prtu:
 			switch instruction.Size {
+
 			case 1:
 				fmt.Println(i.Stack[len(i.Stack)-1])
 				i.Stack = i.Stack[:len(i.Stack)-1]
+
 			case 2:
 				fmt.Println(binary.BigEndian.Uint16(i.Stack[len(i.Stack)-2:]))
 				i.Stack = i.Stack[:len(i.Stack)-2]
+
 			case 4:
 				fmt.Println(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-4:]))
 				i.Stack = i.Stack[:len(i.Stack)-4]
+
 			case 8:
 				fmt.Println(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-8:]))
 				i.Stack = i.Stack[:len(i.Stack)-8]
 			}
+
 		case prtf:
 			switch instruction.Size {
+
 			case 4:
 				fmt.Println(math.Float32frombits(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-4:])))
 				i.Stack = i.Stack[:len(i.Stack)-4]
+
 			case 8:
 				fmt.Println(math.Float64frombits(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-8:])))
 				i.Stack = i.Stack[:len(i.Stack)-8]
 			}
+
 		case prts:
 			fmt.Println(string(i.Data[instruction.Args.(uint32)]))
+
 
 		case isgt:
 			value := i.popSigned(instruction.Size)
@@ -495,6 +321,7 @@ func (i *Interpreter) Execute() {
 				i.pushUnsigned(0, instruction.Size)
 			}
 
+
 		case isge:
 			value := i.popSigned(instruction.Size)
 			if value >= 0 {
@@ -502,6 +329,7 @@ func (i *Interpreter) Execute() {
 			} else {
 				i.pushUnsigned(0, instruction.Size)
 			}
+
 
 		case iseq:
 			value := i.popSigned(instruction.Size)
@@ -511,6 +339,7 @@ func (i *Interpreter) Execute() {
 				i.pushUnsigned(0, instruction.Size)
 			}
 
+
 		case isne:
 			value := i.popSigned(instruction.Size)
 			if value != 0 {
@@ -519,6 +348,7 @@ func (i *Interpreter) Execute() {
 				i.pushUnsigned(0, instruction.Size)
 			}
 
+
 		case isle:
 			value := i.popSigned(instruction.Size)
 			if value <= 0 {
@@ -526,6 +356,7 @@ func (i *Interpreter) Execute() {
 			} else {
 				i.pushUnsigned(0, instruction.Size)
 			}
+
 
 		case islt:
 			value := i.popSigned(instruction.Size)
