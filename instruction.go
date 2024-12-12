@@ -44,6 +44,9 @@ const (
 	isne
 	isle
 	islt
+
+	jptr = jpne
+	jpfl = jpeq
 )
 
 type Instruction struct {

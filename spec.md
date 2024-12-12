@@ -52,8 +52,8 @@ cmpf | 0x17 | / | same but float, the pushed value will be a signed integer of t
 jump | 0x18 | 4 byte instruction index | jump
 jpgt | 0x19 | 4 byte instruction index | jump if greater, top value of the stack as signed is greater than 0
 jpge | 0x1A | 4 byte instruction index | jump if greater or equal, top value as signed is non-negative
-jpeq | 0x1B | 4 byte instruction index | jump if equal, top value is 0
-jpne | 0x1C | 4 byte instruction index | jump if not equal, top value is not 0
+jpeq/jpfl | 0x1B | 4 byte instruction index | jump if equal / jump if false, top value is 0
+jpne/jptr | 0x1C | 4 byte instruction index | jump if not equal / jump if true, top value is not 0
 jple | 0x1D | 4 byte instruction index | jump if less or equal, top value as signed is 0 or negative
 jplt | 0x1E | 4 byte instruction index | jump if less, top value as signed is negative
 prti | 0x1F | / | **temporary instruction** pop top value on the stack and print as signed integer

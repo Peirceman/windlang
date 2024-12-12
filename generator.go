@@ -585,17 +585,187 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 	case BOShr:
 		panic("unimplemented")
 	case BOGt:
-		panic("unimplemented")
+		err := g.writeExpression(binopnode.Lhs)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeExpression(binopnode.Rhs)
+
+		if err != nil {
+			return err
+		}
+
+		_, err = g.Output.Write([]byte{byte(cmps), byte(binopnode.returnType().kind & KindSizeMask)})
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 2
+		g.instructionIdx++
+
+		_, err = g.Output.Write([]byte{byte(isgt), byte(binopnode.returnType().kind & KindSizeMask)})
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 2
+		g.instructionIdx++
 	case BOLt:
-		panic("unimplemented")
+		err := g.writeExpression(binopnode.Lhs)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeExpression(binopnode.Rhs)
+
+		if err != nil {
+			return err
+		}
+
+		_, err = g.Output.Write([]byte{byte(cmps), byte(binopnode.returnType().kind & KindSizeMask)})
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 2
+		g.instructionIdx++
+
+		_, err = g.Output.Write([]byte{byte(islt), byte(binopnode.returnType().kind & KindSizeMask)})
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 2
+		g.instructionIdx++
 	case BOGtEq:
-		panic("unimplemented")
+		err := g.writeExpression(binopnode.Lhs)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeExpression(binopnode.Rhs)
+
+		if err != nil {
+			return err
+		}
+
+		_, err = g.Output.Write([]byte{byte(cmps), byte(binopnode.returnType().kind & KindSizeMask)})
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 2
+		g.instructionIdx++
+
+		_, err = g.Output.Write([]byte{byte(isge), byte(binopnode.returnType().kind & KindSizeMask)})
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 2
+		g.instructionIdx++
 	case BOLtEq:
-		panic("unimplemented")
+		err := g.writeExpression(binopnode.Lhs)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeExpression(binopnode.Rhs)
+
+		if err != nil {
+			return err
+		}
+
+		_, err = g.Output.Write([]byte{byte(cmps), byte(binopnode.returnType().kind & KindSizeMask)})
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 2
+		g.instructionIdx++
+
+		_, err = g.Output.Write([]byte{byte(isle), byte(binopnode.returnType().kind & KindSizeMask)})
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 2
+		g.instructionIdx++
 	case BOEquals:
-		panic("unimplemented")
+		err := g.writeExpression(binopnode.Lhs)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeExpression(binopnode.Rhs)
+
+		if err != nil {
+			return err
+		}
+
+		_, err = g.Output.Write([]byte{byte(cmps), byte(binopnode.returnType().kind & KindSizeMask)})
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 2
+		g.instructionIdx++
+
+		_, err = g.Output.Write([]byte{byte(iseq), byte(binopnode.returnType().kind & KindSizeMask)})
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 2
+		g.instructionIdx++
+
 	case BONotEqual:
-		panic("unimplemented")
+		err := g.writeExpression(binopnode.Lhs)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeExpression(binopnode.Rhs)
+
+		if err != nil {
+			return err
+		}
+
+		_, err = g.Output.Write([]byte{byte(cmps), byte(binopnode.returnType().kind & KindSizeMask)})
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 2
+		g.instructionIdx++
+
+		_, err = g.Output.Write([]byte{byte(isne), byte(binopnode.returnType().kind & KindSizeMask)})
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 2
+		g.instructionIdx++
+
 
 	case BOAssign:
 		lhs, ok := binopnode.Lhs.(Var)
