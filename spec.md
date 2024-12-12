@@ -60,6 +60,12 @@ prti | 0x1F | / | **temporary instruction** pop top value on the stack and print
 prtu | 0x20 | / | **temporary instruction** pop top value on the stack and print as unsigned integer
 prtf | 0x21 | / | **temporary instruction** pop top value on the stack and print as float
 prts | 0x22 | 4 byte id | **temporary instruction** print var as string
+isgt | 0x23 | / | chekcs if the result of cmp is greater (positive) and pushes 1 if true, 0 if false
+isge | 0x24 | / | chekcs if the result of cmp is greater or equal (0 or positive) and pushes 1 if true, 0 if false
+iseq | 0x25 | / | chekcs if the result of cmp is equal (0) and pushes 1 if true, 0 if false
+isne | 0x26 | / | chekcs if the result of cmp is not equal (not 0) and pushes 1 if true, 0 if false
+isle | 0x27 | / | chekcs if the result of cmp is less or equal (0 or negative) and pushes 1 if true, 0 if false
+islt | 0x28 | / | chekcs if the result of cmp is less (negative) and pushes 1 if true, 0 if false
 
 Todo:
 - function calling

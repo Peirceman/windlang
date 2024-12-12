@@ -272,6 +272,8 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 }
 
 func (g *BytecodeGenerator) writeIfChain(chain IfChain) error {
+	var seek int64
+
 	if _, ok := chain.IfCondition.(Var); ok {
 		err := g.writeExpression(chain.IfCondition)
 
@@ -285,7 +287,7 @@ func (g *BytecodeGenerator) writeIfChain(chain IfChain) error {
 			return err
 		}
 
-		seek, err := g.Output.Seek(4, io.SeekCurrent)
+		seek, err = g.Output.Seek(4, io.SeekCurrent)
 
 		if err != nil {
 			return err
@@ -295,42 +297,32 @@ func (g *BytecodeGenerator) writeIfChain(chain IfChain) error {
 		g.instructionIdx++
 
 		seek -= 4
-
-		err = g.writeCodeBlock(chain.IfStatement)
-
-		if err != nil {
-			return err
-		}
-
-		_, err = g.Output.Write([]byte{byte(noop), 0})
-
-		if err != nil {
-			return err
-		}
-
-		g.bytesWritten += 2
-		g.instructionIdx++
-
-		_, err = g.Output.Seek(seek, io.SeekStart)
-
-		if err != nil {
-			return err
-		}
-
-		err = binary.Write(g.Output, binary.BigEndian, uint32(g.instructionIdx))
-
-		if err != nil {
-			return err
-		}
-
-		_, err = g.Output.Seek(0, io.SeekEnd)
-
-		if err != nil {
-			return err
-		}
-
 	} else if _, ok := chain.IfCondition.(BinaryOpNode); ok {
+		
+	}
 
+	err := g.writeCodeBlock(chain.IfStatement)
+
+	if err != nil {
+		return err
+	}
+
+	_, err = g.Output.Seek(seek, io.SeekStart)
+
+	if err != nil {
+		return err
+	}
+
+	err = binary.Write(g.Output, binary.BigEndian, uint32(g.instructionIdx + 1))
+
+	if err != nil {
+		return err
+	}
+
+	_, err = g.Output.Seek(0, io.SeekEnd)
+
+	if err != nil {
+		return err
 	}
 
 	return nil

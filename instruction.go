@@ -38,6 +38,12 @@ const (
 	prtu
 	prtf
 	prts
+	isgt
+	isge
+	iseq
+	isne
+	isle
+	islt
 )
 
 type Instruction struct {

@@ -486,9 +486,120 @@ func (i *Interpreter) Execute() {
 			}
 		case prts:
 			fmt.Println(string(i.Data[instruction.Args.(uint32)]))
+
+		case isgt:
+			value := i.popSigned(instruction.Size)
+			if value > 0 {
+				i.pushUnsigned(1, instruction.Size)
+			} else {
+				i.pushUnsigned(0, instruction.Size)
+			}
+
+		case isge:
+			value := i.popSigned(instruction.Size)
+			if value >= 0 {
+				i.pushUnsigned(1, instruction.Size)
+			} else {
+				i.pushUnsigned(0, instruction.Size)
+			}
+
+		case iseq:
+			value := i.popSigned(instruction.Size)
+			if value == 0 {
+				i.pushUnsigned(1, instruction.Size)
+			} else {
+				i.pushUnsigned(0, instruction.Size)
+			}
+
+		case isne:
+			value := i.popSigned(instruction.Size)
+			if value != 0 {
+				i.pushUnsigned(1, instruction.Size)
+			} else {
+				i.pushUnsigned(0, instruction.Size)
+			}
+
+		case isle:
+			value := i.popSigned(instruction.Size)
+			if value <= 0 {
+				i.pushUnsigned(1, instruction.Size)
+			} else {
+				i.pushUnsigned(0, instruction.Size)
+			}
+
+		case islt:
+			value := i.popSigned(instruction.Size)
+			if value < 0 {
+				i.pushUnsigned(1, instruction.Size)
+			} else {
+				i.pushUnsigned(0, instruction.Size)
+			}
+
 		default:
 			fmt.Println("unknown: ", instruction.Code)
 		}
+	}
+}
+
+func (i *Interpreter) popSigned(size int8) int64 {
+	var output int64
+	switch size {
+	case 1:
+		output = int64(int8(i.Stack[len(i.Stack)-1]))
+	case 2:
+		output = int64(int16(binary.BigEndian.Uint16(i.Stack[len(i.Stack)-2:])))
+	case 4:
+		output = int64(int32(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-4:])))
+	case 8:
+		output = int64(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-8:]))
+	}
+
+	i.Stack = i.Stack[:len(i.Stack)-int(size)]
+
+	return output
+}
+
+func (i *Interpreter) popUnsigned(size int8) uint64 {
+	var output uint64
+	switch size {
+	case 1:
+		output = uint64(i.Stack[len(i.Stack)-1])
+	case 2:
+		output = uint64(binary.BigEndian.Uint16(i.Stack[len(i.Stack)-2:]))
+	case 4:
+		output = uint64(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-4:]))
+	case 8:
+		output = binary.BigEndian.Uint64(i.Stack[len(i.Stack)-8:])
+	}
+
+	i.Stack = i.Stack[:len(i.Stack)-int(size)]
+
+	return output
+}
+
+func (i *Interpreter) pushSigned(value int64, size int8) {
+	switch size {
+	case 1:
+		i.Stack = append(i.Stack, byte(int8(value)))
+	case 2:
+		i.Stack = binary.BigEndian.AppendUint16(i.Stack, uint16(int16(value)))
+	case 4:
+		i.Stack = binary.BigEndian.AppendUint32(i.Stack, uint32(int32(value)))
+	case 8:
+		i.Stack = binary.BigEndian.AppendUint64(i.Stack, uint64(value))
+	}
+}
+
+func (i *Interpreter) pushUnsigned(value uint64, size int8) {
+	switch size {
+	case 1:
+		i.Stack = append(i.Stack, byte(value))
+	case 2:
+		i.Stack = binary.BigEndian.AppendUint16(i.Stack, uint16(value))
+	case 4:
+		i.Stack = binary.BigEndian.AppendUint32(i.Stack, uint32(value))
+	case 8:
+		i.Stack = binary.BigEndian.AppendUint64(i.Stack, value)
 	}
 }
 
