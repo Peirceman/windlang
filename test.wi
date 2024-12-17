@@ -40,6 +40,8 @@ fn main() {
 
 	var ints: int = 1 + // nikke deuke
 	1;
+	
+	ints += αConst;
 	// println("ints[a] =", get(ints, a), "| a =", a);
 }
 
