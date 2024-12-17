@@ -69,7 +69,7 @@ islt | 0x28 | / | chekcs if the result of cmp is less (negative) and pushes 1 if
 over | 0x29 | / | copies the second value on the stack to the top
 swap | 0x2A | / | swaps the top two values on the stack
 rote | 0x2B | / | moves third value to second place, second value to top and top value to third c b a -> a c b
-sgne | 0x2C | / | extends top signed integer to be one size larger: 8 bits becomes 16, 16 32 and 32 64 janky but works i guess
+sgne | 0x2C | / | extends top signed integer to be one size larger: 8 bits becomes 16, 16 32 and 32 64 janky but works i guess, size byte is input size
 
 over swap and rote assume all elements are of same size because they probably are, otherwise
 what are you doing. These instructions were inspired by porth: [https://gitlab.com/tsoding/porth/-/blob/master/porth.porth?ref_type=heads]
