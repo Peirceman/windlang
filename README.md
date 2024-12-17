@@ -5,10 +5,16 @@
 ## Todo:
  - [ ] testing:  
     use testdata dir with files for files to parse and expected output
- - [ ] codegen
  - [ ] fix the rest of this readme
- - [ ] add type modifiers: array, pointer
+ - [x] implement rest of codegen
+ - [ ] expand type system: arrays, pointers, structs
  - [ ] Use Func struct in Funccall
+ - [ ] use jump instructions for if statements instead of what happens now
+ - [ ] loops
+ - [ ] modulo opperation
+ - [ ] better errors
+ - [ ] type system part 2 (less urgent): enums, interfaces
+ - [ ] optimization (definitely not for now)
 
 # spec:
 
