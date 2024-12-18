@@ -140,6 +140,36 @@ func GenerateBytecode(Output io.WriteSeeker, code CodeBlockNode) error {
 }
 
 func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
+	startingRuntimeVarIndex := g.nextRuntimeVarIdx
+
+	for identifier, varDef := range codeBlock.scope.vars {
+		_, exists := g.vars[identifier]
+		if exists {
+			panic("shadowing not implemented yet")
+		}
+
+		if varDef.returnType().kind&KindString&KindTypeMask != 0 {
+			continue
+		}
+
+		g.vars[identifier] = g.nextRuntimeVarIdx
+		g.nextRuntimeVarIdx++
+	}
+
+	for identifier, constDef := range codeBlock.scope.consts {
+		_, exists := g.vars[identifier]
+		if exists {
+			panic("shadowing not implemented yet")
+		}
+
+		if constDef.returnType().kind&KindString&KindTypeMask != 0 {
+			continue
+		}
+
+		g.vars[identifier] = g.nextRuntimeVarIdx
+		g.nextRuntimeVarIdx++
+	}
+
 	for _, node := range codeBlock.Statements {
 		switch node := node.(type) {
 		case ExpressionNode:
@@ -150,13 +180,25 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 			}
 
 		case ConstNode:
+			// very stupid
+			if (node.typ.kind & (KindString & KindTypeMask)) != 0 {
+				err := g.writeExpression(node.Value)
+
+				if err != nil {
+					return err
+				}
+
+				g.vars[node.name] = g.nextCompiletimeVarIdx - 1
+				break
+			}
+
 			_, err := g.Output.Write([]byte{byte(decl), byte(node.typ.kind & KindSizeMask)})
 
 			if err != nil {
 				return err
 			}
 
-			err = binary.Write(g.Output, binary.BigEndian, g.nextRuntimeVarIdx)
+			err = binary.Write(g.Output, binary.BigEndian, g.vars[node.name])
 
 			if err != nil {
 				return err
@@ -164,8 +206,6 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 
 			g.bytesWritten += 6
 			g.instructionIdx++
-			g.vars[node.name] = g.nextRuntimeVarIdx
-			g.nextRuntimeVarIdx++
 
 			if node.Value == nil {
 				break
@@ -177,25 +217,30 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 				return err
 			}
 
-			if (node.typ.kind & (KindString & KindTypeMask)) != 0 {
-				g.vars[node.name] = g.nextCompiletimeVarIdx - 1
-				g.nextRuntimeVarIdx--
-				break
-			}
-
 			g.Output.Write([]byte{byte(popv), byte(node.typ.kind & KindSizeMask)})
-			binary.Write(g.Output, binary.BigEndian, g.nextRuntimeVarIdx-1)
+			binary.Write(g.Output, binary.BigEndian, g.vars[node.name])
 			g.bytesWritten += 6
 			g.instructionIdx++
 
 		case VarNode:
+			if (node.typ.kind & (KindString & KindTypeMask)) != 0 {
+				err := g.writeExpression(node.Value)
+
+				if err != nil {
+					return err
+				}
+
+				g.vars[node.name] = g.nextCompiletimeVarIdx - 1
+				break
+			}
+
 			_, err := g.Output.Write([]byte{byte(decl), byte(node.typ.kind & KindSizeMask)})
 
 			if err != nil {
 				return err
 			}
 
-			err = binary.Write(g.Output, binary.BigEndian, g.nextRuntimeVarIdx)
+			err = binary.Write(g.Output, binary.BigEndian, g.vars[node.name])
 
 			if err != nil {
 				return err
@@ -203,8 +248,6 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 
 			g.bytesWritten += 6
 			g.instructionIdx++
-			g.vars[node.name] = g.nextRuntimeVarIdx
-			g.nextRuntimeVarIdx++
 
 			if node.Value == nil {
 				break
@@ -216,15 +259,8 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 				return err
 			}
 
-			// very stupid
-			if (node.typ.kind & (KindString & KindTypeMask)) != 0 {
-				g.vars[node.name] = g.nextCompiletimeVarIdx - 1
-				g.nextRuntimeVarIdx--
-				break
-			}
-
 			g.Output.Write([]byte{byte(popv), byte(node.typ.kind & KindSizeMask)})
-			binary.Write(g.Output, binary.BigEndian, g.nextRuntimeVarIdx-1)
+			binary.Write(g.Output, binary.BigEndian, g.vars[node.name])
 			g.bytesWritten += 6
 			g.instructionIdx++
 
@@ -240,21 +276,11 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 			}
 
 		case CodeBlockNode:
-			startingRuntimeIdx := g.nextRuntimeVarIdx
-
 			err := g.writeCodeBlock(node)
 
 			if err != nil {
 				return err
 			}
-
-			for k := range g.data {
-				if ((k & 0x80000000) == 0) && k >= startingRuntimeIdx {
-					delete(g.data, k)
-				}
-			}
-
-			g.nextRuntimeVarIdx = startingRuntimeIdx
 
 		case IfChain:
 			err := g.writeIfChain(node)
@@ -268,6 +294,7 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 		}
 	}
 
+	g.nextRuntimeVarIdx = startingRuntimeVarIndex
 	return nil
 }
 
@@ -373,7 +400,7 @@ func (g *BytecodeGenerator) writeIfChain(chain IfChain) error {
 			return err
 		}
 
-		if chain.hasElse || i < len(chain.ElifConditions) - 1 {
+		if chain.hasElse || i < len(chain.ElifConditions)-1 {
 			_, err = g.Output.Write([]byte{byte(jump), 0})
 
 			if err != nil {

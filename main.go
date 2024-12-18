@@ -32,6 +32,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
+
 	} else if fileName[len(fileName)-4:] == ".wbc" {
 		file, err := os.Open(fileName)
 
