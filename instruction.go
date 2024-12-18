@@ -55,6 +55,9 @@ const (
 	bshl
 	bsrs
 	bsru
+	call
+	rett
+	exit
 
 	jptr = jpne
 	jpfl = jpeq

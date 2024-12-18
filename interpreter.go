@@ -12,6 +12,7 @@ type Interpreter struct {
 	instructions []Instruction
 	Data         map[uint32][]byte
 	Stack        []byte
+	callStack    []uint32
 }
 
 func InterpeterFromReader(r io.Reader) (*Interpreter, error) {
@@ -39,6 +40,7 @@ func InterpeterFromRawBytes(data []byte) (interpreter *Interpreter, err error) {
 
 	interpreter.Stack = make([]byte, 0, 1024)
 	interpreter.Data = make(map[uint32][]byte)
+	interpreter.callStack = make([]uint32, 0, 128)
 
 	for len(data) > 0 {
 		var header []byte
@@ -76,7 +78,7 @@ func InterpeterFromRawBytes(data []byte) (interpreter *Interpreter, err error) {
 	return
 }
 
-func (i *Interpreter) Execute() {
+func (i *Interpreter) Execute() int {
 	for idx := 0; idx < len(i.instructions); idx++ {
 		instruction := i.instructions[idx]
 		switch instruction.Code {
@@ -427,10 +429,23 @@ func (i *Interpreter) Execute() {
 			a := i.popUnsigned(instruction.Size)
 			i.pushUnsigned(a >> b, instruction.Size)
 
+		case call:
+			i.callStack = append(i.callStack, uint32(idx))
+			idx = int(instruction.Args.(uint32)) - 1
+
+		case rett:
+			idx = int(i.callStack[len(i.callStack)-1])
+			i.callStack = i.callStack[:len(i.callStack)-1]
+
+		case exit:
+			return int(i.popUnsigned(instruction.Size))
+
 		default:
 			fmt.Println("unknown: ", instruction.Code)
 		}
 	}
+
+	return 0
 }
 
 func (i *Interpreter) popSigned(size int8) int64 {
