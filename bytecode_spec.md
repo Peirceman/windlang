@@ -77,6 +77,9 @@ bxor | 0x30 | / | performs a binary xor on the top two values
 bshl | 0x31 | / | performs a binary left shift the second value on the stack, a top value amount of times
 bsrs | 0x32 | / | performs a signed binary right shift the second value on the stack, a top value amount of times
 bsru | 0x33 | / | performs an unsigned binary right shift the second value on the stack, a top value amount of times
+call | 0x34 | 4 byte instruction index | pushes the next instruction's index onto the callstack and jumps to given adress
+rett | 0x35 | / | pops top index from the callstack and jumps there
+exit | 0x36 | / | exits the program with top value as return value
 
 `over` `swap` and `rote` assume all elements are of same size because they probably are, otherwise
 what are you doing. These instructions were inspired by porth: [https://gitlab.com/tsoding/porth/-/blob/master/porth.porth?ref_type=heads]

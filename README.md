@@ -10,7 +10,7 @@
  - [ ] Use Func struct in Funccall
  - [ ] use jump instructions for if statements instead of what happens now
  - [ ] loops
- - [ ] calling functions
+ - [x] calling functions
  - [ ] modulo opperation
  - [ ] generating (ssa) IR
  - [ ] better errors
