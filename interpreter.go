@@ -559,6 +559,7 @@ func parseCodeSection(data []byte) (instructions []Instruction, choppedData []by
 
 		case popv, pshv, decl, jump, jpgt, jpge, jpeq, jpne, jple, jplt, prts:
 			if len(instructionBytes)-i < 4 {
+				fmt.Println(i)
 				fmt.Println(opcode)
 				return nil, data, errors.New("Missing argument for opperation")
 			}

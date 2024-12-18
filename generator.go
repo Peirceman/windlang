@@ -260,8 +260,18 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 				return err
 			}
 
-			g.Output.Write([]byte{byte(popv), byte(node.typ.kind & KindSizeMask)})
-			binary.Write(g.Output, binary.BigEndian, g.vars[node.name])
+			_, err = g.Output.Write([]byte{byte(popv), byte(node.typ.kind & KindSizeMask)})
+
+			if err != nil {
+				return err
+			}
+
+			err = binary.Write(g.Output, binary.BigEndian, g.vars[node.name])
+
+			if err != nil {
+				return err
+			}
+
 			g.bytesWritten += 6
 			g.instructionIdx++
 
@@ -504,7 +514,7 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 	case FloatLit:
 		size := expression.returnType().kind & KindSizeMask
 		float, _ := strconv.ParseFloat(expression.value, int(size*8)) // at this point it should be a valid float
-		g.bytesWritten = 2 + int(size)
+		g.bytesWritten += 2 + int(size)
 		g.instructionIdx++
 
 		_, err := g.Output.Write([]byte{byte(push), byte(size)})
@@ -608,7 +618,7 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 					return err
 				}
 
-				_, err = g.Output.Write([]byte{byte(prtu), byte(arg.returnType().kind & KindSizeMask)})
+				_, err = g.Output.Write([]byte{byte(prti), byte(arg.returnType().kind & KindSizeMask)})
 
 				if err != nil {
 					return err
