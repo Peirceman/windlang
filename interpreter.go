@@ -132,10 +132,12 @@ func (i *Interpreter) Execute() {
 			}
 
 		case subs, cmps:
-			fmt.Println(idx)
 			b := i.popSigned(instruction.Size)
 			a := i.popSigned(instruction.Size)
 			i.pushSigned(a - b, instruction.Size)
+			fmt.Println(a)
+			fmt.Println(b)
+			fmt.Println(a - b)
 
 		case subu, cmpu:
 			b := i.popUnsigned(instruction.Size)
@@ -343,6 +345,7 @@ func (i *Interpreter) Execute() {
 
 		case isne:
 			value := i.popSigned(instruction.Size)
+			// fmt.Println(value)
 			if value != 0 {
 				i.pushUnsigned(1, instruction.Size)
 			} else {

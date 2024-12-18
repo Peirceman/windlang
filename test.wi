@@ -25,21 +25,12 @@ fn main() {
 		d += 2;
 	}
 
-	// // if a == 50 {
-		// b = false;
-		// println("value of a:", a);
-	// }
-
-	if a == 208 {
+	if a != 208 {
 		something = false;
 		d += 1;
+	 } else {
+		a = 209;
 	}
-	// elif a != 30 {
-	// 	a += 3;
-	// 	// println(str);
-	// } else {
-	// 	// print('\x41' /* dikke neuke */ );
-	// }
 
 	var ints: int = 1 + // nikke deuke
 	1;

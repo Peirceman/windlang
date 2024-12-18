@@ -272,7 +272,8 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 }
 
 func (g *BytecodeGenerator) writeIfChain(chain IfChain) error {
-	var seek int64
+	var seekEnds []int64
+	var seekFalse int64
 
 	err := g.writeExpression(chain.IfCondition)
 
@@ -286,16 +287,15 @@ func (g *BytecodeGenerator) writeIfChain(chain IfChain) error {
 		return err
 	}
 
-	seek, err = g.Output.Seek(4, io.SeekCurrent)
+	seekFalse, err = g.Output.Seek(4, io.SeekCurrent)
 
 	if err != nil {
 		return err
 	}
 
+	seekFalse -= 4
 	g.bytesWritten += 6
 	g.instructionIdx++
-
-	seek -= 4
 
 	err = g.writeCodeBlock(chain.IfStatement)
 
@@ -303,7 +303,28 @@ func (g *BytecodeGenerator) writeIfChain(chain IfChain) error {
 		return err
 	}
 
-	_, err = g.Output.Seek(seek, io.SeekStart)
+	if chain.hasElse || len(chain.ElifConditions) > 0 {
+		_, err = g.Output.Write([]byte{byte(jump), 0})
+
+		if err != nil {
+			return err
+		}
+
+		seekEnd, err := g.Output.Seek(4, io.SeekCurrent)
+
+		if err != nil {
+			return err
+		}
+
+		seekEnd -= 4
+		g.bytesWritten += 6
+		g.instructionIdx++
+		seekEnds = append(seekEnds, seekEnd)
+	}
+
+	tmp, _ := g.Output.Seek(0, io.SeekCurrent)
+
+	_, err = g.Output.Seek(seekFalse, io.SeekStart)
 
 	if err != nil {
 		return err
@@ -313,6 +334,34 @@ func (g *BytecodeGenerator) writeIfChain(chain IfChain) error {
 
 	if err != nil {
 		return err
+	}
+
+	_, err = g.Output.Seek(tmp, io.SeekStart)
+
+	if err != nil {
+		return err
+	}
+
+	if chain.hasElse {
+		err = g.writeCodeBlock(chain.ElseStatement)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, seek := range seekEnds {
+		_, err = g.Output.Seek(seek, io.SeekStart)
+
+		if err != nil {
+			return err
+		}
+
+		err = binary.Write(g.Output, binary.BigEndian, uint32(g.instructionIdx))
+
+		if err != nil {
+			return err
+		}
 	}
 
 	_, err = g.Output.Seek(0, io.SeekEnd)
@@ -926,7 +975,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		_, err = g.Output.Write([]byte{byte(cmps), byte(binopnode.returnType().kind & KindSizeMask)})
+		_, err = g.Output.Write([]byte{byte(cmps), byte(binopnode.Lhs.returnType().kind & KindSizeMask)})
 
 		if err != nil {
 			return err
@@ -935,7 +984,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 		g.bytesWritten += 2
 		g.instructionIdx++
 
-		_, err = g.Output.Write([]byte{byte(isgt), byte(binopnode.returnType().kind & KindSizeMask)})
+		_, err = g.Output.Write([]byte{byte(isgt), byte(binopnode.Lhs.returnType().kind & KindSizeMask)})
 
 		if err != nil {
 			return err
@@ -962,7 +1011,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		_, err = g.Output.Write([]byte{byte(cmps), byte(binopnode.returnType().kind & KindSizeMask)})
+		_, err = g.Output.Write([]byte{byte(cmps), byte(binopnode.Lhs.returnType().kind & KindSizeMask)})
 
 		if err != nil {
 			return err
@@ -971,7 +1020,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 		g.bytesWritten += 2
 		g.instructionIdx++
 
-		_, err = g.Output.Write([]byte{byte(islt), byte(binopnode.returnType().kind & KindSizeMask)})
+		_, err = g.Output.Write([]byte{byte(islt), byte(binopnode.Lhs.returnType().kind & KindSizeMask)})
 
 		if err != nil {
 			return err
@@ -997,7 +1046,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		_, err = g.Output.Write([]byte{byte(cmps), byte(binopnode.returnType().kind & KindSizeMask)})
+		_, err = g.Output.Write([]byte{byte(cmps), byte(binopnode.Lhs.returnType().kind & KindSizeMask)})
 
 		if err != nil {
 			return err
@@ -1006,7 +1055,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 		g.bytesWritten += 2
 		g.instructionIdx++
 
-		_, err = g.Output.Write([]byte{byte(isge), byte(binopnode.returnType().kind & KindSizeMask)})
+		_, err = g.Output.Write([]byte{byte(isge), byte(binopnode.Lhs.returnType().kind & KindSizeMask)})
 
 		if err != nil {
 			return err
@@ -1033,7 +1082,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		_, err = g.Output.Write([]byte{byte(cmps), byte(binopnode.returnType().kind & KindSizeMask)})
+		_, err = g.Output.Write([]byte{byte(cmps), byte(binopnode.Lhs.returnType().kind & KindSizeMask)})
 
 		if err != nil {
 			return err
@@ -1042,7 +1091,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 		g.bytesWritten += 2
 		g.instructionIdx++
 
-		_, err = g.Output.Write([]byte{byte(isle), byte(binopnode.returnType().kind & KindSizeMask)})
+		_, err = g.Output.Write([]byte{byte(isle), byte(binopnode.Lhs.returnType().kind & KindSizeMask)})
 
 		if err != nil {
 			return err
@@ -1055,7 +1104,6 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 		curSize := byte(binopnode.Lhs.returnType().kind & KindSizeMask)
 
 		g.castUnsigned(requiredSize, curSize)
-
 	case BOEquals:
 		err := g.writeExpression(binopnode.Lhs)
 
@@ -1105,7 +1153,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		_, err = g.Output.Write([]byte{byte(cmps), byte(binopnode.returnType().kind & KindSizeMask)})
+		_, err = g.Output.Write([]byte{byte(cmps), byte(binopnode.Lhs.returnType().kind & KindSizeMask)})
 
 		if err != nil {
 			return err
@@ -1114,7 +1162,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 		g.bytesWritten += 2
 		g.instructionIdx++
 
-		_, err = g.Output.Write([]byte{byte(isne), byte(binopnode.returnType().kind & KindSizeMask)})
+		_, err = g.Output.Write([]byte{byte(isne), byte(binopnode.Lhs.returnType().kind & KindSizeMask)})
 
 		if err != nil {
 			return err
@@ -1139,7 +1187,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 		idx := g.vars[lhs.name]
 
 		// TODO: this is the hackiest shit ever, should be solved when pointers exist
-		if (lhs.returnType().kind & (KindString & KindTypeMask)) != 0 {
+		if (lhs.returnType().kind & KindString & KindTypeMask) != 0 {
 			break
 		}
 
