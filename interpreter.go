@@ -135,9 +135,6 @@ func (i *Interpreter) Execute() {
 			b := i.popSigned(instruction.Size)
 			a := i.popSigned(instruction.Size)
 			i.pushSigned(a - b, instruction.Size)
-			fmt.Println(a)
-			fmt.Println(b)
-			fmt.Println(a - b)
 
 		case subu, cmpu:
 			b := i.popUnsigned(instruction.Size)
