@@ -16,6 +16,11 @@ fn main() {
 	var c: string = "3";
 	var d: int = 4;
 
+	println(a);
+	// print(1.0 + 1.0);
+	print(str);
+	println("hello world");
+
 	a = αConst * 3 + 1;
 
 	// line comment

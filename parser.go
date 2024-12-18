@@ -617,6 +617,8 @@ func (p *Parser) parsePrimary() Expression {
 
 		p.expect(TTRBrace)
 
+		// FIXME: why don't I confirm if arguments are correct? smh
+
 		return expr
 
 	case TTInt:

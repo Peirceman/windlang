@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"strconv"
 )
@@ -265,7 +266,7 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 			g.instructionIdx++
 
 		case FuncNode:
-			if !(node.name == "main" && len(node.Args) == 0) {
+			if node.name != "main" && len(node.Args) == 0 {
 				panic("Error, functions other than main have not been implemented yet")
 			}
 
@@ -593,6 +594,76 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 		// I beleive this is a function object?, definitely not implemented
 
 	case FuncCall:
+		if expression.fun.name == "print" || expression.fun.name == "println" {
+			if len(expression.Args) != 1 {
+				panic(fmt.Errorf("Exactly one argument expected for %s", expression.fun.name))
+			}
+
+			arg := expression.Args[0]
+			switch arg.returnType().kind & KindTypeMask {
+			case KindInt, KindBool & KindTypeMask:
+				err := g.writeExpression(arg)
+
+				if err != nil {
+					return err
+				}
+
+				_, err = g.Output.Write([]byte{byte(prtu), byte(arg.returnType().kind & KindSizeMask)})
+
+				if err != nil {
+					return err
+				}
+
+				g.bytesWritten += 2
+				g.instructionIdx++
+
+			case KindFloat:
+				err := g.writeExpression(arg)
+
+				if err != nil {
+					return err
+				}
+
+				_, err = g.Output.Write([]byte{byte(prtf), byte(arg.returnType().kind & KindSizeMask)})
+
+				if err != nil {
+					return err
+				}
+
+				g.bytesWritten += 2
+				g.instructionIdx++
+
+			case KindString & KindTypeMask:
+				_, err := g.Output.Write([]byte{byte(prts), byte(arg.returnType().kind & KindSizeMask)})
+
+				if err != nil {
+					return err
+				}
+
+				if aVar, ok := arg.(Var); ok {
+					name := aVar.name
+					err = binary.Write(g.Output, binary.BigEndian, g.vars[name])
+				} else if aConst, ok := arg.(Const); ok {
+					name := aConst.name
+					err = binary.Write(g.Output, binary.BigEndian, g.vars[name])
+				} else if aLit, ok := arg.(StrLit); ok {
+					err = g.writeExpression(aLit)
+
+					if err != nil {
+						return err
+					}
+
+					err = binary.Write(g.Output, binary.BigEndian, g.nextCompiletimeVarIdx-1)
+				}
+
+				g.bytesWritten += 6
+				g.instructionIdx++
+
+			}
+
+			break
+		}
+
 		panic("functions not implemented yet")
 
 	case BinaryOpNode:

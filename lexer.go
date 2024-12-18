@@ -636,6 +636,7 @@ func (l *Lexer) readAfterDigit() *Token {
 	var charset map[rune]int = decimalCharset
 	var contains bool
 	isDecimal := true
+	base := 10
 
 	r, _ := l.nextRune() // cannot be eof, because this function would otherwise not be called
 	tokenText.WriteRune(r)
@@ -652,14 +653,17 @@ func (l *Lexer) readAfterDigit() *Token {
 			charsetName = "binary"
 			charset = binaryCharset
 			isDecimal = false
+			base = 2
 		case 'o':
 			charsetName = "octal"
 			charset = octalCharset
 			isDecimal = false
+			base = 8
 		case 'x':
 			charsetName = "hex"
 			charset = hexCharset
 			isDecimal = false
+			base = 16
 		default:
 			if _, contains = decimalCharset[r]; !contains {
 				tok.literal = tokenText.String()
@@ -704,7 +708,7 @@ func (l *Lexer) readAfterDigit() *Token {
 		if isDecimal {
 			tok.extraInfo, _ = strconv.Atoi(tok.literal)
 		} else {
-			val, _ := strconv.ParseInt(tok.literal[2:], len(charset), 0)
+			val, _ := strconv.ParseInt(tok.literal[2:], base, 0)
 			tok.extraInfo = int(val)
 		}
 	}
