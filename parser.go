@@ -343,7 +343,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 
 			condition := p.parseExpression()
 
-			if condition.returnType().kind & KindBool != 0 {
+			if condition.returnType().kind & KindBool & KindTypeMask == 0 {
 				panic(p.lex.curLoc.String() + " boolean expression expected")
 			}
 
@@ -352,6 +352,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 			p.expectPeek(TTLSquirly)
 
 			statements, eof := p.parseFunctionBody()
+
 			if eof {
 				panic("unreachable")
 			}

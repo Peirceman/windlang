@@ -342,6 +342,77 @@ func (g *BytecodeGenerator) writeIfChain(chain IfChain) error {
 		return err
 	}
 
+	for i, condition := range chain.ElifConditions {
+		statement := chain.ElifStatements[i]
+
+		err := g.writeExpression(condition)
+
+		if err != nil {
+			return err
+		}
+
+		_, err = g.Output.Write([]byte{byte(jpfl), byte(condition.returnType().kind & KindSizeMask)})
+
+		if err != nil {
+			return err
+		}
+
+		seekFalse, err = g.Output.Seek(4, io.SeekCurrent)
+
+		if err != nil {
+			return err
+		}
+
+		seekFalse -= 4
+		g.bytesWritten += 6
+		g.instructionIdx++
+
+		err = g.writeCodeBlock(statement)
+
+		if err != nil {
+			return err
+		}
+
+		if chain.hasElse || i < len(chain.ElifConditions) - 1 {
+			_, err = g.Output.Write([]byte{byte(jump), 0})
+
+			if err != nil {
+				return err
+			}
+
+			seekEnd, err := g.Output.Seek(4, io.SeekCurrent)
+
+			if err != nil {
+				return err
+			}
+
+			seekEnd -= 4
+			g.bytesWritten += 6
+			g.instructionIdx++
+			seekEnds = append(seekEnds, seekEnd)
+		}
+
+		tmp, _ := g.Output.Seek(0, io.SeekCurrent)
+
+		_, err = g.Output.Seek(seekFalse, io.SeekStart)
+
+		if err != nil {
+			return err
+		}
+
+		err = binary.Write(g.Output, binary.BigEndian, uint32(g.instructionIdx))
+
+		if err != nil {
+			return err
+		}
+
+		_, err = g.Output.Seek(tmp, io.SeekStart)
+
+		if err != nil {
+			return err
+		}
+	}
+
 	if chain.hasElse {
 		err = g.writeCodeBlock(chain.ElseStatement)
 
@@ -1162,7 +1233,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 		g.bytesWritten += 2
 		g.instructionIdx++
 
-		_, err = g.Output.Write([]byte{byte(isne), byte(binopnode.Lhs.returnType().kind & KindSizeMask)})
+		_, err = g.Output.Write([]byte{byte(isne), byte(binopnode.returnType().kind & KindSizeMask)})
 
 		if err != nil {
 			return err
