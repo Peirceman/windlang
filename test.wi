@@ -12,8 +12,9 @@ var something: bool;
 fn main() {
 	const αConst: int = 69;
 	var a: int = 0x1A4;
-	var b: bool = true;
+	var b: bool = false;
 	var c: string = "3";
+	var d: int = 4;
 
 	a = αConst * 3 + 1;
 
@@ -21,6 +22,7 @@ fn main() {
 
 	if b {
 		something = true;
+		d += 2;
 	}
 
 	// // if a == 50 {
@@ -30,6 +32,7 @@ fn main() {
 
 	if a == 208 {
 		something = false;
+		d += 1;
 	}
 	// elif a != 30 {
 	// 	a += 3;
@@ -44,6 +47,7 @@ fn main() {
 	ints += αConst;
 
 	var shouldBeTrue: bool = b && a == 208;
+	var test: bool = b || a == 208;
 	// println("ints[a] =", get(ints, a), "| a =", a);
 }
 

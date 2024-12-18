@@ -132,6 +132,7 @@ func (i *Interpreter) Execute() {
 			}
 
 		case subs, cmps:
+			fmt.Println(idx)
 			b := i.popSigned(instruction.Size)
 			a := i.popSigned(instruction.Size)
 			i.pushSigned(a - b, instruction.Size)

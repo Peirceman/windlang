@@ -309,7 +309,7 @@ func (g *BytecodeGenerator) writeIfChain(chain IfChain) error {
 		return err
 	}
 
-	err = binary.Write(g.Output, binary.BigEndian, uint32(g.instructionIdx+1))
+	err = binary.Write(g.Output, binary.BigEndian, uint32(g.instructionIdx))
 
 	if err != nil {
 		return err
@@ -633,7 +633,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		err = binary.Write(g.Output, binary.BigEndian, uint32(g.instructionIdx - 1))
+		err = binary.Write(g.Output, binary.BigEndian, uint32(g.instructionIdx-1))
 
 		if err != nil {
 			return err
@@ -645,7 +645,6 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-
 		_, err = g.Output.Write([]byte{byte(jump), 0})
 
 		if err != nil {
@@ -653,7 +652,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 		}
 
 		err = binary.Write(g.Output, binary.BigEndian, uint32(g.instructionIdx+2))
-		
+
 		if err != nil {
 			return err
 		}
@@ -689,7 +688,118 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 		g.instructionIdx++
 
 	case BOBoolOr:
-		panic("unimplemented")
+		err := g.writeExpression(binopnode.Lhs)
+
+		if err != nil {
+			return err
+		}
+
+		_, err = g.Output.Write([]byte{byte(jptr), byte(binopnode.Lhs.returnType().kind & KindSizeMask)})
+
+		if err != nil {
+			return err
+		}
+
+		seekTrue, err := g.Output.Seek(4, io.SeekCurrent)
+
+		if err != nil {
+			return err
+		}
+
+		seekTrue -= 4
+		g.bytesWritten += 6
+		g.instructionIdx++
+
+		err = g.writeExpression(binopnode.Rhs)
+
+		if err != nil {
+			return err
+		}
+
+		_, err = g.Output.Write([]byte{byte(jpfl), byte(binopnode.Rhs.returnType().kind & KindSizeMask)})
+
+		if err != nil {
+			return err
+		}
+
+		seekFalse, err := g.Output.Seek(4, io.SeekCurrent)
+
+		if err != nil {
+			return err
+		}
+
+		seekFalse -= 4
+		g.bytesWritten += 6
+		g.instructionIdx++
+
+		_, err = g.Output.Write([]byte{byte(push), 4, 0, 0, 0, 1})
+
+		if err != nil {
+			return err
+		}
+
+		g.instructionIdx++
+		g.bytesWritten += 6
+
+		_, err = g.Output.Seek(seekTrue, io.SeekStart)
+
+		if err != nil {
+			return err
+		}
+
+		err = binary.Write(g.Output, binary.BigEndian, uint32(g.instructionIdx-1))
+
+		if err != nil {
+			return err
+		}
+
+		_, err = g.Output.Seek(0, io.SeekEnd)
+
+		if err != nil {
+			return err
+		}
+
+		_, err = g.Output.Write([]byte{byte(jump), 0})
+
+		if err != nil {
+			return err
+		}
+
+		err = binary.Write(g.Output, binary.BigEndian, uint32(g.instructionIdx+2))
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 6
+		g.instructionIdx++
+
+		_, err = g.Output.Seek(seekFalse, io.SeekStart)
+
+		if err != nil {
+			return err
+		}
+
+		err = binary.Write(g.Output, binary.BigEndian, uint32(g.instructionIdx))
+
+		if err != nil {
+			return err
+		}
+
+		_, err = g.Output.Seek(0, io.SeekEnd)
+
+		if err != nil {
+			return err
+		}
+
+		_, err = g.Output.Write([]byte{byte(push), 4, 0, 0, 0, 0})
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 6
+		g.instructionIdx++
 
 	case BOShl:
 		panic("unimplemented")
