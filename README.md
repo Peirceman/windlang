@@ -32,7 +32,6 @@ if    elif   else
 name | value
 -|-
 letter | unicode_letter \| "_"
-|
 binary_digit  | [01]
 octal_digit   | [0-7]
 decimal_digit | [0-9]
