@@ -49,5 +49,24 @@ fn main() {
 	var shouldBeTrue: bool = b && a == 208;
 	var test: bool = b || a == 208;
 	// println("ints[a] =", get(ints, a), "| a =", a);
+
+
+
+	var one: int = 1;
+	var two: int = one << one;
+	var eight: int = 1 << (two + one);
+	var negTwo: int = 1 - 3;
+	var negone: int = negTwo >> 1;
+
+	var three: int = 7 & 11;
+	var five: int = 1 | 4;
+	var six: int = 5 ^ 3;
+
+	var x: int = 1;
+	x |= 2;
+	x ^= 6;
+	x <<= 1;
+	x &= 2;
+	x >>= 1;
 }
 

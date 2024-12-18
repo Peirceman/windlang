@@ -566,12 +566,76 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 		g.instructionIdx++
 
 	case BOBinAnd:
-		panic("unimplemented")
+		err := g.writeExpression(binopnode.Lhs)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeExpression(binopnode.Rhs)
+
+		if err != nil {
+			return err
+		}
+
+		size := byte(binopnode.returnType().kind & KindSizeMask)
+
+		_, err = g.Output.Write([]byte{byte(band), size})
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 2
+		g.instructionIdx++
 
 	case BOBinOr:
-		panic("unimplemented")
+		err := g.writeExpression(binopnode.Lhs)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeExpression(binopnode.Rhs)
+
+		if err != nil {
+			return err
+		}
+
+		size := byte(binopnode.returnType().kind & KindSizeMask)
+
+		_, err = g.Output.Write([]byte{byte(borr), size})
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 2
+		g.instructionIdx++
+
 	case BOBinXor:
-		panic("unimplemented")
+		err := g.writeExpression(binopnode.Lhs)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeExpression(binopnode.Rhs)
+
+		if err != nil {
+			return err
+		}
+
+		size := byte(binopnode.returnType().kind & KindSizeMask)
+
+		_, err = g.Output.Write([]byte{byte(bxor), size})
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 2
+		g.instructionIdx++
 
 	case BOBoolAnd:
 		err := g.writeExpression(binopnode.Lhs)
@@ -802,9 +866,52 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 		g.instructionIdx++
 
 	case BOShl:
-		panic("unimplemented")
+		err := g.writeExpression(binopnode.Lhs)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeExpression(binopnode.Rhs)
+
+		if err != nil {
+			return err
+		}
+
+		size := byte(binopnode.returnType().kind & KindSizeMask)
+
+		_, err = g.Output.Write([]byte{byte(bshl), size})
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 2
+		g.instructionIdx++
+
 	case BOShr:
-		panic("unimplemented")
+		err := g.writeExpression(binopnode.Lhs)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeExpression(binopnode.Rhs)
+
+		if err != nil {
+			return err
+		}
+
+		size := byte(binopnode.returnType().kind & KindSizeMask)
+
+		_, err = g.Output.Write([]byte{byte(bsrs), size})
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 2
+		g.instructionIdx++
 
 	case BOGt:
 		err := g.writeExpression(binopnode.Lhs)
@@ -1282,15 +1389,264 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 		g.instructionIdx++
 
 	case BoAndAssign:
-		panic("unimplemented")
+		lhs, ok := binopnode.Lhs.(Var)
+		size := byte(lhs.typ.kind & KindSizeMask)
+		if !ok {
+			panic("assigning to not var??")
+		}
+
+		_, err := g.Output.Write([]byte{byte(pshv), size})
+
+		if err != nil {
+			return err
+		}
+
+		err = binary.Write(g.Output, binary.BigEndian, g.vars[lhs.name])
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 6
+		g.instructionIdx++
+
+		err = g.writeExpression(binopnode.Rhs)
+
+		if err != nil {
+			return err
+		}
+
+		_, err = g.Output.Write([]byte{byte(band), size})
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 2
+		g.instructionIdx++
+
+		_, err = g.Output.Write([]byte{byte(popv), size})
+
+		if err != nil {
+			return err
+		}
+
+		err = binary.Write(g.Output, binary.BigEndian, g.vars[lhs.name])
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 6
+		g.instructionIdx++
+
 	case BoOrAssign:
-		panic("unimplemented")
+		lhs, ok := binopnode.Lhs.(Var)
+		size := byte(lhs.typ.kind & KindSizeMask)
+		if !ok {
+			panic("assigning to not var??")
+		}
+
+		_, err := g.Output.Write([]byte{byte(pshv), size})
+
+		if err != nil {
+			return err
+		}
+
+		err = binary.Write(g.Output, binary.BigEndian, g.vars[lhs.name])
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 6
+		g.instructionIdx++
+
+		err = g.writeExpression(binopnode.Rhs)
+
+		if err != nil {
+			return err
+		}
+
+		_, err = g.Output.Write([]byte{byte(borr), size})
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 2
+		g.instructionIdx++
+
+		_, err = g.Output.Write([]byte{byte(popv), size})
+
+		if err != nil {
+			return err
+		}
+
+		err = binary.Write(g.Output, binary.BigEndian, g.vars[lhs.name])
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 6
+		g.instructionIdx++
+
 	case BoXorAssign:
-		panic("unimplemented")
+		lhs, ok := binopnode.Lhs.(Var)
+		size := byte(lhs.typ.kind & KindSizeMask)
+		if !ok {
+			panic("assigning to not var??")
+		}
+
+		_, err := g.Output.Write([]byte{byte(pshv), size})
+
+		if err != nil {
+			return err
+		}
+
+		err = binary.Write(g.Output, binary.BigEndian, g.vars[lhs.name])
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 6
+		g.instructionIdx++
+
+		err = g.writeExpression(binopnode.Rhs)
+
+		if err != nil {
+			return err
+		}
+
+		_, err = g.Output.Write([]byte{byte(bxor), size})
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 2
+		g.instructionIdx++
+
+		_, err = g.Output.Write([]byte{byte(popv), size})
+
+		if err != nil {
+			return err
+		}
+
+		err = binary.Write(g.Output, binary.BigEndian, g.vars[lhs.name])
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 6
+		g.instructionIdx++
+
 	case BOShrAssign:
-		panic("unimplemented")
+		lhs, ok := binopnode.Lhs.(Var)
+		size := byte(lhs.typ.kind & KindSizeMask)
+		if !ok {
+			panic("assigning to not var??")
+		}
+
+		_, err := g.Output.Write([]byte{byte(pshv), size})
+
+		if err != nil {
+			return err
+		}
+
+		err = binary.Write(g.Output, binary.BigEndian, g.vars[lhs.name])
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 6
+		g.instructionIdx++
+
+		err = g.writeExpression(binopnode.Rhs)
+
+		if err != nil {
+			return err
+		}
+
+		_, err = g.Output.Write([]byte{byte(bsrs), size})
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 2
+		g.instructionIdx++
+
+		_, err = g.Output.Write([]byte{byte(popv), size})
+
+		if err != nil {
+			return err
+		}
+
+		err = binary.Write(g.Output, binary.BigEndian, g.vars[lhs.name])
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 6
+		g.instructionIdx++
+
 	case BOShlAssign:
-		panic("unimplemented")
+		lhs, ok := binopnode.Lhs.(Var)
+		size := byte(lhs.typ.kind & KindSizeMask)
+		if !ok {
+			panic("assigning to not var??")
+		}
+
+		_, err := g.Output.Write([]byte{byte(pshv), size})
+
+		if err != nil {
+			return err
+		}
+
+		err = binary.Write(g.Output, binary.BigEndian, g.vars[lhs.name])
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 6
+		g.instructionIdx++
+
+		err = g.writeExpression(binopnode.Rhs)
+
+		if err != nil {
+			return err
+		}
+
+		_, err = g.Output.Write([]byte{byte(bshl), size})
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 2
+		g.instructionIdx++
+
+		_, err = g.Output.Write([]byte{byte(popv), size})
+
+		if err != nil {
+			return err
+		}
+
+		err = binary.Write(g.Output, binary.BigEndian, g.vars[lhs.name])
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 6
+		g.instructionIdx++
 
 	default:
 		panic("unreachable")

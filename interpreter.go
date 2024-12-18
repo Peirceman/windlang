@@ -395,6 +395,38 @@ func (i *Interpreter) Execute() {
 			a := (0xffffffffffffffff << (instruction.Size * 8)) | i.popUnsigned(instruction.Size)
 			i.pushUnsigned(a, instruction.Size * 2)
 
+		case band:
+			b := i.popUnsigned(instruction.Size)
+			a := i.popUnsigned(instruction.Size)
+			i.pushUnsigned(a & b, instruction.Size)
+
+		case borr:
+			b := i.popUnsigned(instruction.Size)
+			a := i.popUnsigned(instruction.Size)
+			i.pushUnsigned(a | b, instruction.Size)
+
+		case bnot:
+
+		case bxor:
+			b := i.popUnsigned(instruction.Size)
+			a := i.popUnsigned(instruction.Size)
+			i.pushUnsigned(a ^ b, instruction.Size)
+
+		case bshl:
+			b := i.popUnsigned(instruction.Size)
+			a := i.popUnsigned(instruction.Size)
+			i.pushUnsigned(a << b, instruction.Size)
+
+		case bsrs:
+			b := i.popSigned(instruction.Size)
+			a := i.popSigned(instruction.Size)
+			i.pushSigned(a >> b, instruction.Size)
+
+		case bsru:
+			b := i.popUnsigned(instruction.Size)
+			a := i.popUnsigned(instruction.Size)
+			i.pushUnsigned(a >> b, instruction.Size)
+
 		default:
 			fmt.Println("unknown: ", instruction.Code)
 		}

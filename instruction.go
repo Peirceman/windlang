@@ -48,6 +48,13 @@ const (
 	swap
 	rote
 	sgne
+	band
+	borr
+	bnot
+	bxor
+	bshl
+	bsrs
+	bsru
 
 	jptr = jpne
 	jpfl = jpeq

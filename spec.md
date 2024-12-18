@@ -70,8 +70,15 @@ over | 0x29 | / | copies the second value on the stack to the top
 swap | 0x2A | / | swaps the top two values on the stack
 rote | 0x2B | / | moves third value to second place, second value to top and top value to third c b a -> a c b
 sgne | 0x2C | / | extends top signed integer to be one size larger: 8 bits becomes 16, 16 32 and 32 64 janky but works i guess, size byte is input size
+band | 0x2D | / | performs a binary and on the top two values
+borr | 0x2E | / | performs a binary or on the top two values
+bnot | 0x2F | / | performs a binary not on the top value
+bxor | 0x30 | / | performs a binary xor on the top two values
+bshl | 0x31 | / | performs a binary left shift the second value on the stack, a top value amount of times
+bsrs | 0x32 | / | performs a signed binary right shift the second value on the stack, a top value amount of times
+bsru | 0x33 | / | performs an unsigned binary right shift the second value on the stack, a top value amount of times
 
-over swap and rote assume all elements are of same size because they probably are, otherwise
+`over` `swap` and `rote` assume all elements are of same size because they probably are, otherwise
 what are you doing. These instructions were inspired by porth: [https://gitlab.com/tsoding/porth/-/blob/master/porth.porth?ref_type=heads]
 
 
