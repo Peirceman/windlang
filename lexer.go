@@ -661,8 +661,10 @@ func (l *Lexer) readAfterDigit() *Token {
 			charset = hexCharset
 			isDecimal = false
 		default:
-			if _, contains = charset[r]; !contains {
+			if _, contains = decimalCharset[r]; !contains {
 				tok.literal = tokenText.String()
+				tok.typ = TTInt
+				tok.extraInfo = int(0)
 				return tok
 			}
 		}
@@ -674,7 +676,7 @@ func (l *Lexer) readAfterDigit() *Token {
 	r, eof := l.peekRune()
 	_, contains = charset[r]
 	hasDecimalPoint := false
-	for !eof && (contains || r == '.' && isDecimal) {
+	for !eof && (contains || (r == '.' && isDecimal)) {
 		l.nextRune()
 		tokenText.WriteRune(r)
 		if r == '.' {
@@ -689,17 +691,24 @@ func (l *Lexer) readAfterDigit() *Token {
 		_, contains = charset[r]
 	}
 
-	if _, contains := decimalCharset[r]; !eof && contains {
+	if _, contains := charset[r]; !eof && contains {
 		panic(fmt.Sprintf(l.curLoc.String()+" illegal digit `"+string(r)+"` in %s literal", charsetName)) // TODO: better error handling
 	}
+
+	tok.literal = tokenText.String()
 
 	if hasDecimalPoint {
 		tok.typ = TTFloat
 	} else {
 		tok.typ = TTInt
+		if isDecimal {
+			tok.extraInfo, _ = strconv.Atoi(tok.literal)
+		} else {
+			val, _ := strconv.ParseInt(tok.literal[2:], len(charset), 0)
+			tok.extraInfo = int(val)
+		}
 	}
 
-	tok.literal = tokenText.String()
 	return tok
 }
 

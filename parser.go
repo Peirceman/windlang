@@ -620,7 +620,7 @@ func (p *Parser) parsePrimary() Expression {
 
 	case TTInt:
 		p.lex.NextToken()
-		val, _ := strconv.Atoi(tok.literal)
+		val := tok.extraInfo.(int)
 		return IntLit{val}
 
 	case TTFloat:
