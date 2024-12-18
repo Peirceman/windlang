@@ -11,7 +11,9 @@
  - [ ] Use Func struct in Funccall
  - [ ] use jump instructions for if statements instead of what happens now
  - [ ] loops
+ - [ ] calling functions
  - [ ] modulo opperation
+ - [ ] generating (ssa) IR
  - [ ] better errors
  - [ ] type system part 2 (less urgent): enums, interfaces
  - [ ] optimization (definitely not for now)
