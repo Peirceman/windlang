@@ -84,11 +84,16 @@ exit | 0x36 | / | exits the program with top value as return value
 `over` `swap` and `rote` assume all elements are of same size because they probably are, otherwise
 what are you doing. These instructions were inspired by porth: [https://gitlab.com/tsoding/porth/-/blob/master/porth.porth?ref_type=heads]
 
-
 Todo:
 - function calling
 - poiner stuff
 - struct indexing
+
+#### Function calling semantics
+
+the arguments must be in reverse order on the stack
+f(a, b, c) needs the stack to be the following (from top to bottom):
+c b a
 
 ### data:
 section type "data"
