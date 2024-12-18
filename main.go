@@ -10,7 +10,7 @@ import (
 func main() {
 	fileName := os.Args[1]
 
-	if fileName[len(fileName)-2:] == "wi" {
+	if fileName[len(fileName)-3:] == ".wi" {
 
 		par := ParserFromFilename(fileName)
 		ast := par.ParseAll()
@@ -32,7 +32,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-	} else {
+	} else if fileName[len(fileName)-4:] == ".wbc" {
 		file, err := os.Open(fileName)
 
 		if err != nil {
@@ -53,6 +53,8 @@ func main() {
 		fmt.Println(interpreter.Stack)
 		fmt.Println("\n *** vars dump ***")
 		fmt.Println(interpreter.Data)
+	} else {
+		panic("unknown file extention")
 	}
 }
 
