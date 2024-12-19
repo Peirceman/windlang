@@ -7,7 +7,6 @@
     use testdata dir with files for files to parse and expected output
  - [ ] fix the rest of this readme
  - [ ] expand type system: arrays, pointers, structs
- - [ ] Use Func struct in Funccall
  - [ ] use jump instructions for if statements instead of what happens now
  - [ ] loops
  - [ ] extra type checking
