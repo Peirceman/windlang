@@ -416,10 +416,6 @@ func (g *BytecodeGenerator) writeIfChain(chain IfChain) error {
 		seekEnds = append(seekEnds, seekEnd)
 	}
 
-	// TODO: im pretty sure this tmp isnt necesary anymore since i actually
-	// write 4 bytes now instead of just seeking it
-	tmp, _ := g.Output.Seek(0, io.SeekCurrent)
-
 	_, err = g.Output.Seek(seekFalse, io.SeekStart)
 
 	if err != nil {
@@ -432,7 +428,7 @@ func (g *BytecodeGenerator) writeIfChain(chain IfChain) error {
 		return err
 	}
 
-	_, err = g.Output.Seek(tmp, io.SeekStart)
+	_, err = g.Output.Seek(0, io.SeekEnd)
 
 	if err != nil {
 		return err
@@ -484,9 +480,6 @@ func (g *BytecodeGenerator) writeIfChain(chain IfChain) error {
 			seekEnds = append(seekEnds, seekEnd)
 		}
 
-		// this tmp stuff aswell, see todo above
-		tmp, _ := g.Output.Seek(0, io.SeekCurrent)
-
 		_, err = g.Output.Seek(seekFalse, io.SeekStart)
 
 		if err != nil {
@@ -499,7 +492,7 @@ func (g *BytecodeGenerator) writeIfChain(chain IfChain) error {
 			return err
 		}
 
-		_, err = g.Output.Seek(tmp, io.SeekStart)
+		_, err = g.Output.Seek(0, io.SeekEnd)
 
 		if err != nil {
 			return err
