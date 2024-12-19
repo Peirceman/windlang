@@ -557,7 +557,7 @@ func parseCodeSection(data []byte) (instructions []Instruction, choppedData []by
 
 			i += int(size)
 
-		case popv, pshv, decl, jump, jpgt, jpge, jpeq, jpne, jple, jplt, prts:
+		case popv, pshv, decl, jump, jpgt, jpge, jpeq, jpne, jple, jplt, prts, call:
 			if len(instructionBytes)-i < 4 {
 				fmt.Println(i)
 				fmt.Println(opcode)

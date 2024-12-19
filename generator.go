@@ -15,6 +15,7 @@ type BytecodeGenerator struct {
 	instructionIdx        int
 	bytesWritten          int
 	vars                  map[Identifier]uint32
+	funcs                 map[Identifier]uint32
 	nextRuntimeVarIdx     uint32
 	nextCompiletimeVarIdx uint32
 }
@@ -29,6 +30,7 @@ func GenerateBytecode(Output io.WriteSeeker, code CodeBlockNode) error {
 
 	g.data = make(map[uint32][]byte)
 	g.vars = make(map[Identifier]uint32)
+	g.funcs = make(map[Identifier]uint32)
 	g.bytesWritten = 0
 	g.instructionIdx = 0
 	g.nextRuntimeVarIdx = 1
@@ -54,6 +56,21 @@ func GenerateBytecode(Output io.WriteSeeker, code CodeBlockNode) error {
 	if err != nil {
 		return err
 	}
+
+	_, err = g.Output.Write([]byte{byte(call), 0})
+
+	if err != nil {
+		return err
+	}
+
+	err = binary.Write(g.Output, binary.BigEndian, g.funcs["main"])
+
+	if err != nil {
+		return err
+	}
+
+	g.bytesWritten += 6
+	g.instructionIdx++
 
 	_, err = g.Output.Seek(seek, io.SeekStart)
 
@@ -276,11 +293,47 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 			g.instructionIdx++
 
 		case FuncNode:
-			if node.name != "main" && len(node.Args) == 0 {
-				panic("Error, functions other than main have not been implemented yet")
+			if len(node.Args) > 0 {
+				panic("Error, arguments have not been implemented yet")
 			}
 
-			err := g.writeCodeBlock(node.Body)
+			_, err := g.Output.Write([]byte{byte(jump), 0, 0, 0, 0, 0})
+
+			if err != nil {
+				return err
+			}
+
+			seek, err := g.Output.Seek(0, io.SeekCurrent)
+
+			if err != nil {
+				return err
+			}
+
+			seek -= 4
+			g.bytesWritten += 6
+			g.instructionIdx++
+
+			g.funcs[node.name] = uint32(g.instructionIdx)
+
+			err = g.writeCodeBlock(node.Body)
+
+			if err != nil {
+				return err
+			}
+
+			_, err = g.Output.Seek(seek, io.SeekStart)
+
+			if err != nil {
+				return err
+			}
+
+			err = binary.Write(g.Output, binary.BigEndian, uint32(g.instructionIdx))
+
+			if err != nil {
+				return err
+			}
+
+			_, err = g.Output.Seek(0, io.SeekEnd)
 
 			if err != nil {
 				return err
@@ -299,6 +352,16 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 			if err != nil {
 				return err
 			}
+
+		case ReturnNode:
+			_, err := g.Output.Write([]byte{byte(rett), 0})
+
+			if err != nil {
+				return err
+			}
+
+			g.bytesWritten += 2
+			g.instructionIdx++
 
 		default:
 			panic("Unimplemented type: " + node.String())

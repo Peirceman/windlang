@@ -82,5 +82,7 @@ fn main() {
 	print(x);
 	print(zero);
 	print(fifteen);
+
+	return 0;
 }
 
