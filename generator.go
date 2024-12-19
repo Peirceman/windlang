@@ -354,6 +354,14 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 			}
 
 		case ReturnNode:
+			if node.Expr != nil {
+				err := g.writeExpression(node.Expr)
+
+				if err != nil {
+					return err
+				}
+			}
+
 			_, err := g.Output.Write([]byte{byte(rett), 0})
 
 			if err != nil {
@@ -737,7 +745,24 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 			break
 		}
 
-		panic("functions not implemented yet")
+		if len(expression.Args) > 0 {
+			panic("arguments not implemented yet")
+		}
+
+		_, err := g.Output.Write([]byte{byte(call), 0})
+
+		if err != nil {
+			return err
+		}
+
+		err = binary.Write(g.Output, binary.BigEndian, g.funcs[expression.fun.name])
+
+		if err != nil {
+			return err
+		}
+
+		g.bytesWritten += 6
+		g.instructionIdx++
 
 	case BinaryOpNode:
 		return g.generateBinaryOpNode(expression)
