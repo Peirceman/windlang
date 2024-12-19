@@ -6,9 +6,11 @@
  - [ ] testing:  
     use testdata dir with files for files to parse and expected output
  - [ ] fix the rest of this readme
- - [ ] expand type system: arrays, pointers, structs
+ - [ ] expand type system:  
+    arrays, pointers, structs, unsigned int, different sizes (int8 vs int64)
  - [ ] use jump instructions for if statements instead of what happens now
  - [ ] loops
+ - [ ] unary expressions
  - [ ] extra type checking
  - [ ] calling functions that are declared further down the file
  - [ ] shadowing

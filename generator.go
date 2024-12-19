@@ -9,7 +9,6 @@ import (
 	"strconv"
 )
 
-// TODO: shadowing wont work
 type BytecodeGenerator struct {
 	Output                io.WriteSeeker
 	data                  map[uint32][]byte

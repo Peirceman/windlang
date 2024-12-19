@@ -27,9 +27,6 @@ const (
 	Kind64       Kind = 0x8
 	KindSizeMask Kind = 0xf
 
-	// TODO: update string Kind when pointer and array types are implemented
-	// TODO: add struct Kind
-	// TODO: no unsigned int
 	KindInt        Kind = 0x10
 	KindFloat      Kind = 0x20
 	KindBool       Kind = 0x40 | Kind32
@@ -56,7 +53,7 @@ func KindFromString(str string) Kind {
 		return KindInt16
 	case "int32":
 		return KindInt32
-	case "int64", "int": // TODO: `int` and `float` shouldn't just return the 64 bit variation
+	case "int64", "int":
 		return KindInt64
 	case "float32":
 		return KindFloat32
