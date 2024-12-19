@@ -41,6 +41,7 @@ const (
 	TTDash
 	TTStar
 	TTSlash
+	TTPercent
 
 	TTPlusAssign
 	TTDashAssign
@@ -99,7 +100,7 @@ const (
 )
 
 func (t TokenType) String() string {
-	if TTCount != 59 {
+	if TTCount != 60 {
 		panic("Token Type count changed")
 	}
 
@@ -142,6 +143,8 @@ func (t TokenType) String() string {
 		return "TTStar"
 	case TTSlash:
 		return "TTSlash"
+	case TTPercent:
+		return "TTPercent"
 	case TTPlusAssign:
 		return "TTPlusAssign"
 	case TTDashAssign:

@@ -196,6 +196,7 @@ const (
 	BOMinus
 	BOMul
 	BODiv
+	BOMod
 
 	BOBinAnd
 	BOBinOr
@@ -249,7 +250,7 @@ func NewBinaryOpNode(lhs, rhs Expression, op BinaryOp) (BinaryOpNode, error) {
 }
 
 func (b BinaryOp) String() string {
-	if BOCount != 27 {
+	if BOCount != 28 {
 		panic("Binary Opperation enum length changed")
 	}
 
@@ -262,6 +263,8 @@ func (b BinaryOp) String() string {
 		return "*"
 	case BODiv:
 		return "/"
+	case BOMod:
+		return "%"
 	case BOBinAnd:
 		return "&"
 	case BOBinOr:
@@ -323,7 +326,7 @@ const MaxPrecedence = 10
  * lastly: arithmatic instructions
  */
 func (b BinaryOp) Precedence() int {
-	if BOCount != 27 {
+	if BOCount != 28 {
 		panic("Binary Opperation enum length changed")
 	}
 
@@ -335,6 +338,8 @@ func (b BinaryOp) Precedence() int {
 	case BOMul:
 		return 10
 	case BODiv:
+		return 10
+	case BOMod:
 		return 10
 	case BOBinAnd:
 		return 5
@@ -388,7 +393,7 @@ func (b BinaryOp) Precedence() int {
 }
 
 func (b BinaryOp) InputAllowed(input Kind) bool {
-	if BOCount != 27 {
+	if BOCount != 28 {
 		panic("Binary Opperation enum length changed")
 	}
 
@@ -401,6 +406,8 @@ func (b BinaryOp) InputAllowed(input Kind) bool {
 		return input&KindNumberMask != 0
 	case BODiv:
 		return input&KindNumberMask != 0
+	case BOMod:
+		return input&KindInt != 0
 	case BOBinAnd:
 		return input&KindInt != 0
 	case BOBinOr:
@@ -452,7 +459,7 @@ func (b BinaryOp) InputAllowed(input Kind) bool {
 	panic("illegal")
 }
 func (b BinaryOp) returnType(input Kind) Kind {
-	if BOCount != 27 {
+	if BOCount != 28 {
 		panic("Binary Opperation enum length changed")
 	}
 
@@ -464,6 +471,8 @@ func (b BinaryOp) returnType(input Kind) Kind {
 	case BOMul:
 		return input
 	case BODiv:
+		return input
+	case BOMod:
 		return input
 	case BOBinAnd:
 		return input
@@ -548,11 +557,11 @@ func LeftToRight(precedence int) bool {
 // TokenTypeToBinOp converts the token type to it's
 // binary opperation, returns -1 if it isn't a binary op
 func (t TokenType) TokenTypeToBinOp() BinaryOp {
-	if BOCount != 27 {
+	if BOCount != 28 {
 		panic("Binary opperation enum length changed")
 	}
 
-	if TTCount != 59 {
+	if TTCount != 60 {
 		panic("Token type enum length changed")
 	}
 
@@ -567,6 +576,8 @@ func (t TokenType) TokenTypeToBinOp() BinaryOp {
 		return BOMul
 	case TTSlash:
 		return BODiv
+	case TTPercent:
+		return BOMod
 	case TTPlusAssign:
 		return BOPlusAssign
 	case TTDashAssign:

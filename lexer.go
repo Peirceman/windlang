@@ -146,7 +146,7 @@ func (l *Lexer) nextToken() *Token {
 		}
 	}
 
-	if TTCount != 59 {
+	if TTCount != 60 {
 		panic("TokenType enum length changed: " + strconv.Itoa(int(TTCount)))
 	}
 
@@ -196,6 +196,11 @@ func (l *Lexer) nextToken() *Token {
 
 	case '/':
 		tok.literal, tok.typ = l.readAfterSlash()
+
+	case '%':
+		tok.literal = "%"
+		tok.typ = TTPercent
+
 	case '!':
 		if r, eof = l.peekRune(); !eof && r == '=' {
 			l.nextRune()

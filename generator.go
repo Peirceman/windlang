@@ -786,6 +786,25 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
+	case BOMod:
+		err := g.writeExpression(binopnode.Lhs)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeExpression(binopnode.Rhs)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(mods, binopnode.Lhs.returnType().kind & KindSizeMask)
+
+		if err != nil {
+			return err
+		}
+
 	case BOBinAnd:
 		err := g.writeExpression(binopnode.Lhs)
 

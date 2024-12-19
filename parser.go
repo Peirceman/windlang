@@ -100,7 +100,7 @@ func (p *Parser) ParseAll() CodeBlockNode {
 }
 
 func (p *Parser) ParseTopLevel() (AstNode, bool) {
-	if TTCount != 59 {
+	if TTCount != 60 {
 		panic("TokenType enum length changed: " + strconv.Itoa(int(TTCount)))
 	}
 
@@ -208,7 +208,7 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 }
 
 func (p *Parser) parseFunctionBody() (AstNode, bool) {
-	if TTCount != 59 {
+	if TTCount != 60 {
 		panic("TokenType enum length changed: " + strconv.Itoa(int(TTCount)))
 	}
 

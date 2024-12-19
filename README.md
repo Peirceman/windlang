@@ -13,7 +13,6 @@
  - [ ] calling functions that are declared further down the file
  - [ ] shadowing
  - [ ] float litterals with e notation, eg. 1e-5
- - [ ] modulo opperation
  - [ ] generating (ssa) IR
  - [ ] better errors
  - [ ] type system part 2 (less urgent): enums, interfaces

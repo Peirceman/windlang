@@ -17,6 +17,10 @@ fn cat(in: int): int {
 	return in;
 }
 
+fn isEven(num: int): bool {
+	return num%2 == 0;
+}
+
 fn sum(first: int, second: int): int {
 	return first + second;
 }
@@ -98,6 +102,9 @@ fn main() {
 	print(aFunc());
 	print(cat(12321));
 	print(sum(1000, 9 + fifteen));
+
+	print(isEven(3));
+	print(isEven(6));
 
 	return;
 }
