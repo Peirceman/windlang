@@ -11,7 +11,6 @@
  - [ ] use jump instructions for if statements instead of what happens now
  - [ ] loops
  - [ ] extra type checking
- - [ ] floats starting with 0 still dont work
  - [ ] calling functions that are declared further down the file
  - [ ] shadowing
  - [ ] float litterals with e notation, eg. 1e-5

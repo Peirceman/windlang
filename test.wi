@@ -10,7 +10,7 @@ var something: bool;
 // }
 
 fn aFunc(): float {
-	return 1.4 + 1.6;
+	return 0.4 + 0.6;
 }
 
 fn cat(in: int): int {

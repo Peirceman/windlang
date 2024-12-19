@@ -640,6 +640,7 @@ func (l *Lexer) readAfterDigit() *Token {
 
 	r, _ := l.nextRune() // cannot be eof, because this function would otherwise not be called
 	tokenText.WriteRune(r)
+	hasDecimalPoint := false
 
 	if r == '0' {
 		r, eof := l.peekRune()
@@ -664,6 +665,8 @@ func (l *Lexer) readAfterDigit() *Token {
 			charset = hexCharset
 			isDecimal = false
 			base = 16
+		case '.':
+			hasDecimalPoint = true
 		default:
 			if _, contains = decimalCharset[r]; !contains {
 				tok.literal = tokenText.String()
@@ -679,7 +682,6 @@ func (l *Lexer) readAfterDigit() *Token {
 
 	r, eof := l.peekRune()
 	_, contains = charset[r]
-	hasDecimalPoint := false
 	for !eof && (contains || (r == '.' && isDecimal)) {
 		l.nextRune()
 		tokenText.WriteRune(r)
