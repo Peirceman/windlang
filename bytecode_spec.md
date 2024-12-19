@@ -91,9 +91,9 @@ Todo:
 
 #### Function calling semantics
 
-the arguments must be in reverse order on the stack
+the arguments must be from top to bottom the same as from left to right
 f(a, b, c) needs the stack to be the following (from top to bottom):
-c b a
+a b c
 
 ### data:
 section type "data"
