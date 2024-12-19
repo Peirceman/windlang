@@ -43,8 +43,13 @@ func GenerateBytecode(Output io.WriteSeeker, code CodeBlockNode) error {
 		return err
 	}
 
-	g.Output.Write([]byte("code"))
-	seek, err := g.Output.Seek(4, io.SeekCurrent)
+	_, err = g.Output.Write([]byte{'c', 'o', 'd', 'e', 0, 0, 0, 0})
+
+	if err != nil {
+		return err
+	}
+
+	seek, err := g.Output.Seek(0, io.SeekCurrent)
 
 	if err != nil {
 		return err
@@ -87,13 +92,13 @@ func GenerateBytecode(Output io.WriteSeeker, code CodeBlockNode) error {
 		return err
 	}
 
-	_, err = g.Output.Write([]byte("data"))
+	_, err = g.Output.Write([]byte{'d', 'a', 't', 'a', 0, 0, 0, 0})
 
 	if err != nil {
 		return err
 	}
 
-	seek, err = g.Output.Seek(4, io.SeekCurrent)
+	seek, err = g.Output.Seek(0, io.SeekCurrent)
 
 	if err != nil {
 		return err
