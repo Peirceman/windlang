@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"strconv"
 )
 
@@ -57,20 +58,11 @@ func GenerateBytecode(Output io.WriteSeeker, code CodeBlockNode) error {
 		return err
 	}
 
-	_, err = g.Output.Write([]byte{byte(call), 0})
+	err = g.writeInstruction4(call, 0, g.funcs["main"])
 
 	if err != nil {
 		return err
 	}
-
-	err = binary.Write(g.Output, binary.BigEndian, g.funcs["main"])
-
-	if err != nil {
-		return err
-	}
-
-	g.bytesWritten += 6
-	g.instructionIdx++
 
 	_, err = g.Output.Seek(seek, io.SeekStart)
 
@@ -208,20 +200,11 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 				break
 			}
 
-			_, err := g.Output.Write([]byte{byte(decl), byte(node.typ.kind & KindSizeMask)})
+			err := g.writeInstruction4(decl, node.typ.kind&KindSizeMask, g.vars[node.name])
 
 			if err != nil {
 				return err
 			}
-
-			err = binary.Write(g.Output, binary.BigEndian, g.vars[node.name])
-
-			if err != nil {
-				return err
-			}
-
-			g.bytesWritten += 6
-			g.instructionIdx++
 
 			if node.Value == nil {
 				break
@@ -233,13 +216,14 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 				return err
 			}
 
-			g.Output.Write([]byte{byte(popv), byte(node.typ.kind & KindSizeMask)})
-			binary.Write(g.Output, binary.BigEndian, g.vars[node.name])
-			g.bytesWritten += 6
-			g.instructionIdx++
+			err = g.writeInstruction4(popv, node.typ.kind&KindSizeMask, g.vars[node.name])
+
+			if err != nil {
+				return err
+			}
 
 		case VarNode:
-			if (node.typ.kind & (KindString & KindTypeMask)) != 0 {
+			if (node.typ.kind & KindString & KindTypeMask) != 0 {
 				err := g.writeExpression(node.Value)
 
 				if err != nil {
@@ -250,20 +234,11 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 				break
 			}
 
-			_, err := g.Output.Write([]byte{byte(decl), byte(node.typ.kind & KindSizeMask)})
+			err := g.writeInstruction4(decl, node.typ.kind&KindSizeMask, g.vars[node.name])
 
 			if err != nil {
 				return err
 			}
-
-			err = binary.Write(g.Output, binary.BigEndian, g.vars[node.name])
-
-			if err != nil {
-				return err
-			}
-
-			g.bytesWritten += 6
-			g.instructionIdx++
 
 			if node.Value == nil {
 				break
@@ -275,23 +250,14 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 				return err
 			}
 
-			_, err = g.Output.Write([]byte{byte(popv), byte(node.typ.kind & KindSizeMask)})
+			err = g.writeInstruction4(popv, node.typ.kind&KindSizeMask, g.vars[node.name])
 
 			if err != nil {
 				return err
 			}
-
-			err = binary.Write(g.Output, binary.BigEndian, g.vars[node.name])
-
-			if err != nil {
-				return err
-			}
-
-			g.bytesWritten += 6
-			g.instructionIdx++
 
 		case FuncNode:
-			_, err := g.Output.Write([]byte{byte(jump), 0, 0, 0, 0, 0})
+			err := g.writeInstruction4(jump, 0, 0)
 
 			if err != nil {
 				return err
@@ -304,11 +270,8 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 			}
 
 			seek -= 4
-			g.bytesWritten += 6
-			g.instructionIdx++
 
 			g.funcs[node.name] = uint32(g.instructionIdx)
-
 
 			for _, arg := range node.Args {
 				identifier := arg.name
@@ -323,35 +286,17 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 				}
 
 				g.vars[identifier] = g.nextRuntimeVarIdx
-				_, err = g.Output.Write([]byte{byte(decl), byte(arg.typ.kind & KindSizeMask)})
+				err = g.writeInstruction4(decl, arg.typ.kind&KindSizeMask, g.nextRuntimeVarIdx)
 
 				if err != nil {
 					return err
 				}
 
-				err = binary.Write(g.Output, binary.BigEndian, g.nextRuntimeVarIdx)
+				err = g.writeInstruction4(popv, arg.typ.kind&KindSizeMask, g.nextRuntimeVarIdx)
 
 				if err != nil {
 					return err
 				}
-
-				g.bytesWritten += 6
-				g.instructionIdx++
-
-				_, err = g.Output.Write([]byte{byte(popv), byte(arg.typ.kind & KindSizeMask)})
-
-				if err != nil {
-					return err
-				}
-
-				err = binary.Write(g.Output, binary.BigEndian, g.nextRuntimeVarIdx)
-
-				if err != nil {
-					return err
-				}
-
-				g.bytesWritten += 6
-				g.instructionIdx++
 
 				g.nextRuntimeVarIdx++
 
@@ -381,7 +326,6 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 				return err
 			}
 
-
 		case CodeBlockNode:
 			err := g.writeCodeBlock(node)
 
@@ -405,14 +349,11 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 				}
 			}
 
-			_, err := g.Output.Write([]byte{byte(rett), 0})
+			err := g.writeInstruction0(rett, 0)
 
 			if err != nil {
 				return err
 			}
-
-			g.bytesWritten += 2
-			g.instructionIdx++
 
 		default:
 			panic("Unimplemented type: " + node.String())
@@ -432,21 +373,19 @@ func (g *BytecodeGenerator) writeIfChain(chain IfChain) error {
 		return err
 	}
 
-	_, err = g.Output.Write([]byte{byte(jpfl), byte(chain.IfCondition.returnType().kind & KindSizeMask)})
+	err = g.writeInstruction4(jpfl, chain.IfCondition.returnType().kind&KindSizeMask, 0)
 
 	if err != nil {
 		return err
 	}
 
-	seekFalse, err = g.Output.Seek(4, io.SeekCurrent)
+	seekFalse, err = g.Output.Seek(0, io.SeekCurrent)
 
 	if err != nil {
 		return err
 	}
 
 	seekFalse -= 4
-	g.bytesWritten += 6
-	g.instructionIdx++
 
 	err = g.writeCodeBlock(chain.IfStatement)
 
@@ -455,24 +394,25 @@ func (g *BytecodeGenerator) writeIfChain(chain IfChain) error {
 	}
 
 	if chain.hasElse || len(chain.ElifConditions) > 0 {
-		_, err = g.Output.Write([]byte{byte(jump), 0})
+		err = g.writeInstruction4(jump, 0, 0)
 
 		if err != nil {
 			return err
 		}
 
-		seekEnd, err := g.Output.Seek(4, io.SeekCurrent)
+		seekEnd, err := g.Output.Seek(0, io.SeekCurrent)
 
 		if err != nil {
 			return err
 		}
 
 		seekEnd -= 4
-		g.bytesWritten += 6
-		g.instructionIdx++
+
 		seekEnds = append(seekEnds, seekEnd)
 	}
 
+	// TODO: im pretty sure this tmp isnt necesary anymore since i actually
+	// write 4 bytes now instead of just seeking it
 	tmp, _ := g.Output.Seek(0, io.SeekCurrent)
 
 	_, err = g.Output.Seek(seekFalse, io.SeekStart)
@@ -502,21 +442,19 @@ func (g *BytecodeGenerator) writeIfChain(chain IfChain) error {
 			return err
 		}
 
-		_, err = g.Output.Write([]byte{byte(jpfl), byte(condition.returnType().kind & KindSizeMask)})
+		err = g.writeInstruction4(jpfl, condition.returnType().kind&KindSizeMask, 0)
 
 		if err != nil {
 			return err
 		}
 
-		seekFalse, err = g.Output.Seek(4, io.SeekCurrent)
+		seekFalse, err = g.Output.Seek(0, io.SeekCurrent)
 
 		if err != nil {
 			return err
 		}
 
 		seekFalse -= 4
-		g.bytesWritten += 6
-		g.instructionIdx++
 
 		err = g.writeCodeBlock(statement)
 
@@ -525,24 +463,23 @@ func (g *BytecodeGenerator) writeIfChain(chain IfChain) error {
 		}
 
 		if chain.hasElse || i < len(chain.ElifConditions)-1 {
-			_, err = g.Output.Write([]byte{byte(jump), 0})
+			err = g.writeInstruction4(jump, 0, 0)
 
 			if err != nil {
 				return err
 			}
 
-			seekEnd, err := g.Output.Seek(4, io.SeekCurrent)
+			seekEnd, err := g.Output.Seek(0, io.SeekCurrent)
 
 			if err != nil {
 				return err
 			}
 
 			seekEnd -= 4
-			g.bytesWritten += 6
-			g.instructionIdx++
 			seekEnds = append(seekEnds, seekEnd)
 		}
 
+		// this tmp stuff aswell, see todo above
 		tmp, _ := g.Output.Seek(0, io.SeekCurrent)
 
 		_, err = g.Output.Seek(seekFalse, io.SeekStart)
@@ -600,47 +537,23 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 	switch expression := expression.(type) {
 	case IntLit:
 		size := expression.returnType().kind & KindSizeMask
-		_, err := g.Output.Write([]byte{byte(push), byte(size)})
+		err := g.writeInstructionn(push, size, uint64(expression.value))
 
 		if err != nil {
 			return err
 		}
-
-		switch size {
-		case Kind8:
-			err = binary.Write(g.Output, binary.BigEndian, uint8(expression.value))
-		case Kind16:
-			err = binary.Write(g.Output, binary.BigEndian, uint16(expression.value))
-		case Kind32:
-			err = binary.Write(g.Output, binary.BigEndian, uint32(expression.value))
-		case Kind64:
-			err = binary.Write(g.Output, binary.BigEndian, uint64(expression.value))
-		}
-
-		if err != nil {
-			return err
-		}
-
-		g.bytesWritten += 2 + int(size)
-		g.instructionIdx++
 
 	case FloatLit:
 		size := expression.returnType().kind & KindSizeMask
 		float, _ := strconv.ParseFloat(expression.value, int(size*8)) // at this point it should be a valid float
-		g.bytesWritten += 2 + int(size)
-		g.instructionIdx++
 
-		_, err := g.Output.Write([]byte{byte(push), byte(size)})
-
-		if err != nil {
-			return err
-		}
+		var err error
 
 		switch size {
 		case Kind32:
-			err = binary.Write(g.Output, binary.BigEndian, float32(float))
+			err = g.writeInstructionn(push, 4, uint64(math.Float32bits(float32(float))))
 		case Kind64:
-			err = binary.Write(g.Output, binary.BigEndian, float)
+			err = g.writeInstructionn(push, 8, math.Float64bits(float))
 		}
 
 		if err != nil {
@@ -653,16 +566,7 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 		return nil // cant realy push a pointer yet but this should only be used by prts? so handle on that level?
 
 	case CharLit:
-		_, err := g.Output.Write([]byte{byte(push), 4})
-
-		if err != nil {
-			return err
-		}
-
-		g.bytesWritten += 6
-		g.instructionIdx++
-
-		err = binary.Write(g.Output, binary.BigEndian, expression.value)
+		err := g.writeInstructionn(push, 4, uint64(expression.value))
 
 		if err != nil {
 			return err
@@ -670,48 +574,32 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 
 	case BoolLit:
 		if expression.value {
-			_, err := g.Output.Write([]byte{byte(push), 4, 0, 0, 0, 1})
+			err := g.writeInstructionn(push, 4, 1)
 
 			if err != nil {
 				return err
 			}
 		} else {
-			_, err := g.Output.Write([]byte{byte(push), 4, 0, 0, 0, 0})
+			err := g.writeInstructionn(push, 4, 0)
 
 			if err != nil {
 				return err
 			}
 		}
 
-		g.bytesWritten += 6
-		g.instructionIdx++
-
 	case Var:
-		_, err := g.Output.Write([]byte{byte(pshv), byte(expression.typ.kind & KindSizeMask)})
+		err := g.writeInstruction4(pshv, expression.typ.kind & KindSizeMask, g.vars[expression.name])
 
 		if err != nil {
 			return err
 		}
-
-		err = binary.Write(g.Output, binary.BigEndian, g.vars[expression.name])
-		if err != nil {
-			return err
-		}
-
-		g.bytesWritten += 6
-		g.instructionIdx++
 
 	case Const:
-		_, err := g.Output.Write([]byte{byte(pshv), byte(expression.typ.kind & KindSizeMask)})
+		err := g.writeInstruction4(pshv, expression.typ.kind & KindSizeMask, g.vars[expression.name])
 
 		if err != nil {
 			return err
 		}
-
-		err = binary.Write(g.Output, binary.BigEndian, g.vars[expression.name])
-
-		g.bytesWritten += 6
-		g.instructionIdx++
 
 	case Func:
 		// I beleive this is a function object?, definitely not implemented
@@ -731,14 +619,11 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 					return err
 				}
 
-				_, err = g.Output.Write([]byte{byte(prti), byte(arg.returnType().kind & KindSizeMask)})
+				err = g.writeInstruction0(prti, arg.returnType().kind & KindSizeMask)
 
 				if err != nil {
 					return err
 				}
-
-				g.bytesWritten += 2
-				g.instructionIdx++
 
 			case KindFloat:
 				err := g.writeExpression(arg)
@@ -747,28 +632,23 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 					return err
 				}
 
-				_, err = g.Output.Write([]byte{byte(prtf), byte(arg.returnType().kind & KindSizeMask)})
+				err = g.writeInstruction0(prtf, arg.returnType().kind & KindSizeMask)
 
 				if err != nil {
 					return err
 				}
-
-				g.bytesWritten += 2
-				g.instructionIdx++
 
 			case KindString & KindTypeMask:
-				_, err := g.Output.Write([]byte{byte(prts), byte(arg.returnType().kind & KindSizeMask)})
-
-				if err != nil {
-					return err
-				}
+				var err error
 
 				if aVar, ok := arg.(Var); ok {
 					name := aVar.name
-					err = binary.Write(g.Output, binary.BigEndian, g.vars[name])
+
+					err = g.writeInstruction4(prts, arg.returnType().kind & KindSizeMask, g.vars[name])
 				} else if aConst, ok := arg.(Const); ok {
 					name := aConst.name
-					err = binary.Write(g.Output, binary.BigEndian, g.vars[name])
+
+					err = g.writeInstruction4(prts, arg.returnType().kind & KindSizeMask, g.vars[name])
 				} else if aLit, ok := arg.(StrLit); ok {
 					err = g.writeExpression(aLit)
 
@@ -776,12 +656,12 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 						return err
 					}
 
-					err = binary.Write(g.Output, binary.BigEndian, g.nextCompiletimeVarIdx-1)
+					err = g.writeInstruction4(prts, arg.returnType().kind & KindSizeMask, g.nextCompiletimeVarIdx - 1)
 				}
 
-				g.bytesWritten += 6
-				g.instructionIdx++
-
+				if err != nil {
+					return err
+				}
 			}
 
 			break
@@ -797,20 +677,11 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 			}
 		}
 
-		_, err := g.Output.Write([]byte{byte(call), 0})
+		err := g.writeInstruction4(call, 0, g.funcs[expression.fun.name])
 
 		if err != nil {
 			return err
 		}
-
-		err = binary.Write(g.Output, binary.BigEndian, g.funcs[expression.fun.name])
-
-		if err != nil {
-			return err
-		}
-
-		g.bytesWritten += 6
-		g.instructionIdx++
 
 	case BinaryOpNode:
 		return g.generateBinaryOpNode(expression)
@@ -836,17 +707,14 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 
 		kind := binopnode.Lhs.returnType().kind
 		if kind&KindInt != 0 {
-			_, err = g.Output.Write([]byte{byte(adds), byte(kind & KindSizeMask)})
+			err = g.writeInstruction0(adds, kind & KindSizeMask)
 		} else {
-			_, err = g.Output.Write([]byte{byte(addf), byte(kind & KindSizeMask)})
+			err = g.writeInstruction0(addf, kind & KindSizeMask)
 		}
 
 		if err != nil {
 			return err
 		}
-
-		g.bytesWritten += 2
-		g.instructionIdx++
 
 	case BOMinus:
 		err := g.writeExpression(binopnode.Lhs)
@@ -863,17 +731,14 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 
 		kind := binopnode.Lhs.returnType().kind
 		if kind&KindInt != 0 {
-			_, err = g.Output.Write([]byte{byte(subs), byte(kind & KindSizeMask)})
+			err = g.writeInstruction0(subs, kind & KindSizeMask)
 		} else {
-			_, err = g.Output.Write([]byte{byte(subf), byte(kind & KindSizeMask)})
+			err = g.writeInstruction0(subf, kind & KindSizeMask)
 		}
 
 		if err != nil {
 			return err
 		}
-
-		g.bytesWritten += 2
-		g.instructionIdx++
 
 	case BOMul:
 		err := g.writeExpression(binopnode.Lhs)
@@ -890,17 +755,14 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 
 		kind := binopnode.Lhs.returnType().kind
 		if kind&KindInt != 0 {
-			_, err = g.Output.Write([]byte{byte(muls), byte(kind & KindSizeMask)})
+			err = g.writeInstruction0(muls, kind & KindSizeMask)
 		} else {
-			_, err = g.Output.Write([]byte{byte(mulf), byte(kind & KindSizeMask)})
+			err = g.writeInstruction0(mulf, kind & KindSizeMask)
 		}
 
 		if err != nil {
 			return err
 		}
-
-		g.bytesWritten += 2
-		g.instructionIdx++
 
 	case BODiv:
 		err := g.writeExpression(binopnode.Lhs)
@@ -917,17 +779,14 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 
 		kind := binopnode.Lhs.returnType().kind
 		if kind&KindInt != 0 {
-			_, err = g.Output.Write([]byte{byte(divs), byte(kind & KindSizeMask)})
+			err = g.writeInstruction0(divs, kind & KindSizeMask)
 		} else {
-			_, err = g.Output.Write([]byte{byte(divf), byte(kind & KindSizeMask)})
+			err = g.writeInstruction0(divf, kind & KindSizeMask)
 		}
 
 		if err != nil {
 			return err
 		}
-
-		g.bytesWritten += 2
-		g.instructionIdx++
 
 	case BOBinAnd:
 		err := g.writeExpression(binopnode.Lhs)
@@ -942,16 +801,13 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		size := byte(binopnode.returnType().kind & KindSizeMask)
+		size := binopnode.returnType().kind & KindSizeMask
 
-		_, err = g.Output.Write([]byte{byte(band), size})
+		err = g.writeInstruction0(band, size)
 
 		if err != nil {
 			return err
 		}
-
-		g.bytesWritten += 2
-		g.instructionIdx++
 
 	case BOBinOr:
 		err := g.writeExpression(binopnode.Lhs)
@@ -966,16 +822,13 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		size := byte(binopnode.returnType().kind & KindSizeMask)
+		size := binopnode.returnType().kind & KindSizeMask
 
-		_, err = g.Output.Write([]byte{byte(borr), size})
+		err = g.writeInstruction0(borr, size)
 
 		if err != nil {
 			return err
 		}
-
-		g.bytesWritten += 2
-		g.instructionIdx++
 
 	case BOBinXor:
 		err := g.writeExpression(binopnode.Lhs)
@@ -990,16 +843,13 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		size := byte(binopnode.returnType().kind & KindSizeMask)
+		size := binopnode.returnType().kind & KindSizeMask
 
-		_, err = g.Output.Write([]byte{byte(bxor), size})
+		err = g.writeInstruction0(bxor, size)
 
 		if err != nil {
 			return err
 		}
-
-		g.bytesWritten += 2
-		g.instructionIdx++
 
 	case BOBoolAnd:
 		err := g.writeExpression(binopnode.Lhs)
@@ -1008,21 +858,19 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		_, err = g.Output.Write([]byte{byte(jpfl), byte(binopnode.Lhs.returnType().kind & KindSizeMask)})
+		err = g.writeInstruction4(jpfl, binopnode.Lhs.returnType().kind & KindSizeMask, 0)
 
 		if err != nil {
 			return err
 		}
 
-		seekFalse, err := g.Output.Seek(4, io.SeekCurrent)
+		seekFalse, err := g.Output.Seek(0, io.SeekCurrent)
 
 		if err != nil {
 			return err
 		}
 
 		seekFalse -= 4
-		g.bytesWritten += 6
-		g.instructionIdx++
 
 		err = g.writeExpression(binopnode.Rhs)
 
@@ -1030,30 +878,25 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		_, err = g.Output.Write([]byte{byte(jptr), byte(binopnode.Rhs.returnType().kind & KindSizeMask)})
+		err = g.writeInstruction4(jptr, binopnode.Rhs.returnType().kind & KindSizeMask, 0)
 
 		if err != nil {
 			return err
 		}
 
-		seekTrue, err := g.Output.Seek(4, io.SeekCurrent)
+		seekTrue, err := g.Output.Seek(0, io.SeekCurrent)
 
 		if err != nil {
 			return err
 		}
 
 		seekTrue -= 4
-		g.bytesWritten += 6
-		g.instructionIdx++
 
-		_, err = g.Output.Write([]byte{byte(push), 4, 0, 0, 0, 0})
+		err = g.writeInstructionn(push, 4, 0)
 
 		if err != nil {
 			return err
 		}
-
-		g.instructionIdx++
-		g.bytesWritten += 6
 
 		_, err = g.Output.Seek(seekFalse, io.SeekStart)
 
@@ -1073,20 +916,11 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		_, err = g.Output.Write([]byte{byte(jump), 0})
+		err = g.writeInstruction4(jump, 0, uint32(g.instructionIdx+2))
 
 		if err != nil {
 			return err
 		}
-
-		err = binary.Write(g.Output, binary.BigEndian, uint32(g.instructionIdx+2))
-
-		if err != nil {
-			return err
-		}
-
-		g.bytesWritten += 6
-		g.instructionIdx++
 
 		_, err = g.Output.Seek(seekTrue, io.SeekStart)
 
@@ -1106,14 +940,11 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		_, err = g.Output.Write([]byte{byte(push), 4, 0, 0, 0, 1})
+		err = g.writeInstructionn(push, 4, 1)
 
 		if err != nil {
 			return err
 		}
-
-		g.bytesWritten += 6
-		g.instructionIdx++
 
 	case BOBoolOr:
 		err := g.writeExpression(binopnode.Lhs)
@@ -1122,21 +953,19 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		_, err = g.Output.Write([]byte{byte(jptr), byte(binopnode.Lhs.returnType().kind & KindSizeMask)})
+		err = g.writeInstruction4(jptr, binopnode.Lhs.returnType().kind &KindSizeMask, 0)
 
 		if err != nil {
 			return err
 		}
 
-		seekTrue, err := g.Output.Seek(4, io.SeekCurrent)
+		seekTrue, err := g.Output.Seek(0, io.SeekCurrent)
 
 		if err != nil {
 			return err
 		}
 
 		seekTrue -= 4
-		g.bytesWritten += 6
-		g.instructionIdx++
 
 		err = g.writeExpression(binopnode.Rhs)
 
@@ -1144,30 +973,25 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		_, err = g.Output.Write([]byte{byte(jpfl), byte(binopnode.Rhs.returnType().kind & KindSizeMask)})
+		err = g.writeInstruction4(jpfl, binopnode.Lhs.returnType().kind &KindSizeMask, 0)
 
 		if err != nil {
 			return err
 		}
 
-		seekFalse, err := g.Output.Seek(4, io.SeekCurrent)
+		seekFalse, err := g.Output.Seek(0, io.SeekCurrent)
 
 		if err != nil {
 			return err
 		}
 
 		seekFalse -= 4
-		g.bytesWritten += 6
-		g.instructionIdx++
 
-		_, err = g.Output.Write([]byte{byte(push), 4, 0, 0, 0, 1})
+		err = g.writeInstructionn(push, 4, 1)
 
 		if err != nil {
 			return err
 		}
-
-		g.instructionIdx++
-		g.bytesWritten += 6
 
 		_, err = g.Output.Seek(seekTrue, io.SeekStart)
 
@@ -1187,20 +1011,11 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		_, err = g.Output.Write([]byte{byte(jump), 0})
+		err = g.writeInstruction4(jump, 0, uint32(g.instructionIdx + 2))
 
 		if err != nil {
 			return err
 		}
-
-		err = binary.Write(g.Output, binary.BigEndian, uint32(g.instructionIdx+2))
-
-		if err != nil {
-			return err
-		}
-
-		g.bytesWritten += 6
-		g.instructionIdx++
 
 		_, err = g.Output.Seek(seekFalse, io.SeekStart)
 
@@ -1220,14 +1035,11 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		_, err = g.Output.Write([]byte{byte(push), 4, 0, 0, 0, 0})
+		err = g.writeInstructionn(push, 4, 0)
 
 		if err != nil {
 			return err
 		}
-
-		g.bytesWritten += 6
-		g.instructionIdx++
 
 	case BOShl:
 		err := g.writeExpression(binopnode.Lhs)
@@ -1242,16 +1054,12 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		size := byte(binopnode.returnType().kind & KindSizeMask)
-
-		_, err = g.Output.Write([]byte{byte(bshl), size})
+		size := binopnode.returnType().kind & KindSizeMask
+		err = g.writeInstruction0(bshl, size)
 
 		if err != nil {
 			return err
 		}
-
-		g.bytesWritten += 2
-		g.instructionIdx++
 
 	case BOShr:
 		err := g.writeExpression(binopnode.Lhs)
@@ -1266,16 +1074,13 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		size := byte(binopnode.returnType().kind & KindSizeMask)
+		size := binopnode.returnType().kind & KindSizeMask
 
-		_, err = g.Output.Write([]byte{byte(bsrs), size})
+		err = g.writeInstruction0(bsrs, size)
 
 		if err != nil {
 			return err
 		}
-
-		g.bytesWritten += 2
-		g.instructionIdx++
 
 	case BOGt:
 		err := g.writeExpression(binopnode.Lhs)
@@ -1290,26 +1095,24 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		_, err = g.Output.Write([]byte{byte(cmps), byte(binopnode.Lhs.returnType().kind & KindSizeMask)})
+		if binopnode.Lhs.returnType().kind & KindInt != 0 {
+			err = g.writeInstruction0(cmps, binopnode.Lhs.returnType().kind & KindSizeMask)
+		} else if binopnode.Lhs.returnType().kind & KindFloat != 0 {
+			err = g.writeInstruction0(cmpf, binopnode.Lhs.returnType().kind & KindSizeMask)
+		}
 
 		if err != nil {
 			return err
 		}
 
-		g.bytesWritten += 2
-		g.instructionIdx++
-
-		_, err = g.Output.Write([]byte{byte(isgt), byte(binopnode.Lhs.returnType().kind & KindSizeMask)})
+		err = g.writeInstruction0(isgt, binopnode.returnType().kind & KindSizeMask)
 
 		if err != nil {
 			return err
 		}
 
-		g.bytesWritten += 2
-		g.instructionIdx++
-
-		requiredSize := byte(binopnode.returnType().kind & KindSizeMask)
-		curSize := byte(binopnode.Lhs.returnType().kind & KindSizeMask)
+		requiredSize := binopnode.returnType().kind & KindSizeMask
+		curSize := binopnode.Lhs.returnType().kind & KindSizeMask
 
 		g.castUnsigned(requiredSize, curSize)
 
@@ -1326,28 +1129,28 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		_, err = g.Output.Write([]byte{byte(cmps), byte(binopnode.Lhs.returnType().kind & KindSizeMask)})
+		if binopnode.Lhs.returnType().kind & KindInt != 0 {
+			err = g.writeInstruction0(cmps, binopnode.Lhs.returnType().kind & KindSizeMask)
+		} else if binopnode.Lhs.returnType().kind & KindFloat != 0 {
+			err = g.writeInstruction0(cmpf, binopnode.Lhs.returnType().kind & KindSizeMask)
+		}
+
 
 		if err != nil {
 			return err
 		}
 
-		g.bytesWritten += 2
-		g.instructionIdx++
-
-		_, err = g.Output.Write([]byte{byte(islt), byte(binopnode.Lhs.returnType().kind & KindSizeMask)})
+		err = g.writeInstruction0(islt, binopnode.returnType().kind & KindSizeMask)
 
 		if err != nil {
 			return err
 		}
 
-		g.bytesWritten += 2
-		g.instructionIdx++
-
-		requiredSize := byte(binopnode.returnType().kind & KindSizeMask)
-		curSize := byte(binopnode.Lhs.returnType().kind & KindSizeMask)
+		requiredSize := binopnode.returnType().kind & KindSizeMask
+		curSize := binopnode.Lhs.returnType().kind & KindSizeMask
 
 		g.castUnsigned(requiredSize, curSize)
+
 	case BOGtEq:
 		err := g.writeExpression(binopnode.Lhs)
 
@@ -1361,26 +1164,25 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		_, err = g.Output.Write([]byte{byte(cmps), byte(binopnode.Lhs.returnType().kind & KindSizeMask)})
+		if binopnode.Lhs.returnType().kind & KindInt != 0 {
+			err = g.writeInstruction0(cmps, binopnode.Lhs.returnType().kind & KindSizeMask)
+		} else if binopnode.Lhs.returnType().kind & KindFloat != 0 {
+			err = g.writeInstruction0(cmpf, binopnode.Lhs.returnType().kind & KindSizeMask)
+		}
+
 
 		if err != nil {
 			return err
 		}
 
-		g.bytesWritten += 2
-		g.instructionIdx++
-
-		_, err = g.Output.Write([]byte{byte(isge), byte(binopnode.Lhs.returnType().kind & KindSizeMask)})
+		err = g.writeInstruction0(isge, binopnode.returnType().kind & KindSizeMask)
 
 		if err != nil {
 			return err
 		}
 
-		g.bytesWritten += 2
-		g.instructionIdx++
-
-		requiredSize := byte(binopnode.returnType().kind & KindSizeMask)
-		curSize := byte(binopnode.Lhs.returnType().kind & KindSizeMask)
+		requiredSize := binopnode.returnType().kind & KindSizeMask
+		curSize := binopnode.Lhs.returnType().kind & KindSizeMask
 
 		g.castUnsigned(requiredSize, curSize)
 
@@ -1397,28 +1199,27 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		_, err = g.Output.Write([]byte{byte(cmps), byte(binopnode.Lhs.returnType().kind & KindSizeMask)})
+		if binopnode.Lhs.returnType().kind & KindInt != 0 {
+			err = g.writeInstruction0(cmps, binopnode.Lhs.returnType().kind & KindSizeMask)
+		} else if binopnode.Lhs.returnType().kind & KindFloat != 0 {
+			err = g.writeInstruction0(cmpf, binopnode.Lhs.returnType().kind & KindSizeMask)
+		}
 
 		if err != nil {
 			return err
 		}
 
-		g.bytesWritten += 2
-		g.instructionIdx++
-
-		_, err = g.Output.Write([]byte{byte(isle), byte(binopnode.Lhs.returnType().kind & KindSizeMask)})
+		err = g.writeInstruction0(isle, binopnode.returnType().kind & KindSizeMask)
 
 		if err != nil {
 			return err
 		}
 
-		g.bytesWritten += 2
-		g.instructionIdx++
-
-		requiredSize := byte(binopnode.returnType().kind & KindSizeMask)
-		curSize := byte(binopnode.Lhs.returnType().kind & KindSizeMask)
+		requiredSize := binopnode.returnType().kind & KindSizeMask
+		curSize := binopnode.Lhs.returnType().kind & KindSizeMask
 
 		g.castUnsigned(requiredSize, curSize)
+
 	case BOEquals:
 		err := g.writeExpression(binopnode.Lhs)
 
@@ -1432,26 +1233,24 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		_, err = g.Output.Write([]byte{byte(cmps), byte(binopnode.Lhs.returnType().kind & KindSizeMask)})
+		if binopnode.Lhs.returnType().kind & KindInt != 0 {
+			err = g.writeInstruction0(cmps, binopnode.Lhs.returnType().kind & KindSizeMask)
+		} else if binopnode.Lhs.returnType().kind & KindFloat != 0 {
+			err = g.writeInstruction0(cmpf, binopnode.Lhs.returnType().kind & KindSizeMask)
+		}
 
 		if err != nil {
 			return err
 		}
 
-		g.bytesWritten += 2
-		g.instructionIdx++
-
-		_, err = g.Output.Write([]byte{byte(iseq), byte(binopnode.Lhs.returnType().kind & KindSizeMask)})
+		err = g.writeInstruction0(iseq, binopnode.returnType().kind & KindSizeMask)
 
 		if err != nil {
 			return err
 		}
 
-		g.bytesWritten += 2
-		g.instructionIdx++
-
-		requiredSize := byte(binopnode.returnType().kind & KindSizeMask)
-		curSize := byte(binopnode.Lhs.returnType().kind & KindSizeMask)
+		requiredSize := binopnode.returnType().kind & KindSizeMask
+		curSize := binopnode.Lhs.returnType().kind & KindSizeMask
 
 		g.castUnsigned(requiredSize, curSize)
 
@@ -1468,26 +1267,24 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		_, err = g.Output.Write([]byte{byte(cmps), byte(binopnode.Lhs.returnType().kind & KindSizeMask)})
+		if binopnode.Lhs.returnType().kind & KindInt != 0 {
+			err = g.writeInstruction0(cmps, binopnode.Lhs.returnType().kind & KindSizeMask)
+		} else if binopnode.Lhs.returnType().kind & KindFloat != 0 {
+			err = g.writeInstruction0(cmpf, binopnode.Lhs.returnType().kind & KindSizeMask)
+		}
 
 		if err != nil {
 			return err
 		}
 
-		g.bytesWritten += 2
-		g.instructionIdx++
-
-		_, err = g.Output.Write([]byte{byte(isne), byte(binopnode.returnType().kind & KindSizeMask)})
+		err = g.writeInstruction0(isne, binopnode.returnType().kind & KindSizeMask)
 
 		if err != nil {
 			return err
 		}
 
-		g.bytesWritten += 2
-		g.instructionIdx++
-
-		requiredSize := byte(binopnode.returnType().kind & KindSizeMask)
-		curSize := byte(binopnode.Lhs.returnType().kind & KindSizeMask)
+		requiredSize := binopnode.returnType().kind & KindSizeMask
+		curSize := binopnode.Lhs.returnType().kind & KindSizeMask
 
 		g.castUnsigned(requiredSize, curSize)
 
@@ -1499,7 +1296,6 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 
 		g.writeExpression(binopnode.Rhs)
 
-		idx := g.vars[lhs.name]
 
 		// TODO: this is the hackiest shit ever, should be solved when pointers exist
 		if (lhs.returnType().kind & KindString & KindTypeMask) != 0 {
@@ -1508,42 +1304,25 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 
 		size := lhs.returnType().kind & KindSizeMask
 
-		_, err := g.Output.Write([]byte{byte(popv), byte(size)})
+		err := g.writeInstruction4(popv, size, g.vars[lhs.name])
 
 		if err != nil {
 			return err
 		}
-
-		err = binary.Write(g.Output, binary.BigEndian, idx)
-
-		if err != nil {
-			return err
-		}
-
-		g.bytesWritten += 6
-		g.instructionIdx++
 
 	case BOPlusAssign:
 		lhs, ok := binopnode.Lhs.(Var)
-		size := byte(lhs.typ.kind & KindSizeMask)
 		if !ok {
 			panic("assigning to not var??")
 		}
 
-		_, err := g.Output.Write([]byte{byte(pshv), size})
+		size := lhs.typ.kind & KindSizeMask
+
+		err := g.writeInstruction4(pshv, size, g.vars[lhs.name])
 
 		if err != nil {
 			return err
 		}
-
-		err = binary.Write(g.Output, binary.BigEndian, g.vars[lhs.name])
-
-		if err != nil {
-			return err
-		}
-
-		g.bytesWritten += 6
-		g.instructionIdx++
 
 		err = g.writeExpression(binopnode.Rhs)
 
@@ -1553,54 +1332,34 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 
 		switch lhs.typ.kind & KindTypeMask {
 		case KindInt:
-			_, err = g.Output.Write([]byte{byte(adds), size})
+			err = g.writeInstruction0(adds, size)
 		case KindFloat:
-			_, err = g.Output.Write([]byte{byte(addf), size})
+			err = g.writeInstruction0(addf, size)
 		}
 
 		if err != nil {
 			return err
 		}
 
-		g.bytesWritten += 2
-		g.instructionIdx++
-
-		_, err = g.Output.Write([]byte{byte(popv), size})
+		err = g.writeInstruction4(popv, size, g.vars[lhs.name])
 
 		if err != nil {
 			return err
 		}
-
-		err = binary.Write(g.Output, binary.BigEndian, g.vars[lhs.name])
-
-		if err != nil {
-			return err
-		}
-
-		g.bytesWritten += 6
-		g.instructionIdx++
 
 	case BODashAssign:
 		lhs, ok := binopnode.Lhs.(Var)
-		size := byte(lhs.typ.kind & KindSizeMask)
 		if !ok {
 			panic("assigning to not var??")
 		}
 
-		_, err := g.Output.Write([]byte{byte(pshv), size})
+		size := lhs.typ.kind & KindSizeMask
+
+		err := g.writeInstruction4(pshv, size, g.vars[lhs.name])
 
 		if err != nil {
 			return err
 		}
-
-		err = binary.Write(g.Output, binary.BigEndian, g.vars[lhs.name])
-
-		if err != nil {
-			return err
-		}
-
-		g.bytesWritten += 6
-		g.instructionIdx++
 
 		err = g.writeExpression(binopnode.Rhs)
 
@@ -1610,54 +1369,34 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 
 		switch lhs.typ.kind & KindTypeMask {
 		case KindInt:
-			_, err = g.Output.Write([]byte{byte(subs), size})
+			err = g.writeInstruction0(subs, size)
 		case KindFloat:
-			_, err = g.Output.Write([]byte{byte(subf), size})
+			err = g.writeInstruction0(subf, size)
 		}
 
 		if err != nil {
 			return err
 		}
 
-		g.bytesWritten += 2
-		g.instructionIdx++
-
-		_, err = g.Output.Write([]byte{byte(popv), size})
+		err = g.writeInstruction4(popv, size, g.vars[lhs.name])
 
 		if err != nil {
 			return err
 		}
-
-		err = binary.Write(g.Output, binary.BigEndian, g.vars[lhs.name])
-
-		if err != nil {
-			return err
-		}
-
-		g.bytesWritten += 6
-		g.instructionIdx++
 
 	case BOStarAssign:
 		lhs, ok := binopnode.Lhs.(Var)
-		size := byte(lhs.typ.kind & KindSizeMask)
 		if !ok {
 			panic("assigning to not var??")
 		}
 
-		_, err := g.Output.Write([]byte{byte(pshv), size})
+		size := lhs.typ.kind & KindSizeMask
+
+		err := g.writeInstruction4(pshv, size, g.vars[lhs.name])
 
 		if err != nil {
 			return err
 		}
-
-		err = binary.Write(g.Output, binary.BigEndian, g.vars[lhs.name])
-
-		if err != nil {
-			return err
-		}
-
-		g.bytesWritten += 6
-		g.instructionIdx++
 
 		err = g.writeExpression(binopnode.Rhs)
 
@@ -1667,54 +1406,34 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 
 		switch lhs.typ.kind & KindTypeMask {
 		case KindInt:
-			_, err = g.Output.Write([]byte{byte(muls), size})
+			err = g.writeInstruction0(muls, size)
 		case KindFloat:
-			_, err = g.Output.Write([]byte{byte(mulf), size})
+			err = g.writeInstruction0(mulf, size)
 		}
 
 		if err != nil {
 			return err
 		}
 
-		g.bytesWritten += 2
-		g.instructionIdx++
-
-		_, err = g.Output.Write([]byte{byte(popv), size})
+		err = g.writeInstruction4(popv, size, g.vars[lhs.name])
 
 		if err != nil {
 			return err
 		}
-
-		err = binary.Write(g.Output, binary.BigEndian, g.vars[lhs.name])
-
-		if err != nil {
-			return err
-		}
-
-		g.bytesWritten += 6
-		g.instructionIdx++
 
 	case BOSlashAssign:
 		lhs, ok := binopnode.Lhs.(Var)
-		size := byte(lhs.typ.kind & KindSizeMask)
 		if !ok {
 			panic("assigning to not var??")
 		}
 
-		_, err := g.Output.Write([]byte{byte(pshv), size})
+		size := lhs.typ.kind & KindSizeMask
+
+		err := g.writeInstruction4(pshv, size, g.vars[lhs.name])
 
 		if err != nil {
 			return err
 		}
-
-		err = binary.Write(g.Output, binary.BigEndian, g.vars[lhs.name])
-
-		if err != nil {
-			return err
-		}
-
-		g.bytesWritten += 6
-		g.instructionIdx++
 
 		err = g.writeExpression(binopnode.Rhs)
 
@@ -1724,54 +1443,34 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 
 		switch lhs.typ.kind & KindTypeMask {
 		case KindInt:
-			_, err = g.Output.Write([]byte{byte(divs), size})
+			err = g.writeInstruction0(divs, size)
 		case KindFloat:
-			_, err = g.Output.Write([]byte{byte(divf), size})
+			err = g.writeInstruction0(divf, size)
 		}
 
 		if err != nil {
 			return err
 		}
 
-		g.bytesWritten += 2
-		g.instructionIdx++
-
-		_, err = g.Output.Write([]byte{byte(popv), size})
+		err = g.writeInstruction4(popv, size, g.vars[lhs.name])
 
 		if err != nil {
 			return err
 		}
 
-		err = binary.Write(g.Output, binary.BigEndian, g.vars[lhs.name])
-
-		if err != nil {
-			return err
-		}
-
-		g.bytesWritten += 6
-		g.instructionIdx++
 
 	case BoAndAssign:
 		lhs, ok := binopnode.Lhs.(Var)
-		size := byte(lhs.typ.kind & KindSizeMask)
+		size := lhs.typ.kind & KindSizeMask
 		if !ok {
 			panic("assigning to not var??")
 		}
 
-		_, err := g.Output.Write([]byte{byte(pshv), size})
+		err := g.writeInstruction4(pshv, size, g.vars[lhs.name])
 
 		if err != nil {
 			return err
 		}
-
-		err = binary.Write(g.Output, binary.BigEndian, g.vars[lhs.name])
-
-		if err != nil {
-			return err
-		}
-
-		g.bytesWritten += 6
-		g.instructionIdx++
 
 		err = g.writeExpression(binopnode.Rhs)
 
@@ -1779,51 +1478,30 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		_, err = g.Output.Write([]byte{byte(band), size})
+		err = g.writeInstruction0(band, size)
 
 		if err != nil {
 			return err
 		}
 
-		g.bytesWritten += 2
-		g.instructionIdx++
-
-		_, err = g.Output.Write([]byte{byte(popv), size})
+		err = g.writeInstruction4(popv, size, g.vars[lhs.name])
 
 		if err != nil {
 			return err
 		}
-
-		err = binary.Write(g.Output, binary.BigEndian, g.vars[lhs.name])
-
-		if err != nil {
-			return err
-		}
-
-		g.bytesWritten += 6
-		g.instructionIdx++
 
 	case BoOrAssign:
 		lhs, ok := binopnode.Lhs.(Var)
-		size := byte(lhs.typ.kind & KindSizeMask)
+		size := lhs.typ.kind & KindSizeMask
 		if !ok {
 			panic("assigning to not var??")
 		}
 
-		_, err := g.Output.Write([]byte{byte(pshv), size})
+		err := g.writeInstruction4(pshv, size, g.vars[lhs.name])
 
 		if err != nil {
 			return err
 		}
-
-		err = binary.Write(g.Output, binary.BigEndian, g.vars[lhs.name])
-
-		if err != nil {
-			return err
-		}
-
-		g.bytesWritten += 6
-		g.instructionIdx++
 
 		err = g.writeExpression(binopnode.Rhs)
 
@@ -1831,51 +1509,30 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		_, err = g.Output.Write([]byte{byte(borr), size})
+		err = g.writeInstruction0(borr, size)
 
 		if err != nil {
 			return err
 		}
 
-		g.bytesWritten += 2
-		g.instructionIdx++
-
-		_, err = g.Output.Write([]byte{byte(popv), size})
+		err = g.writeInstruction4(popv, size, g.vars[lhs.name])
 
 		if err != nil {
 			return err
 		}
-
-		err = binary.Write(g.Output, binary.BigEndian, g.vars[lhs.name])
-
-		if err != nil {
-			return err
-		}
-
-		g.bytesWritten += 6
-		g.instructionIdx++
 
 	case BoXorAssign:
 		lhs, ok := binopnode.Lhs.(Var)
-		size := byte(lhs.typ.kind & KindSizeMask)
+		size := lhs.typ.kind & KindSizeMask
 		if !ok {
 			panic("assigning to not var??")
 		}
 
-		_, err := g.Output.Write([]byte{byte(pshv), size})
+		err := g.writeInstruction4(pshv, size, g.vars[lhs.name])
 
 		if err != nil {
 			return err
 		}
-
-		err = binary.Write(g.Output, binary.BigEndian, g.vars[lhs.name])
-
-		if err != nil {
-			return err
-		}
-
-		g.bytesWritten += 6
-		g.instructionIdx++
 
 		err = g.writeExpression(binopnode.Rhs)
 
@@ -1883,51 +1540,30 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		_, err = g.Output.Write([]byte{byte(bxor), size})
+		err = g.writeInstruction0(bxor, size)
 
 		if err != nil {
 			return err
 		}
 
-		g.bytesWritten += 2
-		g.instructionIdx++
-
-		_, err = g.Output.Write([]byte{byte(popv), size})
+		err = g.writeInstruction4(popv, size, g.vars[lhs.name])
 
 		if err != nil {
 			return err
 		}
-
-		err = binary.Write(g.Output, binary.BigEndian, g.vars[lhs.name])
-
-		if err != nil {
-			return err
-		}
-
-		g.bytesWritten += 6
-		g.instructionIdx++
 
 	case BOShrAssign:
 		lhs, ok := binopnode.Lhs.(Var)
-		size := byte(lhs.typ.kind & KindSizeMask)
+		size := lhs.typ.kind & KindSizeMask
 		if !ok {
 			panic("assigning to not var??")
 		}
 
-		_, err := g.Output.Write([]byte{byte(pshv), size})
+		err := g.writeInstruction4(pshv, size, g.vars[lhs.name])
 
 		if err != nil {
 			return err
 		}
-
-		err = binary.Write(g.Output, binary.BigEndian, g.vars[lhs.name])
-
-		if err != nil {
-			return err
-		}
-
-		g.bytesWritten += 6
-		g.instructionIdx++
 
 		err = g.writeExpression(binopnode.Rhs)
 
@@ -1935,51 +1571,30 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		_, err = g.Output.Write([]byte{byte(bsrs), size})
+		err = g.writeInstruction0(bsrs, size)
 
 		if err != nil {
 			return err
 		}
 
-		g.bytesWritten += 2
-		g.instructionIdx++
-
-		_, err = g.Output.Write([]byte{byte(popv), size})
+		err = g.writeInstruction4(popv, size, g.vars[lhs.name])
 
 		if err != nil {
 			return err
 		}
-
-		err = binary.Write(g.Output, binary.BigEndian, g.vars[lhs.name])
-
-		if err != nil {
-			return err
-		}
-
-		g.bytesWritten += 6
-		g.instructionIdx++
 
 	case BOShlAssign:
 		lhs, ok := binopnode.Lhs.(Var)
-		size := byte(lhs.typ.kind & KindSizeMask)
+		size := lhs.typ.kind & KindSizeMask
 		if !ok {
 			panic("assigning to not var??")
 		}
 
-		_, err := g.Output.Write([]byte{byte(pshv), size})
+		err := g.writeInstruction4(pshv, size, g.vars[lhs.name])
 
 		if err != nil {
 			return err
 		}
-
-		err = binary.Write(g.Output, binary.BigEndian, g.vars[lhs.name])
-
-		if err != nil {
-			return err
-		}
-
-		g.bytesWritten += 6
-		g.instructionIdx++
 
 		err = g.writeExpression(binopnode.Rhs)
 
@@ -1987,29 +1602,17 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		_, err = g.Output.Write([]byte{byte(bshl), size})
+		err = g.writeInstruction0(bshl, size)
 
 		if err != nil {
 			return err
 		}
 
-		g.bytesWritten += 2
-		g.instructionIdx++
-
-		_, err = g.Output.Write([]byte{byte(popv), size})
+		err = g.writeInstruction4(popv, size, g.vars[lhs.name])
 
 		if err != nil {
 			return err
 		}
-
-		err = binary.Write(g.Output, binary.BigEndian, g.vars[lhs.name])
-
-		if err != nil {
-			return err
-		}
-
-		g.bytesWritten += 6
-		g.instructionIdx++
 
 	default:
 		panic("unreachable")
@@ -2018,47 +1621,31 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 	return nil
 }
 
-func (g *BytecodeGenerator) castUnsigned(requiredSize, currentSize byte) (err error) {
+func (g *BytecodeGenerator) castUnsigned(requiredSize, currentSize Kind) (err error) {
 	for currentSize > requiredSize {
 		currentSize /= 2
 
-		_, err = g.Output.Write([]byte{byte(swap), currentSize})
+		err = g.writeInstruction0(swap, currentSize)
 
 		if err != nil {
 			return err
 		}
 
-		g.bytesWritten += 2
-		g.instructionIdx++
-
-		_, err = g.Output.Write([]byte{byte(pops), currentSize})
+		err = g.writeInstruction0(pops, currentSize)
 
 		if err != nil {
 			return err
 		}
-
-		g.bytesWritten += 2
-		g.instructionIdx++
 	}
 
 	for currentSize < requiredSize {
-
-		_, err = g.Output.Write([]byte{byte(push), currentSize})
-
-		if err != nil {
-			return err
-		}
-
-		_, err = g.Output.Write(make([]byte, currentSize))
+		err = g.writeInstructionn(push, currentSize, 0)
 
 		if err != nil {
 			return err
 		}
 
-		g.instructionIdx++
-		g.bytesWritten += 2 + int(currentSize)
-
-		_, err = g.Output.Write([]byte{byte(swap), currentSize})
+		err = g.writeInstruction0(swap, currentSize)
 
 		if err != nil {
 			return err
@@ -2066,6 +1653,67 @@ func (g *BytecodeGenerator) castUnsigned(requiredSize, currentSize byte) (err er
 
 		currentSize *= 2
 	}
+
+	return nil
+}
+
+
+func (g *BytecodeGenerator) writeInstruction0(opcode Opcode, size Kind) error {
+	_, err := g.Output.Write([]byte{byte(opcode), byte(size)})
+
+	if err != nil {
+		return err
+	}
+
+	g.bytesWritten += 2
+	g.instructionIdx++
+
+	return nil
+}
+
+func (g *BytecodeGenerator) writeInstruction4(opcode Opcode, size Kind, argument uint32) error {
+	_, err := g.Output.Write([]byte{byte(opcode), byte(size)})
+
+	if err != nil {
+		return err
+	}
+
+	err = binary.Write(g.Output, binary.BigEndian, argument)
+
+	if err != nil {
+		return err
+	}
+
+	g.bytesWritten += 6
+	g.instructionIdx++
+
+	return nil
+}
+
+func (g *BytecodeGenerator) writeInstructionn(opcode Opcode, size Kind, argument uint64) error {
+	_, err := g.Output.Write([]byte{byte(opcode), byte(size)})
+
+	if err != nil {
+		return err
+	}
+
+	switch size {
+	case 1:
+		err = binary.Write(g.Output, binary.BigEndian, uint8(argument))
+	case 2:
+		err = binary.Write(g.Output, binary.BigEndian, uint16(argument))
+	case 4:
+		err = binary.Write(g.Output, binary.BigEndian, uint32(argument))
+	case 8:
+		err = binary.Write(g.Output, binary.BigEndian, uint64(argument))
+	}
+
+	if err != nil {
+		return err
+	}
+
+	g.bytesWritten += 2 + int(size)
+	g.instructionIdx++
 
 	return nil
 }
