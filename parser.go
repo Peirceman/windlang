@@ -300,6 +300,14 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 
 	case TTReturn:
 		p.lex.NextToken()
+		tok := p.lex.PeekToken()
+
+		if tok.typ == TTSemiColon {
+			p.lex.nextToken();
+
+			return ReturnNode{nil}, false
+		}
+
 		node := ReturnNode{p.parseExpression()}
 		p.expect(TTSemiColon)
 

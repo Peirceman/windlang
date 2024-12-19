@@ -83,6 +83,6 @@ fn main() {
 	print(zero);
 	print(fifteen);
 
-	return 0;
+	return;
 }
 

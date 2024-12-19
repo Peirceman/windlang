@@ -761,7 +761,7 @@ type FuncNode struct {
 var _ AstNode = (*FuncNode)(nil)
 
 type ReturnNode struct {
-	Expr Expression
+	Expr Expression // optional
 }
 
 var _ AstNode = (*ReturnNode)(nil)
