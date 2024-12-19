@@ -11,6 +11,7 @@
  - [ ] use jump instructions for if statements instead of what happens now
  - [ ] loops
  - [x] calling functions
+ - [ ] float litterals with e notation, eg. 1e-5
  - [ ] modulo opperation
  - [ ] generating (ssa) IR
  - [ ] better errors
