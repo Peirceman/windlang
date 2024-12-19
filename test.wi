@@ -13,6 +13,14 @@ fn aFunc(): float {
 	return 1.4 + 1.6;
 }
 
+fn cat(in: int): int {
+	return in;
+}
+
+fn sum(first: int, second: int): int {
+	return first + second;
+}
+
 fn main() {
 	const αConst: int = 69;
 	var a: int = 0x1A4;
@@ -88,6 +96,8 @@ fn main() {
 	print(fifteen);
 
 	print(aFunc());
+	print(cat(12321));
+	print(sum(1000, 9 + fifteen));
 
 	return;
 }

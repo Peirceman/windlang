@@ -158,8 +158,6 @@ func GenerateBytecode(Output io.WriteSeeker, code CodeBlockNode) error {
 }
 
 func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
-	startingRuntimeVarIndex := g.nextRuntimeVarIdx
-
 	for identifier, varDef := range codeBlock.scope.vars {
 		_, exists := g.vars[identifier]
 		if exists {
@@ -293,10 +291,6 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 			g.instructionIdx++
 
 		case FuncNode:
-			if len(node.Args) > 0 {
-				panic("Error, arguments have not been implemented yet")
-			}
-
 			_, err := g.Output.Write([]byte{byte(jump), 0, 0, 0, 0, 0})
 
 			if err != nil {
@@ -314,6 +308,54 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 			g.instructionIdx++
 
 			g.funcs[node.name] = uint32(g.instructionIdx)
+
+
+			for _, arg := range node.Args {
+				identifier := arg.name
+
+				idx, exists := g.vars[identifier]
+				if exists && idx < g.nextRuntimeVarIdx {
+					panic("shadowing not implemented yet")
+				}
+
+				if arg.returnType().kind&KindString&KindTypeMask != 0 {
+					panic("string arguments not implemented yet")
+				}
+
+				g.vars[identifier] = g.nextRuntimeVarIdx
+				_, err = g.Output.Write([]byte{byte(decl), byte(arg.typ.kind & KindSizeMask)})
+
+				if err != nil {
+					return err
+				}
+
+				err = binary.Write(g.Output, binary.BigEndian, g.nextRuntimeVarIdx)
+
+				if err != nil {
+					return err
+				}
+
+				g.bytesWritten += 6
+				g.instructionIdx++
+
+				_, err = g.Output.Write([]byte{byte(popv), byte(arg.typ.kind & KindSizeMask)})
+
+				if err != nil {
+					return err
+				}
+
+				err = binary.Write(g.Output, binary.BigEndian, g.nextRuntimeVarIdx)
+
+				if err != nil {
+					return err
+				}
+
+				g.bytesWritten += 6
+				g.instructionIdx++
+
+				g.nextRuntimeVarIdx++
+
+			}
 
 			err = g.writeCodeBlock(node.Body)
 
@@ -338,6 +380,7 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 			if err != nil {
 				return err
 			}
+
 
 		case CodeBlockNode:
 			err := g.writeCodeBlock(node)
@@ -376,7 +419,6 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 		}
 	}
 
-	g.nextRuntimeVarIdx = startingRuntimeVarIndex
 	return nil
 }
 
@@ -745,8 +787,14 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 			break
 		}
 
-		if len(expression.Args) > 0 {
-			panic("arguments not implemented yet")
+		for i := len(expression.Args) - 1; i >= 0; i-- {
+			arg := expression.Args[i]
+
+			err := g.writeExpression(arg)
+
+			if err != nil {
+				return err
+			}
 		}
 
 		_, err := g.Output.Write([]byte{byte(call), 0})
