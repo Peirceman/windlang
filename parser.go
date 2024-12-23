@@ -385,7 +385,25 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 		return node, false
 
 	case TTWhile:
-		panic("Parsing of while loop not implemented yet")
+		p.lex.NextToken()
+		node := WhileNode{}
+		node.Condition = p.parseExpression()
+
+		if node.Condition.returnType().kind & KindBool & KindTypeMask == 0 {
+			panic(p.lex.curLoc.String() + " boolean expression expected")
+		}
+
+		p.expectPeek(TTLSquirly)
+
+		statements, eof := p.parseFunctionBody()
+
+		if eof {
+			panic("unreachable")
+		}
+
+		node.Loop = statements.(CodeBlockNode)
+
+		return node, false
 
 	case TTEOF:
 		return nil, true

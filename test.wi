@@ -106,6 +106,12 @@ fn main() {
 	print(isEven(3));
 	print(isEven(6));
 
+	var i: int = 0;
+	while i < 10 {
+		print(i);
+		i += 1;
+	}
+
 	return;
 }
 

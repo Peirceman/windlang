@@ -794,6 +794,13 @@ type IfChain struct {
 
 var _ AstNode = (*IfChain)(nil)
 
+type WhileNode struct {
+	Condition Expression
+	Loop CodeBlockNode
+}
+
+var _ AstNode = (*WhileNode)(nil)
+
 func (s *Scope) Contains(iden Identifier) bool {
 	if _, contains := s.vars[iden]; contains {
 		return true
@@ -919,6 +926,17 @@ func (c IfChain) String() string {
 		sb.WriteString(" else ")
 		sb.WriteString(c.ElseStatement.String())
 	}
+
+	return sb.String()
+}
+
+func (w WhileNode) String() string {
+	sb := strings.Builder{}
+
+	sb.WriteString("while ")
+	sb.WriteString(w.Condition.string())
+	sb.WriteString(" ")
+	sb.WriteString(w.Loop.String())
 
 	return sb.String()
 }
