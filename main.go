@@ -2,9 +2,13 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
+
+	floatparsing "github.com/Peirceman/windlang/floatParsing"
 )
 
 func main() {
@@ -15,7 +19,6 @@ func main() {
 		par := ParserFromFilename(fileName)
 		ast := par.ParseAll()
 
-
 		// PPrintln(ast)
 
 		out, err := os.Create("out.wbc")
@@ -25,7 +28,6 @@ func main() {
 		}
 
 		defer out.Close()
-
 
 		err = GenerateBytecode(out, ast)
 
@@ -54,6 +56,17 @@ func main() {
 		fmt.Println(interpreter.Stack)
 		fmt.Println("\n *** vars dump ***")
 		fmt.Println(interpreter.Data)
+	} else if fileName == "parse" {
+		val := floatparsing.Parse(os.Args[2])
+		fmt.Println("value:", val)
+		fmt.Printf("bits: %b\n", math.Float64bits(val))
+
+		fmt.Println("\nstdlib:")
+		stdVal, _ := strconv.ParseFloat(os.Args[2], 64)
+		fmt.Println("value: ", stdVal)
+		fmt.Printf("bits: %b\n", math.Float64bits(stdVal))
+
+		fmt.Printf("diff: %b\n", math.Float64bits(stdVal) ^ math.Float64bits(val))
 	} else {
 		panic("unknown file extention")
 	}
