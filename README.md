@@ -9,7 +9,7 @@
  - [ ] expand type system:  
     arrays, pointers, structs, unsigned int, different sizes (int8 vs int64)
  - [ ] use jump instructions for if statements instead of what happens now
- - [ ] loops
+ - [x] loops
  - [ ] unary expressions
  - [ ] extra type checking
  - [ ] calling functions that are declared further down the file
@@ -25,7 +25,7 @@
 ### keywords
 ```
 const var    fn        return
-type  struct interface
+type  struct interface while
 if    elif   else
 ```
 

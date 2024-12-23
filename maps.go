@@ -13,6 +13,7 @@ var keywords = map[string]TokenType{
 	"else":      TTElse,
 	"true":      TTTrue,
 	"false":     TTFalse,
+	"while":     TTWhile,
 }
 
 var binaryCharset = map[rune]int{'0': 1, '1': 1}

@@ -146,7 +146,7 @@ func (l *Lexer) nextToken() *Token {
 		}
 	}
 
-	if TTCount != 60 {
+	if TTCount != 61 {
 		panic("TokenType enum length changed: " + strconv.Itoa(int(TTCount)))
 	}
 

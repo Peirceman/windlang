@@ -558,7 +558,7 @@ func (t TokenType) TokenTypeToBinOp() BinaryOp {
 		panic("Binary opperation enum length changed")
 	}
 
-	if TTCount != 60 {
+	if TTCount != 61 {
 		panic("Token type enum length changed")
 	}
 

@@ -33,6 +33,7 @@ const (
 	TTElse
 	TTTrue
 	TTFalse
+	TTWhile
 
 	// symbols
 	TTAssign
@@ -100,7 +101,7 @@ const (
 )
 
 func (t TokenType) String() string {
-	if TTCount != 60 {
+	if TTCount != 61 {
 		panic("Token Type count changed")
 	}
 
@@ -133,6 +134,8 @@ func (t TokenType) String() string {
 		return "TTTrue"
 	case TTFalse:
 		return "TTFalse"
+	case TTWhile:
+		return "TTWhile"
 	case TTAssign:
 		return "TTAssign"
 	case TTPlus:
@@ -231,7 +234,7 @@ func (t TokenType) String() string {
 }
 
 func (t TokenType) SymbolToString() string {
-	if TTCount != 59 {
+	if TTCount != 61 {
 		panic("Token Type count changed")
 	}
 
@@ -246,6 +249,8 @@ func (t TokenType) SymbolToString() string {
 		return "*"
 	case TTSlash:
 		return "/"
+	case TTPercent:
+		return "%"
 	case TTPlusAssign:
 		return "+="
 	case TTDashAssign:
