@@ -640,7 +640,7 @@ func (l *Lexer) readAfterDigit() *Token {
 	var charsetName string = "decimal"
 	var charset map[rune]int = decimalCharset
 	var contains bool
-	isDecimal := true
+	var intVal int
 	base := 10
 
 	r, _ := l.nextRune() // cannot be eof, because this function would otherwise not be called
@@ -658,17 +658,14 @@ func (l *Lexer) readAfterDigit() *Token {
 		case 'b':
 			charsetName = "binary"
 			charset = binaryCharset
-			isDecimal = false
 			base = 2
 		case 'o':
 			charsetName = "octal"
 			charset = octalCharset
-			isDecimal = false
 			base = 8
 		case 'x':
 			charsetName = "hex"
 			charset = hexCharset
-			isDecimal = false
 			base = 16
 		case '.':
 			hasDecimalPoint = true
@@ -683,11 +680,13 @@ func (l *Lexer) readAfterDigit() *Token {
 
 		tokenText.WriteRune(r)
 		l.nextRune()
+	} else {
+		intVal = charset[r]
 	}
 
 	r, eof := l.peekRune()
 	_, contains = charset[r]
-	for !eof && (contains || (r == '.' && isDecimal)) {
+	for !eof && (contains || (r == '.' && base == 10)) {
 		l.nextRune()
 		tokenText.WriteRune(r)
 		if r == '.' {
@@ -696,6 +695,10 @@ func (l *Lexer) readAfterDigit() *Token {
 			}
 
 			hasDecimalPoint = true
+		}
+
+		if !hasDecimalPoint {
+			intVal = intVal * base + charset[r]
 		}
 
 		r, eof = l.peekRune()
@@ -712,12 +715,8 @@ func (l *Lexer) readAfterDigit() *Token {
 		tok.typ = TTFloat
 	} else {
 		tok.typ = TTInt
-		if isDecimal {
-			tok.extraInfo, _ = strconv.Atoi(tok.literal)
-		} else {
-			val, _ := strconv.ParseInt(tok.literal[2:], base, 0)
-			tok.extraInfo = int(val)
-		}
+		tok.extraInfo = intVal
+		fmt.Println(intVal)
 	}
 
 	return tok
