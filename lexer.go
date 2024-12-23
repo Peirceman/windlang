@@ -175,10 +175,20 @@ func (l *Lexer) nextToken() *Token {
 		}
 
 	case '-':
-		if r, eof = l.peekRune(); !eof && r == '=' {
+		r, eof = l.peekRune()
+		if !eof && r == '=' {
 			l.nextRune()
 			tok.literal = "-="
 			tok.typ = TTDashAssign
+		} else if !eof && unicode.IsDigit(r) {
+			tok = l.readAfterDigit()
+			if tok.typ == TTInt {
+				tok.extraInfo = -(tok.extraInfo.(int))
+			} else if tok.typ == TTFloat {
+				tok.literal = fmt.Sprint("-", tok.literal)
+			} else {
+				panic("unreachable")
+			}
 		} else {
 			tok.literal = "-"
 			tok.typ = TTDash
@@ -698,7 +708,7 @@ func (l *Lexer) readAfterDigit() *Token {
 		}
 
 		if !hasDecimalPoint {
-			intVal = intVal * base + charset[r]
+			intVal = intVal*base + charset[r]
 		}
 
 		r, eof = l.peekRune()
