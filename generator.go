@@ -344,6 +344,59 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 				return err
 			}
 
+		case WhileNode:
+			conditionIdx := uint32(g.instructionIdx)
+
+			err := g.writeExpression(node.Condition)
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstruction4(jpfl, 4, 0)
+
+			if err != nil {
+				return err
+			}
+
+			seekFalse, err := g.Output.Seek(0, io.SeekCurrent)
+
+			if err != nil {
+				return err
+			}
+
+			seekFalse -= 4
+
+			err = g.writeCodeBlock(node.Loop)
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstruction4(jump, 4, conditionIdx)
+
+			if err != nil {
+				return err
+			}
+
+			_, err = g.Output.Seek(seekFalse, io.SeekStart)
+
+			if err != nil {
+				return err
+			}
+
+			err = binary.Write(g.Output, binary.BigEndian, uint32(g.instructionIdx))
+
+			if err != nil {
+				return err
+			}
+
+			_, err = g.Output.Seek(0, io.SeekEnd)
+
+			if err != nil {
+				return err
+			}
+
 		case ReturnNode:
 			if node.Expr != nil {
 				err := g.writeExpression(node.Expr)
