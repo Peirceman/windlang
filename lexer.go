@@ -716,7 +716,6 @@ func (l *Lexer) readAfterDigit() *Token {
 	} else {
 		tok.typ = TTInt
 		tok.extraInfo = intVal
-		fmt.Println(intVal)
 	}
 
 	return tok
