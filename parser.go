@@ -567,7 +567,6 @@ func (p *Parser) parseBinary(precedence int) Expression {
 	return lhs
 }
 
-// TODO: unary expressions
 func (p *Parser) parseUnary() Expression {
 	return p.parsePrimary()
 }
