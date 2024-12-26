@@ -627,7 +627,6 @@ func (t TokenType) ToBinOp() BinaryOp {
 	return -1
 }
 
-
 type UnaryOp int
 
 const (
@@ -678,13 +677,13 @@ func (u UnaryOp) InputAllowed(input Kind) bool {
 
 	switch u {
 	case UOPlus:
-		return input & KindNumberMask != 0
+		return input&KindNumberMask != 0
 	case UONegative:
-		return input & KindNumberMask != 0
+		return input&KindNumberMask != 0
 	case UOBoolNot:
-		return input & KindBool & KindTypeMask != 0
+		return input&KindBool&KindTypeMask != 0
 	case UOBinNot:
-		return input & KindInt != 0
+		return input&KindInt != 0
 	}
 
 	panic("not a unary op")
@@ -739,12 +738,23 @@ type UnaryOpNode struct {
 
 var _ Expression = (*UnaryOpNode)(nil)
 
-func NewUnaryOpNode(expression Expression, op UnaryOp) (UnaryOpNode, error) {
-	if op.InputAllowed(expression.returnType().kind) {
-		return UnaryOpNode{expression, op}, nil
+func NewUnaryOpNode(expression Expression, op UnaryOp) (Expression, error) {
+	if !op.InputAllowed(expression.returnType().kind) {
+		return UnaryOpNode{}, fmt.Errorf("Invalid opperation %s on %s", op.String(), expression.returnType().name)
 	}
 
-	return UnaryOpNode{}, fmt.Errorf("Invalid opperation %s on %s", op.String(), expression.returnType().name)
+	switch op {
+	case UOPlus: // does nothing anyways
+		return expression, nil
+	case UONegative:
+		if lit, ok := expression.(IntLit); ok {
+			lit.value = -lit.value
+			return lit, nil
+		}
+	}
+
+	return UnaryOpNode{expression, op}, nil
+
 }
 
 func (i IntLit) string() string {

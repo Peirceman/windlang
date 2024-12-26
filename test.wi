@@ -119,6 +119,8 @@ fn main() {
 	print(-negTwo);
 	print(+69);
 	print(+αConst);
+	print(1 - -1);
+	print(-(-negone));
 
 	return;
 }
