@@ -672,6 +672,10 @@ func (p *Parser) parsePrimary() Expression {
 		p.lex.NextToken() // always`(` because of if condition
 
 		for tok := p.lex.PeekToken(); tok != nil && tok.typ != TTRBrace; tok = p.lex.PeekToken() {
+			if len(expr.Args) >= len(expr.fun.Args) {
+				panic(p.lex.curLoc.String() + " Error: to many arguments to function")
+			}
+
 			expr.Args = append(expr.Args, p.parseExpression())
 
 			tok = p.lex.PeekToken()
@@ -682,9 +686,11 @@ func (p *Parser) parsePrimary() Expression {
 			p.lex.NextToken()
 		}
 
-		p.expect(TTRBrace)
+		if len(expr.Args) < len(expr.fun.Args) {
+			panic(p.lex.curLoc.String() + " Error: to few arguments to function")
+		}
 
-		// FIXME: why don't I confirm if arguments are correct? smh
+		p.expect(TTRBrace)
 
 		return expr
 
