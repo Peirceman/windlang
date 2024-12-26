@@ -80,6 +80,8 @@ bsru | 0x33 | / | performs an unsigned binary right shift the second value on th
 call | 0x34 | 4 byte instruction index | pushes the next instruction's index onto the callstack and jumps to given adress
 rett | 0x35 | / | pops top index from the callstack and jumps there
 exit | 0x36 | / | exits the program with top value as return value
+negs | 0x38 | / | arithmetic not / negate on signed integer
+negf | 0x38 | / | arithmetic not / negate on float
 
 `over` `swap` and `rote` assume all elements are of same size because they probably are, otherwise
 what are you doing. These instructions were inspired by porth: [https://gitlab.com/tsoding/porth/-/blob/master/porth.porth?ref_type=heads]

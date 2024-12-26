@@ -408,6 +408,8 @@ func (i *Interpreter) Execute() int {
 			i.pushUnsigned(a | b, instruction.Size)
 
 		case bnot:
+			a := i.popUnsigned(instruction.Size)
+			i.pushUnsigned(^a, instruction.Size)
 
 		case bxor:
 			b := i.popUnsigned(instruction.Size)
@@ -439,6 +441,19 @@ func (i *Interpreter) Execute() int {
 
 		case exit:
 			return int(i.popUnsigned(instruction.Size))
+
+		case negs:
+			a := i.popSigned(instruction.Size)
+			i.pushSigned(-a, instruction.Size)
+
+		case negf:
+			if instruction.Size == 4 {
+				a := math.Float32frombits(uint32(i.popUnsigned(4)))
+				i.pushUnsigned(uint64(math.Float32bits(-a)), 4)
+			} else {
+				a := math.Float64frombits(uint64(i.popUnsigned(8)))
+				i.pushUnsigned(uint64(math.Float64bits(-a)), 8)
+			}
 
 		default:
 			fmt.Println("unknown: ", instruction.Code)

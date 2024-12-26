@@ -10,7 +10,6 @@
     arrays, pointers, structs, unsigned int, different sizes (int8 vs int64)
  - [ ] use jump instructions for if statements instead of what happens now
  - [ ] for loops
- - [ ] unary expressions
  - [ ] extra type checking
  - [ ] calling functions that are declared further down the file
  - [ ] shadowing

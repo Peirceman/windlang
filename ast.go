@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+// This file needs to be split up in different files wtf is this monster
+
 /*
  * Kind is an integer which stores all the built-in types and some extra info
  * Note: multiple pieces of information are stored in the Kind, so it should
@@ -455,6 +457,7 @@ func (b BinaryOp) InputAllowed(input Kind) bool {
 
 	panic("illegal")
 }
+
 func (b BinaryOp) returnType(input Kind) Kind {
 	if BOCount != 28 {
 		panic("Binary Opperation enum length changed")
@@ -551,9 +554,9 @@ func LeftToRight(precedence int) bool {
 	panic("illegal")
 }
 
-// TokenTypeToBinOp converts the token type to it's
+// ToBinOp converts the token type to it's
 // binary opperation, returns -1 if it isn't a binary op
-func (t TokenType) TokenTypeToBinOp() BinaryOp {
+func (t TokenType) ToBinOp() BinaryOp {
 	if BOCount != 28 {
 		panic("Binary opperation enum length changed")
 	}
@@ -622,6 +625,126 @@ func (t TokenType) TokenTypeToBinOp() BinaryOp {
 	}
 
 	return -1
+}
+
+
+type UnaryOp int
+
+const (
+	UOPlus UnaryOp = iota
+	UONegative
+	UOBoolNot
+	UOBinNot
+
+	UOCount
+)
+
+func (u UnaryOp) String() string {
+	if UOCount != 4 {
+		panic("Unary opperation enum length changed")
+	}
+
+	switch u {
+	case UOPlus:
+		return "+"
+	case UONegative:
+		return "-"
+	case UOBoolNot:
+		return "!"
+	case UOBinNot:
+		return "~"
+	}
+
+	panic("not a unary op")
+}
+
+func (u UnaryOp) OnLeftSide() bool {
+	if UOCount != 4 {
+		panic("Unary opperation enum length changed")
+	}
+
+	switch u {
+	case UOPlus, UONegative, UOBoolNot, UOBinNot:
+		return true
+	}
+
+	panic("not a unary op")
+}
+
+func (u UnaryOp) InputAllowed(input Kind) bool {
+	if UOCount != 4 {
+		panic("Unary opperation enum length changed")
+	}
+
+	switch u {
+	case UOPlus:
+		return input & KindNumberMask != 0
+	case UONegative:
+		return input & KindNumberMask != 0
+	case UOBoolNot:
+		return input & KindBool & KindTypeMask != 0
+	case UOBinNot:
+		return input & KindInt != 0
+	}
+
+	panic("not a unary op")
+}
+
+func (u UnaryOp) returnType(input Kind) Kind {
+	if UOCount != 4 {
+		panic("Unary opperation enum length changed")
+	}
+
+	switch u {
+	case UOPlus:
+		return input
+	case UONegative:
+		return input
+	case UOBoolNot:
+		return input
+	case UOBinNot:
+		return input
+	}
+
+	panic("not a unary op")
+}
+
+func (t TokenType) ToUnOp() UnaryOp {
+	if UOCount != 4 {
+		panic("Unary opperation enum length changed")
+	}
+
+	if TTCount != 61 {
+		panic("Token type enum length changed")
+	}
+
+	switch t {
+	case TTPlus:
+		return UOPlus
+	case TTDash:
+		return UONegative
+	case TTExclam:
+		return UOBoolNot
+	case TTTilde:
+		return UOBinNot
+	}
+
+	return -1
+}
+
+type UnaryOpNode struct {
+	Expression Expression
+	Op         UnaryOp
+}
+
+var _ Expression = (*UnaryOpNode)(nil)
+
+func NewUnaryOpNode(expression Expression, op UnaryOp) (UnaryOpNode, error) {
+	if op.InputAllowed(expression.returnType().kind) {
+		return UnaryOpNode{expression, op}, nil
+	}
+
+	return UnaryOpNode{}, fmt.Errorf("Invalid opperation %s on %s", op.String(), expression.returnType().name)
 }
 
 func (i IntLit) string() string {
@@ -729,6 +852,19 @@ func (b BinaryOpNode) returnType() Type {
 	return Type{kind, Identifier(kind.String())}
 }
 
+func (u UnaryOpNode) string() string {
+	if u.Op.OnLeftSide() {
+		return fmt.Sprint(u.Op.String(), "(", u.Expression.string(), ")")
+	}
+
+	return fmt.Sprint("(", u.Expression.string(), ")", u.Op.String())
+}
+
+func (u UnaryOpNode) returnType() Type {
+	kind := u.Op.returnType(u.Expression.returnType().kind)
+	return Type{kind, Identifier(kind.String())}
+}
+
 ////////////////////
 // End Expression //
 ////////////////////
@@ -796,7 +932,7 @@ var _ AstNode = (*IfChain)(nil)
 
 type WhileNode struct {
 	Condition Expression
-	Loop CodeBlockNode
+	Loop      CodeBlockNode
 }
 
 var _ AstNode = (*WhileNode)(nil)

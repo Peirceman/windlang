@@ -58,6 +58,9 @@ const (
 	call
 	rett
 	exit
+	negs
+	negf
+
 
 	jptr = jpne
 	jpfl = jpeq

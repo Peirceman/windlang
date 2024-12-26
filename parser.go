@@ -528,7 +528,7 @@ func (p *Parser) parseBinary(precedence int) Expression {
 
 	if LeftToRight(precedence) {
 		tok := p.lex.PeekToken()
-		opp := tok.typ.TokenTypeToBinOp()
+		opp := tok.typ.ToBinOp()
 		for tok != nil && tok.typ != TTEOF && opp != -1 && opp.Precedence() == precedence {
 			p.lex.NextToken()
 
@@ -553,11 +553,11 @@ func (p *Parser) parseBinary(precedence int) Expression {
 			}
 
 			tok = p.lex.PeekToken()
-			opp = tok.typ.TokenTypeToBinOp()
+			opp = tok.typ.ToBinOp()
 		}
 	} else {
 		tok := p.lex.PeekToken()
-		opp := tok.typ.TokenTypeToBinOp()
+		opp := tok.typ.ToBinOp()
 		for tok.typ != TTEOF && opp != -1 && opp.Precedence() == precedence {
 			p.lex.NextToken()
 			rhs := p.parseBinary(precedence)
@@ -581,7 +581,7 @@ func (p *Parser) parseBinary(precedence int) Expression {
 			}
 
 			tok = p.lex.PeekToken()
-			opp = tok.typ.TokenTypeToBinOp()
+			opp = tok.typ.ToBinOp()
 		}
 	}
 
@@ -589,7 +589,46 @@ func (p *Parser) parseBinary(precedence int) Expression {
 }
 
 func (p *Parser) parseUnary() Expression {
-	return p.parsePrimary()
+	tok := p.lex.PeekToken()
+	loc := tok.loc
+	opp := tok.typ.ToUnOp()
+
+	if opp != -1 && opp.OnLeftSide() {
+		p.lex.NextToken()
+		expression := p.parseUnary()
+		if expression == nil {
+			panic(p.lex.curLoc.String() + " Error: opperand expected")
+		}
+
+		unOp, err := NewUnaryOpNode(expression, opp)
+
+		if err != nil {
+			panic(loc.String() + err.Error())
+		}
+
+		return unOp
+	}
+
+	expression := p.parsePrimary()
+
+	if expression == nil {
+		panic(p.lex.curLoc.String() + " Error: opperand expected")
+	}
+
+	tok = p.lex.PeekToken()
+	var err error
+	for opp = tok.typ.ToUnOp(); opp != -1 && !opp.OnLeftSide(); opp = tok.typ.ToUnOp() {
+		p.lex.NextToken()
+		expression, err = NewUnaryOpNode(expression, opp)
+
+		if err != nil {
+			panic(p.lex.curLoc.String() + err.Error())
+		}
+
+		tok = p.lex.PeekToken()
+	}
+
+	return expression
 }
 
 func (p *Parser) parsePrimary() Expression {
