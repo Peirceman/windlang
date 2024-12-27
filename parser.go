@@ -671,12 +671,24 @@ func (p *Parser) parsePrimary() Expression {
 
 		p.lex.NextToken() // always`(` because of if condition
 
+		argIdx := -1
+
 		for tok := p.lex.PeekToken(); tok != nil && tok.typ != TTRBrace; tok = p.lex.PeekToken() {
 			if len(expr.Args) >= len(expr.fun.Args) {
 				panic(p.lex.curLoc.String() + " Error: to many arguments to function")
 			}
 
-			expr.Args = append(expr.Args, p.parseExpression())
+			loc := p.lex.curLoc
+			arg := p.parseExpression()
+
+			expr.Args = append(expr.Args, arg)
+			argIdx++
+
+			expectedKind := expr.fun.Args[argIdx].returnType().kind
+
+			if arg.returnType().kind != expectedKind && expectedKind != KindAny {
+				panic(loc.String() + " Error: argument type mismatch")
+			}
 
 			tok = p.lex.PeekToken()
 			if tok == nil || tok.typ != TTComma {
