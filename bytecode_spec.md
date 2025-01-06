@@ -27,9 +27,9 @@ instruction | opcode | arguments | explanation
 -|-|-|-
 noop | 0x00 | / | does nothing, the size byte also changes nothing
 push | 0x01 | n bytes | pushes the litteral bytes, amout of bytes given by size
-decl | 0x02 | 4 byte id | declares variable with the given id to be of the given size
-popv | 0x03 | 4 byte id | pop top bytes from stack and store it into var, amount of bytes poped is min of size argument and size of var
-pshv | 0x04 | 4 byte id | push value of var onto stack
+aloc | 0x02 | / | pops top 8 byte value from the stack, allocates that many bytes and pushes a pointer to it
+stor | 0x03 | / | pop top 8 bytes from stack and store it into the pointer below it
+load | 0x04 | / | pushes size byte amount of bytes from pointer onto the stack
 adds | 0x05 | / | pop top 2 values and push result of signed integer addition
 addu | 0x06 | / | pop top 2 values and push result of unsigned integer addition
 addf | 0x07 | / | pop top 2 values and push result of float addition
@@ -95,17 +95,13 @@ Todo:
 
 the arguments must be from top to bottom the same as from left to right
 f(a, b, c) needs the stack to be the following (from top to bottom):
-a b c
+a b c (a pushed last, c first)
 
 ### data:
-section type "data"
-its just many times this format:
-id (4bytes) len (4bytes) data (n bytes)
-len is in bytes
-for compiletime data the id is:
-0b1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+just data
 
-for runtime data the id is
-0b0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-so an implementation of an interpreter must be able to handle "high" id's
+## pointers:
+pointers are 8 byte values.
+It doesn't have to map to a real memory adress and an interpreter can define them
+however it wants, but increasing a pointer does have to return the next value
+(if it's valid) so arrays can work
