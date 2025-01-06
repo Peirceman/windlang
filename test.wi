@@ -5,33 +5,33 @@
 var str: string = "\u0009string\n\tmulti line";
 var something: bool;
 
-// fn get(ints: int, idx: int): int {
+// fn get(ints: int64, idx: int64): int64 {
 // 	return ints+idx;
 // }
 
-fn aFunc(): float {
+fn aFunc(): float64 {
 	return 0.4 + 0.6;
 }
 
-fn cat(in: int): int {
+fn cat(in: int64): int64 {
 	return in;
 }
 
-fn isEven(num: int): bool {
+fn isEven(num: int64): bool {
 	return num%2 == 0;
 }
 
-fn sum(first: int, second: int): int {
+fn sum(first: int64, second: int64): int64 {
 	return first + second;
 }
 
 fn main() {
-	const αConst: int = 69;
-	var a: int = 0x1A4;
+	const αConst: int64 = 69;
+	var a: int64 = 0x1A4;
 	var b: bool = false;
 	var c: string = "3";
-	var d: int = 4;
-	var pi: float = 3.14159265;
+	var d: int64 = 4;
+	var pi: float64 = 3.14159265;
 
 	println(a);
 	print(pi);
@@ -56,7 +56,7 @@ fn main() {
 		a = 209;
 	}
 
-	var ints: int = 1 + // nikke deuke
+	var ints: int64 = 1 + // nikke deuke
 	1;
 	
 	ints += αConst;
@@ -67,25 +67,25 @@ fn main() {
 
 
 
-	var one: int = 1;
-	var two: int = one << one;
-	var eight: int = 1 << (two + one);
-	var negTwo: int = -2;
-	var negone: int = negTwo >> 1;
+	var one: int64 = 1;
+	var two: int64 = one << one;
+	var eight: int64 = 1 << (two + one);
+	var negTwo: int64 = -2;
+	var negone: int64 = negTwo >> 1;
 
-	var three: int = 7 & 11;
-	var five: int = 1 | 4;
-	var six: int = 5 ^ 3;
+	var three: int64 = 7 & 11;
+	var five: int64 = 1 | 4;
+	var six: int64 = 5 ^ 3;
 
-	var x: int = 1;
+	var x: int64 = 1;
 	x |= 2;
 	x ^= 6;
 	x <<= 1;
 	x &= 2;
 	x >>= 1;
 
-	var zero: int = 0;
-	var fifteen: int = 0xf;
+	var zero: int64 = 0;
+	var fifteen: int64 = 0xf;
 
 	print(one);
 	print(two);
@@ -107,7 +107,7 @@ fn main() {
 	print(isEven(6));
 
 	print("\n0 to 9:");
-	var i: int = 0;
+	var i: int64 = 0;
 	while i < 10 {
 		print(i);
 		i += 1;
@@ -121,6 +121,9 @@ fn main() {
 	print(+αConst);
 	print(1 - -1);
 	print(-(-negone));
+
+	var array: []int64;
+	var ptr: &int64;
 
 	return;
 }

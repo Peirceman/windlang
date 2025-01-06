@@ -29,11 +29,14 @@ const (
 	Kind64       Kind = 0x8
 	KindSizeMask Kind = 0xf
 
-	KindInt        Kind = 0x10
-	KindFloat      Kind = 0x20
-	KindBool       Kind = 0x40 | Kind32
-	KindString     Kind = 0x80 | Kind64
-	KindTypeMask   Kind = 0xf0
+	KindInt         Kind = 0x10
+	KindFloat       Kind = 0x20
+	KindBoolType    Kind = 0x40
+	KindStringType  Kind = 0x80
+	KindPointerType Kind = 0x100
+	KindArrayType   Kind = 0x200
+	KindTypeMask    Kind = 0x3f0
+
 	KindNumberMask Kind = KindInt | KindFloat
 
 	KindInt8    Kind = KindInt | Kind8
@@ -42,9 +45,10 @@ const (
 	KindInt64   Kind = KindInt | Kind64
 	KindFloat32 Kind = KindFloat | Kind32
 	KindFloat64 Kind = KindFloat | Kind64
-
-	// reserved, but not used
-	KindPointer Kind = 0x100
+	KindBool    Kind = KindBoolType | Kind32
+	KindString  Kind = KindStringType | Kind64
+	KindPointer Kind = KindPointerType | Kind64
+	KindArray   Kind = KindArrayType | Kind64
 )
 
 func KindFromString(str string) Kind {
@@ -55,11 +59,11 @@ func KindFromString(str string) Kind {
 		return KindInt16
 	case "int32":
 		return KindInt32
-	case "int64", "int":
+	case "int64":
 		return KindInt64
 	case "float32":
 		return KindFloat32
-	case "float64", "float":
+	case "float64":
 		return KindFloat64
 	case "bool":
 		return KindBool
@@ -70,7 +74,6 @@ func KindFromString(str string) Kind {
 	default:
 		return KindVoid
 	}
-
 }
 
 func (k Kind) String() string {
@@ -102,6 +105,7 @@ type Identifier string
 type Type struct {
 	kind Kind
 	name Identifier // unused until user-defined types exist
+	inner *Type
 }
 
 type AstNode interface {
@@ -763,7 +767,7 @@ func (i IntLit) string() string {
 
 func (i IntLit) returnType() Type {
 	kind := KindInt | Kind64
-	return Type{kind, Identifier(kind.String())}
+	return Type{kind, Identifier(kind.String()), nil}
 }
 
 func (f FloatLit) string() string {
@@ -772,7 +776,7 @@ func (f FloatLit) string() string {
 
 func (i FloatLit) returnType() Type {
 	kind := KindFloat | Kind64
-	return Type{kind, Identifier(kind.String())}
+	return Type{kind, Identifier(kind.String()), nil}
 }
 
 func (f StrLit) string() string {
@@ -781,7 +785,7 @@ func (f StrLit) string() string {
 
 func (i StrLit) returnType() Type {
 	kind := KindString
-	return Type{kind, Identifier(kind.String())}
+	return Type{kind, Identifier(kind.String()), nil}
 }
 
 func (f CharLit) string() string {
@@ -790,7 +794,7 @@ func (f CharLit) string() string {
 
 func (i CharLit) returnType() Type {
 	kind := KindInt | Kind32
-	return Type{kind, Identifier(kind.String())}
+	return Type{kind, Identifier(kind.String()), nil}
 }
 
 func (f BoolLit) string() string {
@@ -803,7 +807,7 @@ func (f BoolLit) string() string {
 
 func (f BoolLit) returnType() Type {
 	kind := KindBool
-	return Type{kind, Identifier(kind.String())}
+	return Type{kind, Identifier(kind.String()), nil}
 }
 
 func (v Var) string() string {
@@ -859,7 +863,7 @@ func (b BinaryOpNode) string() string {
 
 func (b BinaryOpNode) returnType() Type {
 	kind := b.Op.returnType(b.Lhs.returnType().kind)
-	return Type{kind, Identifier(kind.String())}
+	return Type{kind, Identifier(kind.String()), nil}
 }
 
 func (u UnaryOpNode) string() string {
@@ -872,7 +876,7 @@ func (u UnaryOpNode) string() string {
 
 func (u UnaryOpNode) returnType() Type {
 	kind := u.Op.returnType(u.Expression.returnType().kind)
-	return Type{kind, Identifier(kind.String())}
+	return Type{kind, Identifier(kind.String()), nil}
 }
 
 ////////////////////
