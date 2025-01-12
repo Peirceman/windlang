@@ -6,35 +6,36 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"slices"
 	"strconv"
 )
 
-type BytecodeGenerator struct {
-	Output                io.WriteSeeker
-	data                  map[uint32][]byte
-	instructionIdx        int
-	bytesWritten          int
-	vars                  map[Identifier]uint32
-	funcs                 map[Identifier]uint32
-	nextRuntimeVarIdx     uint32
-	nextCompiletimeVarIdx uint32
+type VarLocation struct {
+	identifier Identifier
+	typ        Type
+	pointer    bytecodePointer // note offset for LocStack is relative to base
 }
 
-func GenerateBytecode(Output io.WriteSeeker, code CodeBlockNode) error {
-	g := &BytecodeGenerator{Output: Output}
+type BytecodeGenerator struct {
+	Output         io.WriteSeeker
+	data           []byte
+	instructionIdx int
+	bytesWritten   int
+	funcs          map[Identifier]uint32
+	vars           []VarLocation
+	baseOffset     uint64
+}
 
-	_, exists := code.scope.Funcs["main"]
-	if !exists {
-		return errors.New("Error generating bytecode: no main function found")
+func GenerateBytecode(output io.WriteSeeker, code CodeBlockNode) error {
+	g := &BytecodeGenerator{
+		Output:         output,
+		data:           make([]byte, 0),
+		vars:           make([]VarLocation, 0),
+		funcs:          make(map[Identifier]uint32),
+		instructionIdx: 0,
+		bytesWritten:   0,
+		baseOffset:     0,
 	}
-
-	g.data = make(map[uint32][]byte)
-	g.vars = make(map[Identifier]uint32)
-	g.funcs = make(map[Identifier]uint32)
-	g.bytesWritten = 0
-	g.instructionIdx = 0
-	g.nextRuntimeVarIdx = 1
-	g.nextCompiletimeVarIdx = 0x80000001
 
 	_, err := g.Output.Write([]byte{'W', 'B', 'C', 0, 0, 0, 0, 0})
 
@@ -56,13 +57,7 @@ func GenerateBytecode(Output io.WriteSeeker, code CodeBlockNode) error {
 
 	seek -= 4
 
-	err = g.writeCodeBlock(code)
-
-	if err != nil {
-		return err
-	}
-
-	err = g.writeInstruction4(call, 0, g.funcs["main"])
+	err = g.writeGlobal(code)
 
 	if err != nil {
 		return err
@@ -91,13 +86,45 @@ func GenerateBytecode(Output io.WriteSeeker, code CodeBlockNode) error {
 		return err
 	}
 
-	_, err = g.Output.Write([]byte{'d', 'a', 't', 'a', 0, 0, 0, 0})
+	_, err = g.Output.Write([]byte("data"))
 
 	if err != nil {
 		return err
 	}
 
-	seek, err = g.Output.Seek(0, io.SeekCurrent)
+	_, err = g.Output.Write([]byte{
+		byte(len(g.data) >> (3 * 8)),
+		byte(len(g.data) >> (2 * 8)),
+		byte(len(g.data) >> (1 * 8)),
+		byte(len(g.data) >> (0 * 8)),
+	})
+
+	if err != nil {
+		return err
+	}
+
+	_, err = g.Output.Write(g.data)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (g *BytecodeGenerator) writeGlobal(codeBlock CodeBlockNode) error {
+	_, exists := codeBlock.scope.Funcs["main"]
+	if !exists {
+		return errors.New("Error generating bytecode: no main function found")
+	}
+
+	err := g.writeInstruction4(call, 0, 0)
+
+	if err != nil {
+		return err
+	}
+
+	seek, err := g.Output.Seek(0, io.SeekCurrent)
 
 	if err != nil {
 		return err
@@ -105,32 +132,37 @@ func GenerateBytecode(Output io.WriteSeeker, code CodeBlockNode) error {
 
 	seek -= 4
 
-	g.bytesWritten = 0
+	err = g.writeInstructionn(push, 8, 0)
 
-	for id, data := range g.data {
-		err = binary.Write(g.Output, binary.BigEndian, id)
+	if err != nil {
+		return err
+	}
 
-		if err != nil {
-			return err
-		}
+	err = g.writeInstruction0(exit, 8)
 
-		g.bytesWritten += 4
+	if err != nil {
+		return err
+	}
 
-		err = binary.Write(g.Output, binary.BigEndian, uint32(len(data)))
+	g.vars = slices.Grow(g.vars, len(codeBlock.scope.vars)+len(codeBlock.scope.consts))
+	for _, varDef := range codeBlock.scope.vars {
+		g.vars = append(g.vars,
+			VarLocation{varDef.name, varDef.typ, bytecodePointer{locDataSection, 0, uint64(len(g.data))}},
+		)
+		g.data = append(g.data, make([]byte, int(varDef.typ.kind&KindSizeMask))...)
+	}
 
-		if err != nil {
-			return err
-		}
+	for _, constDef := range codeBlock.scope.consts {
+		g.vars = append(g.vars,
+			VarLocation{constDef.name, constDef.typ, bytecodePointer{locDataSection, 0, uint64(len(g.data))}},
+		)
+		g.data = append(g.data, make([]byte, int(constDef.typ.kind&KindSizeMask))...)
+	}
 
-		g.bytesWritten += 4
+	err = g.writeStatements(codeBlock.Statements)
 
-		_, err = g.Output.Write(data)
-
-		if err != nil {
-			return err
-		}
-
-		g.bytesWritten += len(data)
+	if err != nil {
+		return err
 	}
 
 	_, err = g.Output.Seek(seek, io.SeekStart)
@@ -139,12 +171,13 @@ func GenerateBytecode(Output io.WriteSeeker, code CodeBlockNode) error {
 		return err
 	}
 
-	_, err = g.Output.Write([]byte{
-		byte(g.bytesWritten >> (3 * 8)),
-		byte(g.bytesWritten >> (2 * 8)),
-		byte(g.bytesWritten >> (1 * 8)),
-		byte(g.bytesWritten >> (0 * 8)),
-	})
+	err = binary.Write(g.Output, binary.BigEndian, g.funcs["main"])
+
+	if err != nil {
+		return err
+	}
+
+	_, err = g.Output.Seek(0, io.SeekEnd)
 
 	if err != nil {
 		return err
@@ -154,35 +187,75 @@ func GenerateBytecode(Output io.WriteSeeker, code CodeBlockNode) error {
 }
 
 func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
-	for identifier, varDef := range codeBlock.scope.vars {
-		_, exists := g.vars[identifier]
-		if exists {
-			panic("shadowing not implemented yet")
-		}
+	var err error
 
-		if varDef.returnType().kind&KindString&KindTypeMask != 0 {
-			continue
-		}
+	addedVars := len(codeBlock.scope.vars) + len(codeBlock.scope.consts)
+	oldBase := g.baseOffset
+	g.vars = slices.Grow(g.vars, addedVars)
 
-		g.vars[identifier] = g.nextRuntimeVarIdx
-		g.nextRuntimeVarIdx++
+	for _, varDef := range codeBlock.scope.vars { g.vars = append(g.vars,
+			VarLocation{varDef.name, varDef.typ, bytecodePointer{locStack, 0, g.baseOffset}},
+		)
+
+		size := varDef.typ.kind & KindSizeMask
+		g.baseOffset += uint64(size)
+
+		err = g.writeInstructionn(push, size, 0)
+
+		if err != nil {
+			return err
+		}
 	}
 
-	for identifier, constDef := range codeBlock.scope.consts {
-		_, exists := g.vars[identifier]
-		if exists {
-			panic("shadowing not implemented yet")
-		}
+	for _, constDef := range codeBlock.scope.consts {
+		g.vars = append(g.vars,
+			VarLocation{constDef.name, constDef.typ, bytecodePointer{locStack, 0, g.baseOffset}},
+		)
 
-		if constDef.returnType().kind&KindString&KindTypeMask != 0 {
-			continue
-		}
+		size := constDef.typ.kind & KindSizeMask
+		g.baseOffset += uint64(size)
 
-		g.vars[identifier] = g.nextRuntimeVarIdx
-		g.nextRuntimeVarIdx++
+		err = g.writeInstructionn(push, size, 0)
+
+		if err != nil {
+			return err
+		}
 	}
 
-	for _, node := range codeBlock.Statements {
+	err = g.writeStatements(codeBlock.Statements)
+
+	if err != nil {
+		return err
+	}
+
+	g.vars = g.vars[:len(g.vars)-addedVars]
+	g.baseOffset = oldBase
+
+	for _, varDef := range codeBlock.scope.vars {
+		size := varDef.typ.kind & KindSizeMask
+
+		err = g.writeInstruction0(pops, size)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, constDef := range codeBlock.scope.consts {
+		size := constDef.typ.kind & KindSizeMask
+
+		err = g.writeInstruction0(pops, size)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (g *BytecodeGenerator) writeStatements(statements []AstNode) error {
+	for _, node := range statements {
 		switch node := node.(type) {
 		case ExpressionNode:
 			err := g.writeExpression(node.Expr)
@@ -191,27 +264,23 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 				return err
 			}
 
-		case ConstNode:
-			// very stupid
-			if (node.typ.kind & (KindString & KindTypeMask)) != 0 {
-				err := g.writeExpression(node.Value)
+			if node.Expr.returnType().kind != KindVoid {
+				err = g.writeInstruction0(pops, node.Expr.returnType().kind&KindSizeMask)
 
 				if err != nil {
 					return err
 				}
+			}
 
-				g.vars[node.name] = g.nextCompiletimeVarIdx - 1
+		case ConstNode:
+			if node.Value == nil {
 				break
 			}
 
-			err := g.writeInstruction4(decl, node.typ.kind&KindSizeMask, g.vars[node.name])
+			err := g.varPointer(node.name)
 
 			if err != nil {
 				return err
-			}
-
-			if node.Value == nil {
-				break
 			}
 
 			err = g.writeExpression(node.Value)
@@ -220,32 +289,21 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 				return err
 			}
 
-			err = g.writeInstruction4(popv, node.typ.kind&KindSizeMask, g.vars[node.name])
+			err = g.writeInstruction0(stor, node.typ.kind&KindSizeMask)
 
 			if err != nil {
 				return err
 			}
 
 		case VarNode:
-			if (node.typ.kind & KindString & KindTypeMask) != 0 {
-				err := g.writeExpression(node.Value)
-
-				if err != nil {
-					return err
-				}
-
-				g.vars[node.name] = g.nextCompiletimeVarIdx - 1
+			if node.Value == nil {
 				break
 			}
 
-			err := g.writeInstruction4(decl, node.typ.kind&KindSizeMask, g.vars[node.name])
+			err := g.varPointer(node.name)
 
 			if err != nil {
 				return err
-			}
-
-			if node.Value == nil {
-				break
 			}
 
 			err = g.writeExpression(node.Value)
@@ -254,81 +312,40 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 				return err
 			}
 
-			err = g.writeInstruction4(popv, node.typ.kind&KindSizeMask, g.vars[node.name])
+			err = g.writeInstruction0(stor, node.typ.kind&KindSizeMask)
 
 			if err != nil {
 				return err
 			}
 
 		case FuncNode:
-			err := g.writeInstruction4(jump, 0, 0)
-
-			if err != nil {
-				return err
-			}
-
-			seek, err := g.Output.Seek(0, io.SeekCurrent)
-
-			if err != nil {
-				return err
-			}
-
-			seek -= 4
-
 			g.funcs[node.name] = uint32(g.instructionIdx)
-
-			for _, arg := range node.Args {
-				identifier := arg.name
-
-				idx, exists := g.vars[identifier]
-				if exists && idx < g.nextRuntimeVarIdx {
-					panic("shadowing not implemented yet")
-				}
-
-				if arg.returnType().kind&KindString&KindTypeMask != 0 {
-					panic("string arguments not implemented yet")
-				}
-
-				g.vars[identifier] = g.nextRuntimeVarIdx
-				err = g.writeInstruction4(decl, arg.typ.kind&KindSizeMask, g.nextRuntimeVarIdx)
-
-				if err != nil {
-					return err
-				}
-
-				err = g.writeInstruction4(popv, arg.typ.kind&KindSizeMask, g.nextRuntimeVarIdx)
-
-				if err != nil {
-					return err
-				}
-
-				g.nextRuntimeVarIdx++
-
+			if g.baseOffset != 0 { // should be 0 since functions are declared on the top level
+				fmt.Println(node.name, g.baseOffset)
+				panic("assertion failed")
 			}
 
-			err = g.writeCodeBlock(node.Body)
+			if node.returnType.kind != KindVoid {
+				g.baseOffset = 8 // return value pointer
+			}
+
+			for i := len(node.Args)-1; i >= 0; i-- {
+				arg := node.Args[i]
+				g.vars = append(g.vars,
+					VarLocation{arg.name, arg.typ, bytecodePointer{locStack, 0, g.baseOffset}},
+				)
+
+				size := arg.typ.kind & KindSizeMask
+				g.baseOffset += uint64(size)
+			}
+
+			err := g.writeCodeBlock(node.Body)
 
 			if err != nil {
 				return err
 			}
 
-			_, err = g.Output.Seek(seek, io.SeekStart)
-
-			if err != nil {
-				return err
-			}
-
-			err = binary.Write(g.Output, binary.BigEndian, uint32(g.instructionIdx))
-
-			if err != nil {
-				return err
-			}
-
-			_, err = g.Output.Seek(0, io.SeekEnd)
-
-			if err != nil {
-				return err
-			}
+			g.baseOffset = 0
 
 		case CodeBlockNode:
 			err := g.writeCodeBlock(node)
@@ -399,7 +416,25 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 
 		case ReturnNode:
 			if node.Expr != nil {
-				err := g.writeExpression(node.Expr)
+				err := g.writeInstruction0(base, 0)
+
+				if err != nil {
+					return err
+				}
+
+				err = g.writeInstruction0(load, 8)
+
+				if err != nil {
+					return err
+				}
+
+				err = g.writeExpression(node.Expr)
+
+				if err != nil {
+					return err
+				}
+
+				err = g.writeInstruction0(stor, node.Expr.returnType().kind & KindSizeMask)
 
 				if err != nil {
 					return err
@@ -611,9 +646,15 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 		}
 
 	case StrLit:
-		g.data[g.nextCompiletimeVarIdx] = []byte(expression.value)
-		g.nextCompiletimeVarIdx++
-		return nil // cant realy push a pointer yet but this should only be used by prts? so handle on that level?
+		ptr := bytecodePointer{locDataSection, 0, uint64(len(g.data))}
+		g.data = binary.BigEndian.AppendUint64(g.data, uint64(len(expression.value)))
+		g.data = append(g.data, []byte(expression.value)...)
+
+		err := g.writeInstructionn(push, 8, ptr.toUint64())
+
+		if err != nil {
+			return err
+		}
 
 	case CharLit:
 		err := g.writeInstructionn(push, 4, uint64(expression.value))
@@ -638,14 +679,26 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 		}
 
 	case Var:
-		err := g.writeInstruction4(pshv, expression.typ.kind&KindSizeMask, g.vars[expression.name])
+		err := g.varPointer(expression.name)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(load, expression.typ.kind & KindSizeMask)
 
 		if err != nil {
 			return err
 		}
 
 	case Const:
-		err := g.writeInstruction4(pshv, expression.typ.kind&KindSizeMask, g.vars[expression.name])
+		err := g.varPointer(expression.name)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(load, expression.typ.kind & KindSizeMask)
 
 		if err != nil {
 			return err
@@ -653,22 +706,26 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 
 	case Func:
 		// I beleive this is a function object?, definitely not implemented
+		panic("not implemented")
 
 	case FuncCall:
+		var err error
+
 		if expression.fun.name == "print" || expression.fun.name == "println" {
 			if len(expression.Args) != 1 {
 				panic(fmt.Errorf("Exactly one argument expected for %s", expression.fun.name))
 			}
 
 			arg := expression.Args[0]
+
+			err = g.writeExpression(arg)
+
+			if err != nil {
+				return err
+			}
+
 			switch arg.returnType().kind & KindTypeMask {
-			case KindInt, KindBool & KindTypeMask:
-				err := g.writeExpression(arg)
-
-				if err != nil {
-					return err
-				}
-
+			case KindInt, KindBoolType:
 				err = g.writeInstruction0(prti, arg.returnType().kind&KindSizeMask)
 
 				if err != nil {
@@ -676,12 +733,6 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 				}
 
 			case KindFloat:
-				err := g.writeExpression(arg)
-
-				if err != nil {
-					return err
-				}
-
 				err = g.writeInstruction0(prtf, arg.returnType().kind&KindSizeMask)
 
 				if err != nil {
@@ -689,25 +740,7 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 				}
 
 			case KindString & KindTypeMask:
-				var err error
-
-				if aVar, ok := arg.(Var); ok {
-					name := aVar.name
-
-					err = g.writeInstruction4(prts, arg.returnType().kind&KindSizeMask, g.vars[name])
-				} else if aConst, ok := arg.(Const); ok {
-					name := aConst.name
-
-					err = g.writeInstruction4(prts, arg.returnType().kind&KindSizeMask, g.vars[name])
-				} else if aLit, ok := arg.(StrLit); ok {
-					err = g.writeExpression(aLit)
-
-					if err != nil {
-						return err
-					}
-
-					err = g.writeInstruction4(prts, arg.returnType().kind&KindSizeMask, g.nextCompiletimeVarIdx-1)
-				}
+				err = g.writeInstruction0(prts, 0)
 
 				if err != nil {
 					return err
@@ -715,6 +748,45 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 			}
 
 			break
+		}
+
+
+		if expression.returnType().kind != KindVoid {
+			err = g.writeInstructionn(push, expression.returnType().kind & KindSizeMask, 0)
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstruction0(farg, 0)
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstruction0(sptr, 0)
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstructionn(push, 8, uint64(expression.returnType().kind & KindSizeMask))
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstruction0(subu, 8)
+
+			if err != nil {
+				return err
+			}
+		} else {
+			err = g.writeInstruction0(farg, 0)
+
+			if err != nil {
+				return err
+			}
 		}
 
 		for i := len(expression.Args) - 1; i >= 0; i-- {
@@ -727,7 +799,7 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 			}
 		}
 
-		err := g.writeInstruction4(call, 0, g.funcs[expression.fun.name])
+		err = g.writeInstruction4(call, 0, g.funcs[expression.fun.name])
 
 		if err != nil {
 			return err
@@ -1368,16 +1440,19 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			panic("assigning to not variable???")
 		}
 
-		g.writeExpression(binopnode.Rhs)
+		err := g.varPointer(lhs.name)
 
-		// TODO: this is the hackiest shit ever, should be solved when pointers exist
-		if (lhs.returnType().kind & KindString & KindTypeMask) != 0 {
-			break
+		if err != nil {
+			return err
 		}
 
-		size := lhs.returnType().kind & KindSizeMask
+		err = g.writeExpression(binopnode.Rhs)
 
-		err := g.writeInstruction4(popv, size, g.vars[lhs.name])
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(stor, binopnode.Rhs.returnType().kind & KindSizeMask)
 
 		if err != nil {
 			return err
@@ -1391,7 +1466,19 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 
 		size := lhs.typ.kind & KindSizeMask
 
-		err := g.writeInstruction4(pshv, size, g.vars[lhs.name])
+		err := g.varPointer(lhs.name)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(dupe, 8)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(load, size)
 
 		if err != nil {
 			return err
@@ -1414,7 +1501,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction4(popv, size, g.vars[lhs.name])
+		err = g.writeInstruction0(stor, size)
 
 		if err != nil {
 			return err
@@ -1428,7 +1515,19 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 
 		size := lhs.typ.kind & KindSizeMask
 
-		err := g.writeInstruction4(pshv, size, g.vars[lhs.name])
+		err := g.varPointer(lhs.name)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(dupe, 8)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(load, size)
 
 		if err != nil {
 			return err
@@ -1451,7 +1550,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction4(popv, size, g.vars[lhs.name])
+		err = g.writeInstruction0(stor, size)
 
 		if err != nil {
 			return err
@@ -1465,7 +1564,19 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 
 		size := lhs.typ.kind & KindSizeMask
 
-		err := g.writeInstruction4(pshv, size, g.vars[lhs.name])
+		err := g.varPointer(lhs.name)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(dupe, 8)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(load, size)
 
 		if err != nil {
 			return err
@@ -1488,7 +1599,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction4(popv, size, g.vars[lhs.name])
+		err = g.writeInstruction0(stor, size)
 
 		if err != nil {
 			return err
@@ -1502,7 +1613,19 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 
 		size := lhs.typ.kind & KindSizeMask
 
-		err := g.writeInstruction4(pshv, size, g.vars[lhs.name])
+		err := g.varPointer(lhs.name)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(dupe, 8)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(load, size)
 
 		if err != nil {
 			return err
@@ -1525,7 +1648,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction4(popv, size, g.vars[lhs.name])
+		err = g.writeInstruction0(load, size)
 
 		if err != nil {
 			return err
@@ -1538,7 +1661,19 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			panic("assigning to not var??")
 		}
 
-		err := g.writeInstruction4(pshv, size, g.vars[lhs.name])
+		err := g.varPointer(lhs.name)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(dupe, 8)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(load, size)
 
 		if err != nil {
 			return err
@@ -1556,7 +1691,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction4(popv, size, g.vars[lhs.name])
+		err = g.writeInstruction0(load, size)
 
 		if err != nil {
 			return err
@@ -1569,7 +1704,19 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			panic("assigning to not var??")
 		}
 
-		err := g.writeInstruction4(pshv, size, g.vars[lhs.name])
+		err := g.varPointer(lhs.name)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(dupe, 8)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(load, size)
 
 		if err != nil {
 			return err
@@ -1587,7 +1734,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction4(popv, size, g.vars[lhs.name])
+		err = g.writeInstruction0(load, size)
 
 		if err != nil {
 			return err
@@ -1600,7 +1747,19 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			panic("assigning to not var??")
 		}
 
-		err := g.writeInstruction4(pshv, size, g.vars[lhs.name])
+		err := g.varPointer(lhs.name)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(dupe, 8)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(load, size)
 
 		if err != nil {
 			return err
@@ -1618,7 +1777,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction4(popv, size, g.vars[lhs.name])
+		err = g.writeInstruction0(load, size)
 
 		if err != nil {
 			return err
@@ -1631,7 +1790,19 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			panic("assigning to not var??")
 		}
 
-		err := g.writeInstruction4(pshv, size, g.vars[lhs.name])
+		err := g.varPointer(lhs.name)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(dupe, 8)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(load, size)
 
 		if err != nil {
 			return err
@@ -1649,7 +1820,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction4(popv, size, g.vars[lhs.name])
+		err = g.writeInstruction0(load, size)
 
 		if err != nil {
 			return err
@@ -1662,7 +1833,19 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			panic("assigning to not var??")
 		}
 
-		err := g.writeInstruction4(pshv, size, g.vars[lhs.name])
+		err := g.varPointer(lhs.name)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(dupe, 8)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(load, size)
 
 		if err != nil {
 			return err
@@ -1680,13 +1863,13 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction4(popv, size, g.vars[lhs.name])
+		err = g.writeInstruction0(load, size)
 
 		if err != nil {
 			return err
 		}
 	default:
-	panic("unreachable")
+		panic("unreachable")
 	}
 
 	return nil
@@ -1709,10 +1892,10 @@ func (g *BytecodeGenerator) generateUnaryOpNode(uo UnaryOpNode) error {
 
 		returnType := uo.Expression.returnType().kind
 
-		if returnType & KindInt != 0 {
-			err = g.writeInstruction0(negs, returnType & KindSizeMask)
-		} else if returnType & KindFloat != 0 {
-			err = g.writeInstruction0(negf, returnType & KindSizeMask)
+		if returnType&KindInt != 0 {
+			err = g.writeInstruction0(negs, returnType&KindSizeMask)
+		} else if returnType&KindFloat != 0 {
+			err = g.writeInstruction0(negf, returnType&KindSizeMask)
 		} else {
 			panic("Unknown type for negate")
 		}
@@ -1753,7 +1936,7 @@ func (g *BytecodeGenerator) generateUnaryOpNode(uo UnaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction0(bnot, uo.Expression.returnType().kind & KindSizeMask)
+		err = g.writeInstruction0(bnot, uo.Expression.returnType().kind&KindSizeMask)
 
 		if err != nil {
 			return err
@@ -1858,6 +2041,62 @@ func (g *BytecodeGenerator) writeInstructionn(opcode Opcode, size Kind, argument
 
 	g.bytesWritten += 2 + int(size)
 	g.instructionIdx++
+
+	return nil
+}
+
+func (g *BytecodeGenerator) findVar(identifier Identifier) int {
+	for i := len(g.vars) - 1; i >= 0; i-- {
+		if g.vars[i].identifier == identifier {
+			return i
+		}
+	}
+
+	return -1
+}
+
+func (g *BytecodeGenerator) varPointer(identifier Identifier) error {
+	var varLoc VarLocation
+
+	for i := len(g.vars) - 1; i >= 0; i-- {
+		cur := g.vars[i]
+		if cur.identifier == identifier {
+			varLoc = cur
+			goto found
+		}
+	}
+
+	panic("variable ´" + identifier + "´ not found")
+
+found:
+	switch varLoc.pointer.location {
+	case locDataSection: // global var
+		err := g.writeInstructionn(push, 8, varLoc.pointer.toUint64())
+
+		if err != nil {
+			return err
+		}
+	case locStack: // local var
+		err := g.writeInstruction0(base, 0)
+
+		if err != nil {
+			return err
+		}
+		err = g.writeInstructionn(push, 8, varLoc.pointer.byteOffset)
+
+		if err != nil {
+			return err
+		}
+		err = g.writeInstruction0(addu, 8)
+
+		if err != nil {
+			return err
+		}
+	case locAlloc:
+		fallthrough // dynamically allocated pointer/array, already stored in local var
+	default:
+		panic("unreachable")
+	}
 
 	return nil
 }

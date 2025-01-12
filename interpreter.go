@@ -1,21 +1,70 @@
 package main
 
 import (
+	"container/list"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"math"
+	"strconv"
 )
+
+type pointerLocation uint8
+
+const (
+	locDataSection pointerLocation = iota
+	locStack
+	locAlloc
+)
+
+type bytecodePointer struct {
+	location   pointerLocation
+	index      uint16
+	byteOffset uint64 // only low 5 bytes in case of allocation else low 7 bytes
+}
+
+type linkedList struct {
+	i    uint16
+	next *linkedList
+}
+
+type callFrame struct {
+	instruction uint32
+	basePointer bytecodePointer
+}
 
 type Interpreter struct {
 	instructions []Instruction
-	Data         map[uint32][]byte
+	Data         []byte
 	Stack        []byte
-	callStack    []uint32
+	freeIndexes  *linkedList
+	allocations  [][]byte
+	emptySlots   []int
+	callStack    []callFrame
+	fargBase     *bytecodePointer // optional
+}
+
+func pointerFromUint64(i uint64) bytecodePointer {
+	result := bytecodePointer{}
+	result.location = pointerLocation(i >> (7 * 8))
+
+	if result.location == locAlloc {
+		result.index = uint16((i >> (5 * 8)) & ((1 << (2 * 8)) - 1))
+		result.byteOffset = i & ((1 << (5 * 8)) - 1)
+	} else {
+		result.byteOffset = i & ((1 << (7 * 8)) - 1)
+	}
+
+	return result
+}
+
+func (p bytecodePointer) toUint64() uint64 {
+	return (uint64(p.location) << (7 * 8)) | (uint64(p.index) << (5 * 8)) | p.byteOffset
 }
 
 func InterpeterFromReader(r io.Reader) (*Interpreter, error) {
+	list.New()
 	data, err := io.ReadAll(r)
 	if err != nil {
 		return &Interpreter{}, err
@@ -39,8 +88,7 @@ func InterpeterFromRawBytes(data []byte) (interpreter *Interpreter, err error) {
 	interpreter = &Interpreter{}
 
 	interpreter.Stack = make([]byte, 0, 1024)
-	interpreter.Data = make(map[uint32][]byte)
-	interpreter.callStack = make([]uint32, 0, 128)
+	interpreter.callStack = make([]callFrame, 0, 128)
 
 	for len(data) > 0 {
 		var header []byte
@@ -60,16 +108,14 @@ func InterpeterFromRawBytes(data []byte) (interpreter *Interpreter, err error) {
 
 			interpreter.instructions = append(interpreter.instructions, instructions...)
 		} else if string(header) == "data" {
-			var loadedData map[uint32][]byte
+			var loadedData []byte
 			loadedData, data, err = parseDataSection(data)
 
 			if err != nil {
 				return &Interpreter{}, err
 			}
 
-			for id, value := range loadedData {
-				interpreter.Data[id] = value
-			}
+			interpreter.Data = append(interpreter.Data, loadedData...)
 		} else {
 			return &Interpreter{}, errors.New("Unknown section header")
 		}
@@ -102,25 +148,49 @@ func (i *Interpreter) Execute() int {
 				i.Stack = binary.BigEndian.AppendUint64(i.Stack, instruction.Args.(uint64))
 			}
 
-		case decl:
-			i.Data[instruction.Args.(uint32)] = make([]byte, instruction.Size)
+		case aloc:
+			alocSize := i.popUnsigned(8)
+			if alocSize > 1<<(5*8) {
+				panic("cant allocate more than " + strconv.Itoa(1<<(5*8)) + " bytes in one call")
+			}
 
-		case popv:
-			copy(i.Data[instruction.Args.(uint32)], i.Stack[len(i.Stack)-int(instruction.Size):])
-			i.Stack = i.Stack[:len(i.Stack)-int(instruction.Size)]
+			allocIndex := i.nextAllocIdx()
 
-		case pshv:
-			i.Stack = append(i.Stack, i.Data[instruction.Args.(uint32)]...)
+			i.allocations[allocIndex] = make([]byte, alocSize)
+
+			p := bytecodePointer{locAlloc, allocIndex, 0}
+			i.pushUnsigned(p.toUint64(), 8)
+
+		case stor:
+			val := i.popUnsigned(instruction.Size)
+			pointer := pointerFromUint64(i.popUnsigned(8))
+			destination := i.dataStart(pointer)
+
+			for i := int(instruction.Size) - 1; i >= 0; i-- {
+				destination[i] = byte(val)
+				val >>= 8
+			}
+
+		case load:
+			var val uint64
+			pointer := pointerFromUint64(i.popUnsigned(8))
+			source := i.dataStart(pointer)
+
+			for i := 0; i < int(instruction.Size); i++ {
+				val = (val << 8) | uint64(source[i])
+			}
+
+			i.pushUnsigned(val, instruction.Size)
 
 		case adds:
 			b := i.popSigned(instruction.Size)
 			a := i.popSigned(instruction.Size)
-			i.pushSigned(a + b, instruction.Size)
+			i.pushSigned(a+b, instruction.Size)
 
 		case addu:
 			b := i.popUnsigned(instruction.Size)
 			a := i.popUnsigned(instruction.Size)
-			i.pushUnsigned(a + b, instruction.Size)
+			i.pushUnsigned(a+b, instruction.Size)
 
 		case addf:
 			if instruction.Size == 4 {
@@ -136,12 +206,12 @@ func (i *Interpreter) Execute() int {
 		case subs, cmps:
 			b := i.popSigned(instruction.Size)
 			a := i.popSigned(instruction.Size)
-			i.pushSigned(a - b, instruction.Size)
+			i.pushSigned(a-b, instruction.Size)
 
 		case subu, cmpu:
 			b := i.popUnsigned(instruction.Size)
 			a := i.popUnsigned(instruction.Size)
-			i.pushUnsigned(a - b, instruction.Size)
+			i.pushUnsigned(a-b, instruction.Size)
 
 		case subf, cmpf:
 			if instruction.Size == 4 {
@@ -223,13 +293,11 @@ func (i *Interpreter) Execute() int {
 				idx = int(instruction.Args.(uint32)) - 1
 			}
 
-
 		case jpge:
 			value := i.popSigned(instruction.Size)
 			if value >= 0 {
 				idx = int(instruction.Args.(uint32)) - 1
 			}
-
 
 		case jpeq:
 			value := i.popSigned(instruction.Size)
@@ -237,13 +305,11 @@ func (i *Interpreter) Execute() int {
 				idx = int(instruction.Args.(uint32)) - 1
 			}
 
-
 		case jpne:
 			value := i.popSigned(instruction.Size)
 			if value != 0 {
 				idx = int(instruction.Args.(uint32)) - 1
 			}
-
 
 		case jple:
 			value := i.popSigned(instruction.Size)
@@ -251,69 +317,33 @@ func (i *Interpreter) Execute() int {
 				idx = int(instruction.Args.(uint32)) - 1
 			}
 
-
 		case jplt:
 			value := i.popSigned(instruction.Size)
 			if value < 0 {
 				idx = int(instruction.Args.(uint32)) - 1
 			}
 
-
 		case prti:
-			switch instruction.Size {
-
-			case 1:
-				fmt.Println(int8(i.Stack[len(i.Stack)-1]))
-				i.Stack = i.Stack[:len(i.Stack)-1]
-
-			case 2:
-				fmt.Println(int16(binary.BigEndian.Uint16(i.Stack[len(i.Stack)-2:])))
-				i.Stack = i.Stack[:len(i.Stack)-2]
-
-			case 4:
-				fmt.Println(int32(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-4:])))
-				i.Stack = i.Stack[:len(i.Stack)-4]
-
-			case 8:
-				fmt.Println(int64(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-8:])))
-				i.Stack = i.Stack[:len(i.Stack)-8]
-			}
+			fmt.Println(i.popSigned(instruction.Size))
 
 		case prtu:
-			switch instruction.Size {
-
-			case 1:
-				fmt.Println(i.Stack[len(i.Stack)-1])
-				i.Stack = i.Stack[:len(i.Stack)-1]
-
-			case 2:
-				fmt.Println(binary.BigEndian.Uint16(i.Stack[len(i.Stack)-2:]))
-				i.Stack = i.Stack[:len(i.Stack)-2]
-
-			case 4:
-				fmt.Println(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-4:]))
-				i.Stack = i.Stack[:len(i.Stack)-4]
-
-			case 8:
-				fmt.Println(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-8:]))
-				i.Stack = i.Stack[:len(i.Stack)-8]
-			}
+			fmt.Println(i.popUnsigned(instruction.Size))
 
 		case prtf:
 			switch instruction.Size {
-
 			case 4:
-				fmt.Println(math.Float32frombits(binary.BigEndian.Uint32(i.Stack[len(i.Stack)-4:])))
-				i.Stack = i.Stack[:len(i.Stack)-4]
+				fmt.Println(math.Float32frombits(uint32(i.popUnsigned(instruction.Size))))
 
 			case 8:
-				fmt.Println(math.Float64frombits(binary.BigEndian.Uint64(i.Stack[len(i.Stack)-8:])))
-				i.Stack = i.Stack[:len(i.Stack)-8]
+				fmt.Println(math.Float64frombits(i.popUnsigned(instruction.Size)))
 			}
 
 		case prts:
-			fmt.Println(string(i.Data[instruction.Args.(uint32)]))
-
+			ptr := pointerFromUint64(i.popUnsigned(8))
+			str := i.dataStart(ptr)
+			strLen := binary.BigEndian.Uint64(str)
+			str = str[8:8+strLen]
+			fmt.Println(string(str))
 
 		case isgt:
 			value := i.popSigned(instruction.Size)
@@ -323,7 +353,6 @@ func (i *Interpreter) Execute() int {
 				i.pushUnsigned(0, instruction.Size)
 			}
 
-
 		case isge:
 			value := i.popSigned(instruction.Size)
 			if value >= 0 {
@@ -331,7 +360,6 @@ func (i *Interpreter) Execute() int {
 			} else {
 				i.pushUnsigned(0, instruction.Size)
 			}
-
 
 		case iseq:
 			value := i.popSigned(instruction.Size)
@@ -341,16 +369,13 @@ func (i *Interpreter) Execute() int {
 				i.pushUnsigned(0, instruction.Size)
 			}
 
-
 		case isne:
 			value := i.popSigned(instruction.Size)
-			// fmt.Println(value)
 			if value != 0 {
 				i.pushUnsigned(1, instruction.Size)
 			} else {
 				i.pushUnsigned(0, instruction.Size)
 			}
-
 
 		case isle:
 			value := i.popSigned(instruction.Size)
@@ -359,7 +384,6 @@ func (i *Interpreter) Execute() int {
 			} else {
 				i.pushUnsigned(0, instruction.Size)
 			}
-
 
 		case islt:
 			value := i.popSigned(instruction.Size)
@@ -395,17 +419,17 @@ func (i *Interpreter) Execute() int {
 
 		case sgne:
 			a := (0xffffffffffffffff << (instruction.Size * 8)) | i.popUnsigned(instruction.Size)
-			i.pushUnsigned(a, instruction.Size * 2)
+			i.pushUnsigned(a, instruction.Size*2)
 
 		case band:
 			b := i.popUnsigned(instruction.Size)
 			a := i.popUnsigned(instruction.Size)
-			i.pushUnsigned(a & b, instruction.Size)
+			i.pushUnsigned(a&b, instruction.Size)
 
 		case borr:
 			b := i.popUnsigned(instruction.Size)
 			a := i.popUnsigned(instruction.Size)
-			i.pushUnsigned(a | b, instruction.Size)
+			i.pushUnsigned(a|b, instruction.Size)
 
 		case bnot:
 			a := i.popUnsigned(instruction.Size)
@@ -414,30 +438,40 @@ func (i *Interpreter) Execute() int {
 		case bxor:
 			b := i.popUnsigned(instruction.Size)
 			a := i.popUnsigned(instruction.Size)
-			i.pushUnsigned(a ^ b, instruction.Size)
+			i.pushUnsigned(a^b, instruction.Size)
 
 		case bshl:
 			b := i.popUnsigned(instruction.Size)
 			a := i.popUnsigned(instruction.Size)
-			i.pushUnsigned(a << b, instruction.Size)
+			i.pushUnsigned(a<<b, instruction.Size)
 
 		case bsrs:
 			b := i.popSigned(instruction.Size)
 			a := i.popSigned(instruction.Size)
-			i.pushSigned(a >> b, instruction.Size)
+			i.pushSigned(a>>b, instruction.Size)
 
 		case bsru:
 			b := i.popUnsigned(instruction.Size)
 			a := i.popUnsigned(instruction.Size)
-			i.pushUnsigned(a >> b, instruction.Size)
+			i.pushUnsigned(a>>b, instruction.Size)
 
 		case call:
-			i.callStack = append(i.callStack, uint32(idx))
+			var base bytecodePointer
+			if i.fargBase != nil {
+				base = *i.fargBase
+				i.fargBase = nil
+			} else {
+				base = bytecodePointer{locStack, 0, uint64(len(i.Stack))}
+			}
+
+			i.callStack = append(i.callStack, callFrame{uint32(idx), base})
 			idx = int(instruction.Args.(uint32)) - 1
 
 		case rett:
-			idx = int(i.callStack[len(i.callStack)-1])
+			frame := i.callStack[len(i.callStack)-1]
+			idx = int(frame.instruction)
 			i.callStack = i.callStack[:len(i.callStack)-1]
+			i.Stack = i.Stack[:frame.basePointer.byteOffset]
 
 		case exit:
 			return int(i.popUnsigned(instruction.Size))
@@ -454,6 +488,19 @@ func (i *Interpreter) Execute() int {
 				a := math.Float64frombits(uint64(i.popUnsigned(8)))
 				i.pushUnsigned(uint64(math.Float64bits(-a)), 8)
 			}
+
+		case base:
+			if len(i.callStack) == 0 {
+				i.pushUnsigned(bytecodePointer{locStack, 0, 0}.toUint64(), 8)
+			} else {
+				i.pushUnsigned(i.callStack[len(i.callStack)-1].basePointer.toUint64(), 8)
+			}
+
+		case farg:
+			i.fargBase = &bytecodePointer{locStack, 0, uint64(len(i.Stack))}
+
+		case sptr:
+			i.pushUnsigned(bytecodePointer{locStack, 0, uint64(len(i.Stack))}.toUint64(), 8)
 
 		default:
 			fmt.Println("unknown: ", instruction.Code)
@@ -525,6 +572,37 @@ func (i *Interpreter) pushUnsigned(value uint64, size int8) {
 	}
 }
 
+func (i *Interpreter) nextAllocIdx() uint16 {
+	if i.freeIndexes != nil {
+		idx := i.freeIndexes.i
+		i.freeIndexes = i.freeIndexes.next
+		return idx
+	}
+
+	if len(i.allocations) >= math.MaxUint16 {
+		panic("No more than " + strconv.Itoa(int(math.MaxUint16)) + " dynamic allocations allowed")
+	}
+
+	n := len(i.allocations)
+
+	i.allocations = append(i.allocations, nil)
+
+	return uint16(n)
+}
+
+func (i *Interpreter) dataStart(p bytecodePointer) []byte {
+	switch p.location {
+	case locDataSection:
+		return i.Data[p.byteOffset:]
+	case locStack:
+		return i.Stack[p.byteOffset:]
+	case locAlloc:
+		return i.allocations[p.index][p.byteOffset:]
+	default:
+		panic("unreachable")
+	}
+}
+
 func parseCodeSection(data []byte) (instructions []Instruction, choppedData []byte, err error) {
 	i, data, ok := readUint32(data)
 
@@ -572,7 +650,7 @@ func parseCodeSection(data []byte) (instructions []Instruction, choppedData []by
 
 			i += int(size)
 
-		case popv, pshv, decl, jump, jpgt, jpge, jpeq, jpne, jple, jplt, prts, call:
+		case jump, jpgt, jpge, jpeq, jpne, jple, jplt, call:
 			if len(instructionBytes)-i < 4 {
 				fmt.Println(i)
 				fmt.Println(opcode)
@@ -593,38 +671,17 @@ func parseCodeSection(data []byte) (instructions []Instruction, choppedData []by
 	return
 }
 
-func parseDataSection(data []byte) (dataValues map[uint32][]byte, choppedData []byte, err error) {
+func parseDataSection(data []byte) (dataValues []byte, choppedData []byte, err error) {
 	i, data, ok := readUint32(data)
 
 	if !ok {
 		return nil, data, errors.New("Unexpected end of input reading Data section length")
 	}
 
-	dataBytes, choppedData, ok := readBytes(data, i)
+	dataValues, choppedData, ok = readBytes(data, i)
 
 	if !ok {
 		return nil, choppedData, errors.New("Unexpected end of input reading Data section")
-	}
-
-	dataValues = make(map[uint32][]byte, 0)
-
-	for i := 0; i < len(dataBytes); {
-		if len(dataBytes)-i < 8 {
-			return nil, data, errors.New("Unexpected end of input reading data id and length")
-		}
-
-		id, _, _ := readUint32(data[i:])
-		i += 4
-		length, _, _ := readUint32(data[i:])
-		i += 4
-
-		if len(dataBytes)-i < int(length) {
-			return nil, data, errors.New("Unexpected end of input reading data")
-		}
-
-		dataValues[id] = make([]byte, length)
-		copy(dataValues[id], dataBytes[i:])
-		i += int(length)
 	}
 
 	return

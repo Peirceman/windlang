@@ -32,7 +32,7 @@ const (
 	KindInt         Kind = 0x10
 	KindFloat       Kind = 0x20
 	KindBoolType    Kind = 0x40
-	KindStringType  Kind = 0x80
+	//unused        Kind = 0x80
 	KindPointerType Kind = 0x100
 	KindArrayType   Kind = 0x200
 	KindTypeMask    Kind = 0x3f0
@@ -46,9 +46,9 @@ const (
 	KindFloat32 Kind = KindFloat | Kind32
 	KindFloat64 Kind = KindFloat | Kind64
 	KindBool    Kind = KindBoolType | Kind32
-	KindString  Kind = KindStringType | Kind64
 	KindPointer Kind = KindPointerType | Kind64
 	KindArray   Kind = KindArrayType | Kind64
+	KindString  Kind = KindPointer
 )
 
 func KindFromString(str string) Kind {
@@ -78,6 +78,8 @@ func KindFromString(str string) Kind {
 
 func (k Kind) String() string {
 	switch k {
+	case KindVoid:
+		return "void"
 	case KindBool:
 		return "bool"
 	case KindString:
@@ -505,25 +507,25 @@ func (b BinaryOp) returnType(input Kind) Kind {
 	case BONotEqual:
 		return KindBool
 	case BOAssign:
-		return input
+		return KindVoid
 	case BOPlusAssign:
-		return input
+		return KindVoid
 	case BODashAssign:
-		return input
+		return KindVoid
 	case BOStarAssign:
-		return input
+		return KindVoid
 	case BOSlashAssign:
-		return input
+		return KindVoid
 	case BoAndAssign:
-		return input
+		return KindVoid
 	case BoOrAssign:
-		return input
+		return KindVoid
 	case BoXorAssign:
-		return input
+		return KindVoid
 	case BOShrAssign:
-		return input
+		return KindVoid
 	case BOShlAssign:
-		return input
+		return KindVoid
 	}
 
 	panic("illegal")
@@ -766,7 +768,7 @@ func (i IntLit) string() string {
 }
 
 func (i IntLit) returnType() Type {
-	kind := KindInt | Kind64
+	kind := KindInt64
 	return Type{kind, Identifier(kind.String()), nil}
 }
 
@@ -775,7 +777,7 @@ func (f FloatLit) string() string {
 }
 
 func (i FloatLit) returnType() Type {
-	kind := KindFloat | Kind64
+	kind := KindFloat64
 	return Type{kind, Identifier(kind.String()), nil}
 }
 
@@ -793,7 +795,7 @@ func (f CharLit) string() string {
 }
 
 func (i CharLit) returnType() Type {
-	kind := KindInt | Kind32
+	kind := KindInt32
 	return Type{kind, Identifier(kind.String()), nil}
 }
 

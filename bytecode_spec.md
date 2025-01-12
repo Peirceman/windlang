@@ -28,22 +28,22 @@ instruction | opcode | arguments | explanation
 noop | 0x00 | / | does nothing, the size byte also changes nothing
 push | 0x01 | n bytes | pushes the litteral bytes, amout of bytes given by size
 aloc | 0x02 | / | pops top 8 byte value from the stack, allocates that many bytes and pushes a pointer to it
-stor | 0x03 | / | pop top 8 bytes from stack and store it into the pointer below it
+stor | 0x03 | / | pop top size byte amount of bytes from stack and store it into the pointer below it
 load | 0x04 | / | pushes size byte amount of bytes from pointer onto the stack
 adds | 0x05 | / | pop top 2 values and push result of signed integer addition
 addu | 0x06 | / | pop top 2 values and push result of unsigned integer addition
 addf | 0x07 | / | pop top 2 values and push result of float addition
-subs | 0x08 | / | pop top 2 values and push result of signed integer subtraction (top - bottom)
-subu | 0x09 | / | pop top 2 values and push result of unsigned integer subtraction (top - bottom)
-subf | 0x0A | / | pop top 2 values and push result of float subtraction (top - bottom)
+subs | 0x08 | / | pop top 2 values and push result of signed integer subtraction (bottom - top)
+subu | 0x09 | / | pop top 2 values and push result of unsigned integer subtraction (bottom - top)
+subf | 0x0A | / | pop top 2 values and push result of float subtraction (bottom - top)
 muls | 0x0B | / | pop top 2 values and push result of signed integer multiplication
 mulu | 0x0C | / | pop top 2 values and push result of unsigned integer multiplication
 mulf | 0x0D | / | pop top 2 values and push result of float multiplication
-divs | 0x0E | / | pop top 2 values and push result of signed integer division (top / bottom)
-divu | 0x0F | / | pop top 2 values and push result of unsigned integer division (top / bottom)
-divf | 0x10 | / | pop top 2 values and push result of float division (top / bottom)
-mods | 0x11 | / | pop top 2 values and push modulo of signed integer division (top / bottom)
-modu | 0x12 | / | pop top 2 values and push modulo of unsigned integer division (top / bottom)
+divs | 0x0E | / | pop top 2 values and push result of signed integer division (bottom / top)
+divu | 0x0F | / | pop top 2 values and push result of unsigned integer division (bottom / top)
+divf | 0x10 | / | pop top 2 values and push result of float division (bottom / top)
+mods | 0x11 | / | pop top 2 values and push modulo of signed integer division (bottom / top)
+modu | 0x12 | / | pop top 2 values and push modulo of unsigned integer division (bottom / top)
 dupe | 0x13 | / | duplicates top value on the stack
 pops | 0x14 | / | pops the top value from the stack and discards it
 cmpu | 0x15 | / | pop top 2 values and compare as unsigned integer and push result push positive number if top > bottom, 0 if top = bottom, negeative number if top < bottom
@@ -59,7 +59,7 @@ jplt | 0x1E | 4 byte instruction index | jump if less, top value as signed is ne
 prti | 0x1F | / | **temporary instruction** pop top value on the stack and print as signed integer
 prtu | 0x20 | / | **temporary instruction** pop top value on the stack and print as unsigned integer
 prtf | 0x21 | / | **temporary instruction** pop top value on the stack and print as float
-prts | 0x22 | 4 byte id | **temporary instruction** print var as string
+prts | 0x22 | / | **temporary instruction** print top pointer on stack as string(8 byte size followed by actual string)
 isgt | 0x23 | / | chekcs if the result of cmp is greater (positive) and pushes 1 if true, 0 if false
 isge | 0x24 | / | chekcs if the result of cmp is greater or equal (0 or positive) and pushes 1 if true, 0 if false
 iseq | 0x25 | / | chekcs if the result of cmp is equal (0) and pushes 1 if true, 0 if false
@@ -80,8 +80,12 @@ bsru | 0x33 | / | performs an unsigned binary right shift the second value on th
 call | 0x34 | 4 byte instruction index | pushes the next instruction's index onto the callstack and jumps to given adress
 rett | 0x35 | / | pops top index from the callstack and jumps there
 exit | 0x36 | / | exits the program with top value as return value
-negs | 0x38 | / | arithmetic not / negate on signed integer
+negs | 0x37 | / | arithmetic not / negate on signed integer
 negf | 0x38 | / | arithmetic not / negate on float
+base | 0x39 | / | pushes the stack base pointer
+free | 0x3A | / | frees the allocated pointer on the top of the stack
+farg | 0x3B | / | indicates that everything from now on until the next `call` instruction is a function argument
+sptr | 0x3C | / | pushes a pointer to the top of the stack
 
 `over` `swap` and `rote` assume all elements are of same size because they probably are, otherwise
 what are you doing. These instructions were inspired by porth: [https://gitlab.com/tsoding/porth/-/blob/master/porth.porth?ref_type=heads]
@@ -94,8 +98,18 @@ Todo:
 #### Function calling semantics
 
 the arguments must be from top to bottom the same as from left to right
-f(a, b, c) needs the stack to be the following (from top to bottom):
-a b c (a pushed last, c first)
+f(a, b, c) needs the stack to be the following (from bottom to top):
+c b a (a pushed last, c first)
+
+space for the return value must be allocated by the caller and a pointer
+to that location must be given as the first argument
+
+everything above the base pointer will be cleared after returning
+
+#### stack base pointer
+points to the base of the stack, aka where the top of the stack was when the
+function was called, to insure arguments are on top of the base pointer, use the
+instruction `farg` to instruct that everything afterwards will be function arguments
 
 ### data:
 just data

@@ -5,9 +5,9 @@ type Opcode int8
 const (
 	noop Opcode = iota
 	push
-	decl
-	popv
-	pshv
+	aloc
+	stor
+	load
 	adds
 	addu
 	addf
@@ -60,7 +60,10 @@ const (
 	exit
 	negs
 	negf
-
+	base
+	free
+	farg
+	sptr
 
 	jptr = jpne
 	jpfl = jpeq

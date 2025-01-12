@@ -10,7 +10,7 @@ var something: bool;
 // }
 
 fn aFunc(): float64 {
-	return 0.4 + 0.6;
+	return 0.4 + 0.601;
 }
 
 fn cat(in: int64): int64 {
@@ -18,7 +18,8 @@ fn cat(in: int64): int64 {
 }
 
 fn isEven(num: int64): bool {
-	return num%2 == 0;
+	var a: bool = num%2 == 0;
+	return a;
 }
 
 fn sum(first: int64, second: int64): int64 {
@@ -45,15 +46,19 @@ fn main() {
 	if b {
 		something = true;
 		d += 2;
+		print("b is true");
 	}
 
 	if a == 208 {
 		something = false;
 		d += 1;
+		print("b is a = 208");
 	} elif true {
 		a = 210;
+		print("elif");
 	} else {
 		a = 209;
+		print("else");
 	}
 
 	var ints: int64 = 1 + // nikke deuke
@@ -104,7 +109,8 @@ fn main() {
 	print(sum(1000, 9 + fifteen));
 
 	print(isEven(3));
-	print(isEven(6));
+	var temp: bool = isEven(6);
+	print(temp);
 
 	print("\n0 to 9:");
 	var i: int64 = 0;

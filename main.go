@@ -54,7 +54,7 @@ func main() {
 
 		fmt.Println("\n *** stack dump ***")
 		fmt.Println(interpreter.Stack)
-		fmt.Println("\n *** vars dump ***")
+		fmt.Println("\n *** data dump ***")
 		fmt.Println(interpreter.Data)
 	} else if fileName == "parse" {
 		val := floatparsing.Parse(os.Args[2])
