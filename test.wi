@@ -131,6 +131,9 @@ fn main() {
 	var array: []int64;
 	var ptr: &int64;
 
+	var negThreeHalfs: float64 = -1.5;
+	print(negThreeHalfs);
+
 	return;
 }
 

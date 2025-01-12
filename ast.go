@@ -29,9 +29,9 @@ const (
 	Kind64       Kind = 0x8
 	KindSizeMask Kind = 0xf
 
-	KindInt         Kind = 0x10
-	KindFloat       Kind = 0x20
-	KindBoolType    Kind = 0x40
+	KindInt      Kind = 0x10
+	KindFloat    Kind = 0x20
+	KindBoolType Kind = 0x40
 	//unused        Kind = 0x80
 	KindPointerType Kind = 0x100
 	KindArrayType   Kind = 0x200
@@ -105,8 +105,8 @@ func (k Kind) String() string {
 
 type Identifier string
 type Type struct {
-	kind Kind
-	name Identifier // unused until user-defined types exist
+	kind  Kind
+	name  Identifier // unused until user-defined types exist
 	inner *Type
 }
 
@@ -755,6 +755,13 @@ func NewUnaryOpNode(expression Expression, op UnaryOp) (Expression, error) {
 	case UONegative:
 		if lit, ok := expression.(IntLit); ok {
 			lit.value = -lit.value
+			return lit, nil
+		} else if lit, ok := expression.(FloatLit); ok {
+			if lit.value[0] == '-' {
+				lit.value = lit.value[1:]
+			} else {
+				lit.value = "-" + lit.value
+			}
 			return lit, nil
 		}
 	}
