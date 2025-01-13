@@ -1946,6 +1946,44 @@ func (g *BytecodeGenerator) generateUnaryOpNode(uo UnaryOpNode) error {
 			return err
 		}
 
+	case UORef:
+		switch expr := uo.Expression.(type) {
+		case Var:
+			err := g.varPointer(expr.name)
+
+			if err != nil {
+				return err
+			}
+
+		case Const:
+			err := g.varPointer(expr.name)
+
+			if err != nil {
+				return err
+			}
+
+		default:
+			panic("unreachable")
+		}
+
+	case UODeref:
+		retTyp, innerTyp := uo.returnType(), *uo.Expression.returnType().inner
+		if retTyp.kind != innerTyp.kind || retTyp.size != innerTyp.size {
+			panic("assertion failed")
+		}
+
+		err := g.writeExpression(uo.Expression)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(load, retTyp.size)
+
+		if err != nil {
+			return err
+		}
+
 	default:
 		panic("unreachable")
 	}

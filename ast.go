@@ -708,6 +708,13 @@ func NewUnaryOpNode(expression Expression, op UnaryOp) (Expression, error) {
 			}
 			return lit, nil
 		}
+
+	case UORef:
+		if _, ok := expression.(Var); ok {
+		} else if _, ok := expression.(Const); ok {
+		} else {
+			return UnaryOpNode{}, errors.New("Can only take a reference to a variable or constant")
+		}
 	}
 
 	return UnaryOpNode{expression, op}, nil

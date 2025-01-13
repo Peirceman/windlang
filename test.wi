@@ -1,4 +1,5 @@
-/* this is a block comment
+/*
+ * this is a block comment
  * it can go on multiple lines
  */
 
@@ -128,11 +129,19 @@ fn main() {
 	print(1 - -1);
 	print(-(-negone));
 
-	var array: []int64;
-	var ptr: &int64;
-
 	var negThreeHalfs: float64 = -1.5;
 	print(negThreeHalfs);
+
+	var value: int64 = 1;
+	var ptr: &int64 = &value;
+
+	print(value);
+	print(*ptr);
+
+	value = 2;
+
+	print(value);
+	print(*ptr);
 
 	return;
 }
