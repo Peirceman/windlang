@@ -329,7 +329,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 		p.lex.NextToken()
 		return p.parseCodeBlock()
 
-	case TTIdentifier:
+	case TTIdentifier, TTStar:
 		node := ExpressionNode{p.parseExpression()}
 
 		p.expect(TTSemiColon)
@@ -519,6 +519,9 @@ func (p *Parser) parseType() Type {
 	case TTAmp:
 		inner := p.parseType()
 		return Type{KindPointer, 8, "", &inner}
+	case TTAnd: // special case because `&&` is seen as 1 token but is actually 2 pointers
+		inner := p.parseType()
+		return Type{KindPointer, 8, "", &Type{KindPointer, 8, "", &inner}}
 	}
 
 	panic(tok.loc.String() + " Error: expected type")
@@ -597,8 +600,12 @@ func (p *Parser) parseBinary(precedence int) Expression {
 			}
 
 			if precedence == BOAssign.Precedence() {
-				switch lhs.(type) {
+				switch lhs := lhs.(type) {
 				case Var:
+				case UnaryOpNode:
+					if lhs.Op != UODeref {
+						panic(p.lex.curLoc.String() + " Error: can only assign to variable") // TODO: better error handling
+					}
 				default:
 					panic(p.lex.curLoc.String() + " Error: can only assign to variable") // TODO: better error handling
 				}

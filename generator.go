@@ -1439,12 +1439,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 		g.castUnsigned(requiredSize, curSize)
 
 	case BOAssign:
-		lhs, ok := binopnode.Lhs.(Var)
-		if !ok {
-			panic("assigning to not variable???")
-		}
-
-		err := g.varPointer(lhs.name)
+		err := g.writeAssignLhs(binopnode.Lhs)
 
 		if err != nil {
 			return err
@@ -1463,14 +1458,8 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 		}
 
 	case BOPlusAssign:
-		lhs, ok := binopnode.Lhs.(Var)
-		if !ok {
-			panic("assigning to not var??")
-		}
-
-		size := lhs.typ.size
-
-		err := g.varPointer(lhs.name)
+		typ := binopnode.Lhs.returnType()
+		err := g.writeAssignLhs(binopnode.Lhs)
 
 		if err != nil {
 			return err
@@ -1482,7 +1471,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction0(load, size)
+		err = g.writeInstruction0(load, typ.size)
 
 		if err != nil {
 			return err
@@ -1494,32 +1483,26 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		switch lhs.typ.kind {
+		switch typ.kind {
 		case KindInt:
-			err = g.writeInstruction0(adds, size)
+			err = g.writeInstruction0(adds, typ.size)
 		case KindFloat:
-			err = g.writeInstruction0(addf, size)
+			err = g.writeInstruction0(addf, typ.size)
 		}
 
 		if err != nil {
 			return err
 		}
 
-		err = g.writeInstruction0(stor, size)
+		err = g.writeInstruction0(stor, typ.size)
 
 		if err != nil {
 			return err
 		}
 
 	case BODashAssign:
-		lhs, ok := binopnode.Lhs.(Var)
-		if !ok {
-			panic("assigning to not var??")
-		}
-
-		size := lhs.typ.size
-
-		err := g.varPointer(lhs.name)
+		typ := binopnode.Lhs.returnType()
+		err := g.writeAssignLhs(binopnode.Lhs)
 
 		if err != nil {
 			return err
@@ -1531,7 +1514,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction0(load, size)
+		err = g.writeInstruction0(load, typ.size)
 
 		if err != nil {
 			return err
@@ -1543,32 +1526,26 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		switch lhs.typ.kind {
+		switch typ.kind {
 		case KindInt:
-			err = g.writeInstruction0(subs, size)
+			err = g.writeInstruction0(subs, typ.size)
 		case KindFloat:
-			err = g.writeInstruction0(subf, size)
+			err = g.writeInstruction0(subf, typ.size)
 		}
 
 		if err != nil {
 			return err
 		}
 
-		err = g.writeInstruction0(stor, size)
+		err = g.writeInstruction0(stor, typ.size)
 
 		if err != nil {
 			return err
 		}
 
 	case BOStarAssign:
-		lhs, ok := binopnode.Lhs.(Var)
-		if !ok {
-			panic("assigning to not var??")
-		}
-
-		size := lhs.typ.size
-
-		err := g.varPointer(lhs.name)
+		typ := binopnode.Lhs.returnType()
+		err := g.writeAssignLhs(binopnode.Lhs)
 
 		if err != nil {
 			return err
@@ -1580,7 +1557,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction0(load, size)
+		err = g.writeInstruction0(load, typ.size)
 
 		if err != nil {
 			return err
@@ -1592,32 +1569,26 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		switch lhs.typ.kind {
+		switch typ.kind {
 		case KindInt:
-			err = g.writeInstruction0(muls, size)
+			err = g.writeInstruction0(muls, typ.size)
 		case KindFloat:
-			err = g.writeInstruction0(mulf, size)
+			err = g.writeInstruction0(mulf, typ.size)
 		}
 
 		if err != nil {
 			return err
 		}
 
-		err = g.writeInstruction0(stor, size)
+		err = g.writeInstruction0(stor, typ.size)
 
 		if err != nil {
 			return err
 		}
 
 	case BOSlashAssign:
-		lhs, ok := binopnode.Lhs.(Var)
-		if !ok {
-			panic("assigning to not var??")
-		}
-
-		size := lhs.typ.size
-
-		err := g.varPointer(lhs.name)
+		typ := binopnode.Lhs.returnType()
+		err := g.writeAssignLhs(binopnode.Lhs)
 
 		if err != nil {
 			return err
@@ -1629,7 +1600,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction0(load, size)
+		err = g.writeInstruction0(load, typ.size)
 
 		if err != nil {
 			return err
@@ -1641,31 +1612,26 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		switch lhs.typ.kind {
+		switch typ.kind {
 		case KindInt:
-			err = g.writeInstruction0(divs, size)
+			err = g.writeInstruction0(divs, typ.size)
 		case KindFloat:
-			err = g.writeInstruction0(divf, size)
+			err = g.writeInstruction0(divf, typ.size)
 		}
 
 		if err != nil {
 			return err
 		}
 
-		err = g.writeInstruction0(load, size)
+		err = g.writeInstruction0(load, typ.size)
 
 		if err != nil {
 			return err
 		}
 
 	case BoAndAssign:
-		lhs, ok := binopnode.Lhs.(Var)
-		size := lhs.typ.size
-		if !ok {
-			panic("assigning to not var??")
-		}
-
-		err := g.varPointer(lhs.name)
+		typ := binopnode.Lhs.returnType()
+		err := g.writeAssignLhs(binopnode.Lhs)
 
 		if err != nil {
 			return err
@@ -1677,7 +1643,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction0(load, size)
+		err = g.writeInstruction0(load, typ.size)
 
 		if err != nil {
 			return err
@@ -1689,26 +1655,21 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction0(band, size)
+		err = g.writeInstruction0(band, typ.size)
 
 		if err != nil {
 			return err
 		}
 
-		err = g.writeInstruction0(load, size)
+		err = g.writeInstruction0(load, typ.size)
 
 		if err != nil {
 			return err
 		}
 
 	case BoOrAssign:
-		lhs, ok := binopnode.Lhs.(Var)
-		size := lhs.typ.size
-		if !ok {
-			panic("assigning to not var??")
-		}
-
-		err := g.varPointer(lhs.name)
+		typ := binopnode.Lhs.returnType()
+		err := g.writeAssignLhs(binopnode.Lhs)
 
 		if err != nil {
 			return err
@@ -1720,7 +1681,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction0(load, size)
+		err = g.writeInstruction0(load, typ.size)
 
 		if err != nil {
 			return err
@@ -1732,26 +1693,21 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction0(borr, size)
+		err = g.writeInstruction0(borr, typ.size)
 
 		if err != nil {
 			return err
 		}
 
-		err = g.writeInstruction0(load, size)
+		err = g.writeInstruction0(load, typ.size)
 
 		if err != nil {
 			return err
 		}
 
 	case BoXorAssign:
-		lhs, ok := binopnode.Lhs.(Var)
-		size := lhs.typ.size
-		if !ok {
-			panic("assigning to not var??")
-		}
-
-		err := g.varPointer(lhs.name)
+		typ := binopnode.Lhs.returnType()
+		err := g.writeAssignLhs(binopnode.Lhs)
 
 		if err != nil {
 			return err
@@ -1763,7 +1719,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction0(load, size)
+		err = g.writeInstruction0(load, typ.size)
 
 		if err != nil {
 			return err
@@ -1775,26 +1731,21 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction0(bxor, size)
+		err = g.writeInstruction0(bxor, typ.size)
 
 		if err != nil {
 			return err
 		}
 
-		err = g.writeInstruction0(load, size)
+		err = g.writeInstruction0(load, typ.size)
 
 		if err != nil {
 			return err
 		}
 
 	case BOShrAssign:
-		lhs, ok := binopnode.Lhs.(Var)
-		size := lhs.typ.size
-		if !ok {
-			panic("assigning to not var??")
-		}
-
-		err := g.varPointer(lhs.name)
+		typ := binopnode.Lhs.returnType()
+		err := g.writeAssignLhs(binopnode.Lhs)
 
 		if err != nil {
 			return err
@@ -1806,7 +1757,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction0(load, size)
+		err = g.writeInstruction0(load, typ.size)
 
 		if err != nil {
 			return err
@@ -1818,26 +1769,21 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction0(bsrs, size)
+		err = g.writeInstruction0(bsrs, typ.size)
 
 		if err != nil {
 			return err
 		}
 
-		err = g.writeInstruction0(load, size)
+		err = g.writeInstruction0(load, typ.size)
 
 		if err != nil {
 			return err
 		}
 
 	case BOShlAssign:
-		lhs, ok := binopnode.Lhs.(Var)
-		size := lhs.typ.size
-		if !ok {
-			panic("assigning to not var??")
-		}
-
-		err := g.varPointer(lhs.name)
+		typ := binopnode.Lhs.returnType()
+		err := g.writeAssignLhs(binopnode.Lhs)
 
 		if err != nil {
 			return err
@@ -1849,7 +1795,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction0(load, size)
+		err = g.writeInstruction0(load, typ.size)
 
 		if err != nil {
 			return err
@@ -1861,13 +1807,13 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction0(bshl, size)
+		err = g.writeInstruction0(bshl, typ.size)
 
 		if err != nil {
 			return err
 		}
 
-		err = g.writeInstruction0(load, size)
+		err = g.writeInstruction0(load, typ.size)
 
 		if err != nil {
 			return err
@@ -2138,6 +2084,54 @@ found:
 		fallthrough // dynamically allocated pointer/array, already stored in local var
 	default:
 		panic("unreachable")
+	}
+
+	return nil
+}
+
+func (g *BytecodeGenerator) writeAssignLhs(lhs Expression) error{
+	derefCount := 0
+
+	for true {
+		if lhs, ok := lhs.(Var); ok {
+			err := g.varPointer(lhs.name)
+
+			if err != nil {
+				return err
+			}
+
+			break
+		}
+
+		if lhsUnOp, ok := lhs.(UnaryOpNode); ok {
+			if lhsUnOp.Op != UODeref {
+				panic("assertion failed")
+			}
+
+			derefCount++
+
+			lhs = lhsUnOp.Expression
+
+			continue
+		}
+
+		panic("assigning to not variable???")
+	}
+
+	for i := range derefCount {
+		if i < derefCount-1 {
+			err := g.writeInstruction0(load, 8)
+
+			if err != nil {
+				return err
+			}
+		} else {
+			err := g.writeInstruction0(load, lhs.returnType().size)
+
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil

@@ -27,6 +27,11 @@ fn sum(first: int64, second: int64): int64 {
 	return first + second;
 }
 
+fn inc(val: &int64) {
+	*val = *val + 1;
+	return;
+}
+
 fn main() {
 	const αConst: int64 = 69;
 	var a: int64 = 0x1A4;
@@ -142,6 +147,29 @@ fn main() {
 
 	print(value);
 	print(*ptr);
+
+	*ptr = 3;
+
+	print(value);
+	print(*ptr);
+
+	inc(&value);
+
+	print(value);
+	print(*ptr);
+
+	*ptr *= 2;
+
+	print(value);
+	print(*ptr);
+
+	var ptrPtr: &&int64 = &ptr;
+
+	**ptrPtr -= 1;
+
+	print(value);
+	print(*ptr);
+	print(**ptrPtr);
 
 	return;
 }
