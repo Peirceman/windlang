@@ -171,6 +171,14 @@ fn main() {
 	print(*ptr);
 	print(**ptrPtr);
 
+	print("a outside of block:");
+	print(a);
+	if true {
+		var a: int64 = 42;
+		print("a in block");
+		print(a);
+	}
+
 	return;
 }
 

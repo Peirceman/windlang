@@ -11,13 +11,13 @@
  - [ ] use jump instructions for if statements instead of what happens now
  - [ ] for loops
  - [ ] calling functions that are declared further down the file
- - [ ] shadowing
  - [ ] float litterals with e notation, eg. 1e-5
  - [ ] generating (ssa) IR
  - [ ] better errors
  - [ ] type system part 2 (less urgent): enums, interfaces
  - [ ] optimization (definitely not for now)
  - [ ] colapse `Var` and `Const` into a singe structure
+ - [ ] casting
  - [ ] fix `sgne` instruction
 
 # spec:

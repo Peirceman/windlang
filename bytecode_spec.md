@@ -91,8 +91,6 @@ sptr | 0x3C | / | pushes a pointer to the top of the stack
 what are you doing. These instructions were inspired by porth: [https://gitlab.com/tsoding/porth/-/blob/master/porth.porth?ref_type=heads]
 
 Todo:
-- function calling
-- poiner stuff
 - struct indexing
 
 #### Function calling semantics
