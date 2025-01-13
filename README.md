@@ -18,7 +18,6 @@
  - [ ] type system part 2 (less urgent): enums, interfaces
  - [ ] optimization (definitely not for now)
  - [ ] colapse `Var` and `Const` into a singe structure
- - [ ] put size into `Type` struct and not in `Kind`
  - [ ] fix `sgne` instruction
 
 # spec:

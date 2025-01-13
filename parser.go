@@ -8,6 +8,7 @@ import (
 type Parser struct {
 	lex          *Lexer
 	currentScope []Scope
+	typeDefs     []Type
 }
 
 func ParserFromFilename(filename string) (p *Parser) {
@@ -36,15 +37,27 @@ func ParserFromString(str string) (p *Parser) {
 }
 
 func (p *Parser) addBuiltIns() {
+	p.typeDefs = []Type {
+		{KindInt, 1, "int8", nil},
+		{KindInt, 2, "int16", nil},
+		{KindInt, 4, "int32", nil},
+		{KindInt, 8, "int64", nil},
+		{KindFloat, 4, "float32", nil},
+		{KindFloat, 8, "float64", nil},
+		{KindBool, 4, "bool", nil},
+		{KindString, 8, "string", &Type{KindInt, 1, "byte", nil}},
+	}
+
+
 	p.addFunc(Func{
 		"println",
-		[]Var{{"any", Type{KindAny, Identifier(KindAny.String()), nil}}},
+		[]Var{{"any", Type{KindAny, 0, "any", nil}}},
 		Type{},
 	})
 
 	p.addFunc(Func{
 		"print",
-		[]Var{{"any", Type{KindAny, Identifier(KindAny.String()), nil}}},
+		[]Var{{"any", Type{KindAny, 0, "any", nil}}},
 		Type{},
 	})
 }
@@ -110,7 +123,7 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 		p.lex.NextToken()
 		name := p.expect(TTIdentifier)
 		p.expect(TTColon)
-		typ := p.expect(TTIdentifier)
+		typ := p.parseType()
 
 		if tok := p.lex.PeekToken(); tok.typ != TTAssign {
 			p.expect(TTSemiColon)
@@ -121,7 +134,7 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 
 			node := ConstNode{
 				name: Identifier(name.literal),
-				typ:  Type{KindFromString(typ.literal), Identifier(typ.literal), nil},
+				typ:  typ,
 			}
 
 			p.addConst(Const{node.name, node.typ})
@@ -133,7 +146,7 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 
 		node := ConstNode{
 			name:  Identifier(name.literal),
-			typ:   Type{KindFromString(typ.literal), Identifier(typ.literal), nil},
+			typ:   typ,
 			Value: p.parseExpression(),
 		}
 
@@ -218,7 +231,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 		p.lex.NextToken()
 		name := p.expect(TTIdentifier)
 		p.expect(TTColon)
-		typ := p.expect(TTIdentifier)
+		typ := p.parseType()
 
 		if tok := p.lex.PeekToken(); tok.typ != TTAssign {
 			p.expect(TTSemiColon)
@@ -227,7 +240,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 			}
 			node := ConstNode{
 				name: Identifier(name.literal),
-				typ:  Type{KindFromString(typ.literal), Identifier(typ.literal), nil},
+				typ:  typ,
 			}
 
 			p.addConst(Const{node.name, node.typ})
@@ -239,7 +252,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 
 		node := ConstNode{
 			name:  Identifier(name.literal),
-			typ:   Type{KindFromString(typ.literal), Identifier(typ.literal), nil},
+			typ:   typ,
 			Value: p.parseExpression(),
 		}
 
@@ -332,7 +345,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 		node := IfChain{}
 		node.IfCondition = p.parseExpression()
 
-		if node.IfCondition.returnType().kind&KindBool&KindTypeMask == 0 {
+		if node.IfCondition.returnType().kind != KindBool {
 			panic(p.lex.curLoc.String() + " boolean expression expected")
 		}
 
@@ -350,7 +363,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 
 			condition := p.parseExpression()
 
-			if condition.returnType().kind&KindBool&KindTypeMask == 0 {
+			if condition.returnType().kind != KindBool {
 				panic(p.lex.curLoc.String() + " boolean expression expected")
 			}
 
@@ -388,7 +401,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 		node := WhileNode{}
 		node.Condition = p.parseExpression()
 
-		if node.Condition.returnType().kind&KindBool&KindTypeMask == 0 {
+		if node.Condition.returnType().kind != KindBool {
 			panic(p.lex.curLoc.String() + " boolean expression expected")
 		}
 
@@ -455,8 +468,7 @@ func (p *Parser) parseFunc() (FuncNode, bool) {
 
 		p.expect(TTColon)
 
-		arg.typ.name = Identifier(p.expect(TTIdentifier).literal)
-		arg.typ.kind = KindFromString(string(arg.typ.name))
+		arg.typ = p.parseType()
 
 		node.Args = append(node.Args, arg)
 		scope.AddVar(arg)
@@ -474,8 +486,7 @@ func (p *Parser) parseFunc() (FuncNode, bool) {
 	tok := p.lex.PeekToken()
 	if tok.typ == TTColon {
 		p.lex.NextToken()
-		node.returnType.name = Identifier(p.lex.NextToken().literal)
-		node.returnType.kind = KindFromString(string(node.returnType.name))
+		node.returnType = p.parseType()
 	}
 
 	p.expect(TTLSquirly)
@@ -496,15 +507,18 @@ func (p *Parser) parseType() Type {
 	tok := p.lex.NextToken()
 	switch tok.typ {
 	case TTIdentifier:
-		kind := KindFromString(tok.literal)
-		return Type{kind, Identifier(tok.literal), nil}
+		for _, typedef := range p.typeDefs {
+			if typedef.name == Identifier(tok.literal) {
+				return typedef
+			}
+		}
 	case TTLSquare:
 		p.expect(TTRSquare)
 		inner := p.parseType()
-		return Type{KindArray, "", &inner}
+		return Type{KindArray, 8, "", &inner}
 	case TTAmp:
 		inner := p.parseType()
-		return Type{KindPointer, "", &inner}
+		return Type{KindPointer, 8, "", &inner}
 	}
 
 	panic(tok.loc.String() + " Error: expected type")

@@ -149,14 +149,14 @@ func (g *BytecodeGenerator) writeGlobal(codeBlock CodeBlockNode) error {
 		g.vars = append(g.vars,
 			VarLocation{varDef.name, varDef.typ, bytecodePointer{locDataSection, 0, uint64(len(g.data))}},
 		)
-		g.data = append(g.data, make([]byte, int(varDef.typ.kind&KindSizeMask))...)
+		g.data = append(g.data, make([]byte, varDef.typ.size)...)
 	}
 
 	for _, constDef := range codeBlock.scope.consts {
 		g.vars = append(g.vars,
 			VarLocation{constDef.name, constDef.typ, bytecodePointer{locDataSection, 0, uint64(len(g.data))}},
 		)
-		g.data = append(g.data, make([]byte, int(constDef.typ.kind&KindSizeMask))...)
+		g.data = append(g.data, make([]byte, constDef.typ.size)...)
 	}
 
 	err = g.writeStatements(codeBlock.Statements)
@@ -193,11 +193,12 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 	oldBase := g.baseOffset
 	g.vars = slices.Grow(g.vars, addedVars)
 
-	for _, varDef := range codeBlock.scope.vars { g.vars = append(g.vars,
+	for _, varDef := range codeBlock.scope.vars {
+		g.vars = append(g.vars,
 			VarLocation{varDef.name, varDef.typ, bytecodePointer{locStack, 0, g.baseOffset}},
 		)
 
-		size := varDef.typ.kind & KindSizeMask
+		size := varDef.typ.size
 		g.baseOffset += uint64(size)
 
 		err = g.writeInstructionn(push, size, 0)
@@ -212,7 +213,7 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 			VarLocation{constDef.name, constDef.typ, bytecodePointer{locStack, 0, g.baseOffset}},
 		)
 
-		size := constDef.typ.kind & KindSizeMask
+		size := constDef.typ.size
 		g.baseOffset += uint64(size)
 
 		err = g.writeInstructionn(push, size, 0)
@@ -232,7 +233,7 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 	g.baseOffset = oldBase
 
 	for _, varDef := range codeBlock.scope.vars {
-		size := varDef.typ.kind & KindSizeMask
+		size := varDef.typ.size
 
 		err = g.writeInstruction0(pops, size)
 
@@ -242,7 +243,7 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 	}
 
 	for _, constDef := range codeBlock.scope.consts {
-		size := constDef.typ.kind & KindSizeMask
+		size := constDef.typ.size
 
 		err = g.writeInstruction0(pops, size)
 
@@ -265,7 +266,7 @@ func (g *BytecodeGenerator) writeStatements(statements []AstNode) error {
 			}
 
 			if node.Expr.returnType().kind != KindVoid {
-				err = g.writeInstruction0(pops, node.Expr.returnType().kind&KindSizeMask)
+				err = g.writeInstruction0(pops, node.Expr.returnType().size)
 
 				if err != nil {
 					return err
@@ -289,7 +290,7 @@ func (g *BytecodeGenerator) writeStatements(statements []AstNode) error {
 				return err
 			}
 
-			err = g.writeInstruction0(stor, node.typ.kind&KindSizeMask)
+			err = g.writeInstruction0(stor, node.typ.size)
 
 			if err != nil {
 				return err
@@ -312,7 +313,7 @@ func (g *BytecodeGenerator) writeStatements(statements []AstNode) error {
 				return err
 			}
 
-			err = g.writeInstruction0(stor, node.typ.kind&KindSizeMask)
+			err = g.writeInstruction0(stor, node.typ.size)
 
 			if err != nil {
 				return err
@@ -329,13 +330,13 @@ func (g *BytecodeGenerator) writeStatements(statements []AstNode) error {
 				g.baseOffset = 8 // return value pointer
 			}
 
-			for i := len(node.Args)-1; i >= 0; i-- {
+			for i := len(node.Args) - 1; i >= 0; i-- {
 				arg := node.Args[i]
 				g.vars = append(g.vars,
 					VarLocation{arg.name, arg.typ, bytecodePointer{locStack, 0, g.baseOffset}},
 				)
 
-				size := arg.typ.kind & KindSizeMask
+				size := arg.typ.size
 				g.baseOffset += uint64(size)
 			}
 
@@ -434,7 +435,7 @@ func (g *BytecodeGenerator) writeStatements(statements []AstNode) error {
 					return err
 				}
 
-				err = g.writeInstruction0(stor, node.Expr.returnType().kind & KindSizeMask)
+				err = g.writeInstruction0(stor, node.Expr.returnType().size)
 
 				if err != nil {
 					return err
@@ -465,7 +466,7 @@ func (g *BytecodeGenerator) writeIfChain(chain IfChain) error {
 		return err
 	}
 
-	err = g.writeInstruction4(jpfl, chain.IfCondition.returnType().kind&KindSizeMask, 0)
+	err = g.writeInstruction4(jpfl, chain.IfCondition.returnType().size, 0)
 
 	if err != nil {
 		return err
@@ -530,7 +531,7 @@ func (g *BytecodeGenerator) writeIfChain(chain IfChain) error {
 			return err
 		}
 
-		err = g.writeInstruction4(jpfl, condition.returnType().kind&KindSizeMask, 0)
+		err = g.writeInstruction4(jpfl, condition.returnType().size, 0)
 
 		if err != nil {
 			return err
@@ -621,7 +622,7 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 
 	switch expression := expression.(type) {
 	case IntLit:
-		size := expression.returnType().kind & KindSizeMask
+		size := expression.returnType().size
 		err := g.writeInstructionn(push, size, uint64(expression.value))
 
 		if err != nil {
@@ -629,15 +630,15 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 		}
 
 	case FloatLit:
-		size := expression.returnType().kind & KindSizeMask
+		size := expression.returnType().size
 		float, _ := strconv.ParseFloat(expression.value, int(size*8)) // at this point it should be a valid float
 
 		var err error
 
 		switch size {
-		case Kind32:
+		case 4:
 			err = g.writeInstructionn(push, 4, uint64(math.Float32bits(float32(float))))
-		case Kind64:
+		case 8:
 			err = g.writeInstructionn(push, 8, math.Float64bits(float))
 		}
 
@@ -685,7 +686,7 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 			return err
 		}
 
-		err = g.writeInstruction0(load, expression.typ.kind & KindSizeMask)
+		err = g.writeInstruction0(load, expression.typ.size)
 
 		if err != nil {
 			return err
@@ -698,7 +699,7 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 			return err
 		}
 
-		err = g.writeInstruction0(load, expression.typ.kind & KindSizeMask)
+		err = g.writeInstruction0(load, expression.typ.size)
 
 		if err != nil {
 			return err
@@ -724,22 +725,26 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 				return err
 			}
 
-			switch arg.returnType().kind & KindTypeMask {
-			case KindInt, KindBoolType:
-				err = g.writeInstruction0(prti, arg.returnType().kind&KindSizeMask)
+			switch arg.returnType().kind {
+			case KindInt, KindBool:
+				err = g.writeInstruction0(prti, arg.returnType().size)
 
 				if err != nil {
 					return err
 				}
 
 			case KindFloat:
-				err = g.writeInstruction0(prtf, arg.returnType().kind&KindSizeMask)
+				err = g.writeInstruction0(prtf, arg.returnType().size)
 
 				if err != nil {
 					return err
 				}
 
-			case KindString & KindTypeMask:
+			case KindString:
+				if arg.returnType().name != "string" {
+					panic("cannot print pointers")
+				}
+
 				err = g.writeInstruction0(prts, 0)
 
 				if err != nil {
@@ -750,9 +755,8 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 			break
 		}
 
-
 		if expression.returnType().kind != KindVoid {
-			err = g.writeInstructionn(push, expression.returnType().kind & KindSizeMask, 0)
+			err = g.writeInstructionn(push, expression.returnType().size, 0)
 
 			if err != nil {
 				return err
@@ -770,7 +774,7 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 				return err
 			}
 
-			err = g.writeInstructionn(push, 8, uint64(expression.returnType().kind & KindSizeMask))
+			err = g.writeInstructionn(push, 8, uint64(expression.returnType().size))
 
 			if err != nil {
 				return err
@@ -834,11 +838,11 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		kind := binopnode.Lhs.returnType().kind
-		if kind&KindInt != 0 {
-			err = g.writeInstruction0(adds, kind&KindSizeMask)
+		typ := binopnode.Lhs.returnType()
+		if typ.kind == KindInt {
+			err = g.writeInstruction0(adds, typ.size)
 		} else {
-			err = g.writeInstruction0(addf, kind&KindSizeMask)
+			err = g.writeInstruction0(addf, typ.size)
 		}
 
 		if err != nil {
@@ -858,11 +862,11 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		kind := binopnode.Lhs.returnType().kind
-		if kind&KindInt != 0 {
-			err = g.writeInstruction0(subs, kind&KindSizeMask)
+		typ := binopnode.Lhs.returnType()
+		if typ.kind == KindInt {
+			err = g.writeInstruction0(subs, typ.size)
 		} else {
-			err = g.writeInstruction0(subf, kind&KindSizeMask)
+			err = g.writeInstruction0(subf, typ.size)
 		}
 
 		if err != nil {
@@ -882,11 +886,11 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		kind := binopnode.Lhs.returnType().kind
-		if kind&KindInt != 0 {
-			err = g.writeInstruction0(muls, kind&KindSizeMask)
+		typ := binopnode.Lhs.returnType()
+		if typ.kind == KindInt {
+			err = g.writeInstruction0(muls, typ.size)
 		} else {
-			err = g.writeInstruction0(mulf, kind&KindSizeMask)
+			err = g.writeInstruction0(mulf, typ.size)
 		}
 
 		if err != nil {
@@ -906,11 +910,11 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		kind := binopnode.Lhs.returnType().kind
-		if kind&KindInt != 0 {
-			err = g.writeInstruction0(divs, kind&KindSizeMask)
+		typ := binopnode.Lhs.returnType()
+		if typ.kind == KindInt {
+			err = g.writeInstruction0(divs, typ.size)
 		} else {
-			err = g.writeInstruction0(divf, kind&KindSizeMask)
+			err = g.writeInstruction0(divf, typ.size)
 		}
 
 		if err != nil {
@@ -930,7 +934,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction0(mods, binopnode.Lhs.returnType().kind&KindSizeMask)
+		err = g.writeInstruction0(mods, binopnode.Lhs.returnType().size)
 
 		if err != nil {
 			return err
@@ -949,7 +953,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		size := binopnode.returnType().kind & KindSizeMask
+		size := binopnode.returnType().size
 
 		err = g.writeInstruction0(band, size)
 
@@ -970,7 +974,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		size := binopnode.returnType().kind & KindSizeMask
+		size := binopnode.returnType().size
 
 		err = g.writeInstruction0(borr, size)
 
@@ -991,7 +995,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		size := binopnode.returnType().kind & KindSizeMask
+		size := binopnode.returnType().size
 
 		err = g.writeInstruction0(bxor, size)
 
@@ -1006,7 +1010,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction4(jpfl, binopnode.Lhs.returnType().kind&KindSizeMask, 0)
+		err = g.writeInstruction4(jpfl, binopnode.Lhs.returnType().size, 0)
 
 		if err != nil {
 			return err
@@ -1026,7 +1030,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction4(jptr, binopnode.Rhs.returnType().kind&KindSizeMask, 0)
+		err = g.writeInstruction4(jptr, binopnode.Rhs.returnType().size, 0)
 
 		if err != nil {
 			return err
@@ -1101,7 +1105,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction4(jptr, binopnode.Lhs.returnType().kind&KindSizeMask, 0)
+		err = g.writeInstruction4(jptr, binopnode.Lhs.returnType().size, 0)
 
 		if err != nil {
 			return err
@@ -1121,7 +1125,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction4(jpfl, binopnode.Lhs.returnType().kind&KindSizeMask, 0)
+		err = g.writeInstruction4(jpfl, binopnode.Lhs.returnType().size, 0)
 
 		if err != nil {
 			return err
@@ -1202,7 +1206,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		size := binopnode.returnType().kind & KindSizeMask
+		size := binopnode.returnType().size
 		err = g.writeInstruction0(bshl, size)
 
 		if err != nil {
@@ -1222,7 +1226,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		size := binopnode.returnType().kind & KindSizeMask
+		size := binopnode.returnType().size
 
 		err = g.writeInstruction0(bsrs, size)
 
@@ -1244,23 +1248,23 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 		}
 
 		if binopnode.Lhs.returnType().kind&KindInt != 0 {
-			err = g.writeInstruction0(cmps, binopnode.Lhs.returnType().kind&KindSizeMask)
+			err = g.writeInstruction0(cmps, binopnode.Lhs.returnType().size)
 		} else if binopnode.Lhs.returnType().kind&KindFloat != 0 {
-			err = g.writeInstruction0(cmpf, binopnode.Lhs.returnType().kind&KindSizeMask)
+			err = g.writeInstruction0(cmpf, binopnode.Lhs.returnType().size)
 		}
 
 		if err != nil {
 			return err
 		}
 
-		err = g.writeInstruction0(isgt, binopnode.returnType().kind&KindSizeMask)
+		err = g.writeInstruction0(isgt, binopnode.returnType().size)
 
 		if err != nil {
 			return err
 		}
 
-		requiredSize := binopnode.returnType().kind & KindSizeMask
-		curSize := binopnode.Lhs.returnType().kind & KindSizeMask
+		requiredSize := binopnode.returnType().size
+		curSize := binopnode.Lhs.returnType().size
 
 		g.castUnsigned(requiredSize, curSize)
 
@@ -1278,23 +1282,23 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 		}
 
 		if binopnode.Lhs.returnType().kind&KindInt != 0 {
-			err = g.writeInstruction0(cmps, binopnode.Lhs.returnType().kind&KindSizeMask)
+			err = g.writeInstruction0(cmps, binopnode.Lhs.returnType().size)
 		} else if binopnode.Lhs.returnType().kind&KindFloat != 0 {
-			err = g.writeInstruction0(cmpf, binopnode.Lhs.returnType().kind&KindSizeMask)
+			err = g.writeInstruction0(cmpf, binopnode.Lhs.returnType().size)
 		}
 
 		if err != nil {
 			return err
 		}
 
-		err = g.writeInstruction0(islt, binopnode.returnType().kind&KindSizeMask)
+		err = g.writeInstruction0(islt, binopnode.returnType().size)
 
 		if err != nil {
 			return err
 		}
 
-		requiredSize := binopnode.returnType().kind & KindSizeMask
-		curSize := binopnode.Lhs.returnType().kind & KindSizeMask
+		requiredSize := binopnode.returnType().size
+		curSize := binopnode.Lhs.returnType().size
 
 		g.castUnsigned(requiredSize, curSize)
 
@@ -1312,23 +1316,23 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 		}
 
 		if binopnode.Lhs.returnType().kind&KindInt != 0 {
-			err = g.writeInstruction0(cmps, binopnode.Lhs.returnType().kind&KindSizeMask)
+			err = g.writeInstruction0(cmps, binopnode.Lhs.returnType().size)
 		} else if binopnode.Lhs.returnType().kind&KindFloat != 0 {
-			err = g.writeInstruction0(cmpf, binopnode.Lhs.returnType().kind&KindSizeMask)
+			err = g.writeInstruction0(cmpf, binopnode.Lhs.returnType().size)
 		}
 
 		if err != nil {
 			return err
 		}
 
-		err = g.writeInstruction0(isge, binopnode.returnType().kind&KindSizeMask)
+		err = g.writeInstruction0(isge, binopnode.returnType().size)
 
 		if err != nil {
 			return err
 		}
 
-		requiredSize := binopnode.returnType().kind & KindSizeMask
-		curSize := binopnode.Lhs.returnType().kind & KindSizeMask
+		requiredSize := binopnode.returnType().size
+		curSize := binopnode.Lhs.returnType().size
 
 		g.castUnsigned(requiredSize, curSize)
 
@@ -1346,23 +1350,23 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 		}
 
 		if binopnode.Lhs.returnType().kind&KindInt != 0 {
-			err = g.writeInstruction0(cmps, binopnode.Lhs.returnType().kind&KindSizeMask)
+			err = g.writeInstruction0(cmps, binopnode.Lhs.returnType().size)
 		} else if binopnode.Lhs.returnType().kind&KindFloat != 0 {
-			err = g.writeInstruction0(cmpf, binopnode.Lhs.returnType().kind&KindSizeMask)
+			err = g.writeInstruction0(cmpf, binopnode.Lhs.returnType().size)
 		}
 
 		if err != nil {
 			return err
 		}
 
-		err = g.writeInstruction0(isle, binopnode.returnType().kind&KindSizeMask)
+		err = g.writeInstruction0(isle, binopnode.returnType().size)
 
 		if err != nil {
 			return err
 		}
 
-		requiredSize := binopnode.returnType().kind & KindSizeMask
-		curSize := binopnode.Lhs.returnType().kind & KindSizeMask
+		requiredSize := binopnode.returnType().size
+		curSize := binopnode.Lhs.returnType().size
 
 		g.castUnsigned(requiredSize, curSize)
 
@@ -1380,23 +1384,23 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 		}
 
 		if binopnode.Lhs.returnType().kind&KindInt != 0 {
-			err = g.writeInstruction0(cmps, binopnode.Lhs.returnType().kind&KindSizeMask)
+			err = g.writeInstruction0(cmps, binopnode.Lhs.returnType().size)
 		} else if binopnode.Lhs.returnType().kind&KindFloat != 0 {
-			err = g.writeInstruction0(cmpf, binopnode.Lhs.returnType().kind&KindSizeMask)
+			err = g.writeInstruction0(cmpf, binopnode.Lhs.returnType().size)
 		}
 
 		if err != nil {
 			return err
 		}
 
-		err = g.writeInstruction0(iseq, binopnode.returnType().kind&KindSizeMask)
+		err = g.writeInstruction0(iseq, binopnode.returnType().size)
 
 		if err != nil {
 			return err
 		}
 
-		requiredSize := binopnode.returnType().kind & KindSizeMask
-		curSize := binopnode.Lhs.returnType().kind & KindSizeMask
+		requiredSize := binopnode.returnType().size
+		curSize := binopnode.Lhs.returnType().size
 
 		g.castUnsigned(requiredSize, curSize)
 
@@ -1414,23 +1418,23 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 		}
 
 		if binopnode.Lhs.returnType().kind&KindInt != 0 {
-			err = g.writeInstruction0(cmps, binopnode.Lhs.returnType().kind&KindSizeMask)
+			err = g.writeInstruction0(cmps, binopnode.Lhs.returnType().size)
 		} else if binopnode.Lhs.returnType().kind&KindFloat != 0 {
-			err = g.writeInstruction0(cmpf, binopnode.Lhs.returnType().kind&KindSizeMask)
+			err = g.writeInstruction0(cmpf, binopnode.Lhs.returnType().size)
 		}
 
 		if err != nil {
 			return err
 		}
 
-		err = g.writeInstruction0(isne, binopnode.returnType().kind&KindSizeMask)
+		err = g.writeInstruction0(isne, binopnode.returnType().size)
 
 		if err != nil {
 			return err
 		}
 
-		requiredSize := binopnode.returnType().kind & KindSizeMask
-		curSize := binopnode.Lhs.returnType().kind & KindSizeMask
+		requiredSize := binopnode.returnType().size
+		curSize := binopnode.Lhs.returnType().size
 
 		g.castUnsigned(requiredSize, curSize)
 
@@ -1452,7 +1456,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction0(stor, binopnode.Rhs.returnType().kind & KindSizeMask)
+		err = g.writeInstruction0(stor, binopnode.Rhs.returnType().size)
 
 		if err != nil {
 			return err
@@ -1464,7 +1468,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			panic("assigning to not var??")
 		}
 
-		size := lhs.typ.kind & KindSizeMask
+		size := lhs.typ.size
 
 		err := g.varPointer(lhs.name)
 
@@ -1490,7 +1494,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		switch lhs.typ.kind & KindTypeMask {
+		switch lhs.typ.kind {
 		case KindInt:
 			err = g.writeInstruction0(adds, size)
 		case KindFloat:
@@ -1513,7 +1517,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			panic("assigning to not var??")
 		}
 
-		size := lhs.typ.kind & KindSizeMask
+		size := lhs.typ.size
 
 		err := g.varPointer(lhs.name)
 
@@ -1539,7 +1543,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		switch lhs.typ.kind & KindTypeMask {
+		switch lhs.typ.kind {
 		case KindInt:
 			err = g.writeInstruction0(subs, size)
 		case KindFloat:
@@ -1562,7 +1566,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			panic("assigning to not var??")
 		}
 
-		size := lhs.typ.kind & KindSizeMask
+		size := lhs.typ.size
 
 		err := g.varPointer(lhs.name)
 
@@ -1588,7 +1592,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		switch lhs.typ.kind & KindTypeMask {
+		switch lhs.typ.kind {
 		case KindInt:
 			err = g.writeInstruction0(muls, size)
 		case KindFloat:
@@ -1611,7 +1615,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			panic("assigning to not var??")
 		}
 
-		size := lhs.typ.kind & KindSizeMask
+		size := lhs.typ.size
 
 		err := g.varPointer(lhs.name)
 
@@ -1637,7 +1641,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 			return err
 		}
 
-		switch lhs.typ.kind & KindTypeMask {
+		switch lhs.typ.kind {
 		case KindInt:
 			err = g.writeInstruction0(divs, size)
 		case KindFloat:
@@ -1656,7 +1660,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 
 	case BoAndAssign:
 		lhs, ok := binopnode.Lhs.(Var)
-		size := lhs.typ.kind & KindSizeMask
+		size := lhs.typ.size
 		if !ok {
 			panic("assigning to not var??")
 		}
@@ -1699,7 +1703,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 
 	case BoOrAssign:
 		lhs, ok := binopnode.Lhs.(Var)
-		size := lhs.typ.kind & KindSizeMask
+		size := lhs.typ.size
 		if !ok {
 			panic("assigning to not var??")
 		}
@@ -1742,7 +1746,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 
 	case BoXorAssign:
 		lhs, ok := binopnode.Lhs.(Var)
-		size := lhs.typ.kind & KindSizeMask
+		size := lhs.typ.size
 		if !ok {
 			panic("assigning to not var??")
 		}
@@ -1785,7 +1789,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 
 	case BOShrAssign:
 		lhs, ok := binopnode.Lhs.(Var)
-		size := lhs.typ.kind & KindSizeMask
+		size := lhs.typ.size
 		if !ok {
 			panic("assigning to not var??")
 		}
@@ -1828,7 +1832,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 
 	case BOShlAssign:
 		lhs, ok := binopnode.Lhs.(Var)
-		size := lhs.typ.kind & KindSizeMask
+		size := lhs.typ.size
 		if !ok {
 			panic("assigning to not var??")
 		}
@@ -1876,7 +1880,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode BinaryOpNode) error {
 }
 
 func (g *BytecodeGenerator) generateUnaryOpNode(uo UnaryOpNode) error {
-	if UOCount != 4 {
+	if UOCount != 6 {
 		panic("Unary opperation enum length changed")
 	}
 
@@ -1890,12 +1894,12 @@ func (g *BytecodeGenerator) generateUnaryOpNode(uo UnaryOpNode) error {
 			return err
 		}
 
-		returnType := uo.Expression.returnType().kind
+		returnType := uo.Expression.returnType()
 
-		if returnType&KindInt != 0 {
-			err = g.writeInstruction0(negs, returnType&KindSizeMask)
-		} else if returnType&KindFloat != 0 {
-			err = g.writeInstruction0(negf, returnType&KindSizeMask)
+		if returnType.kind == KindInt {
+			err = g.writeInstruction0(negs, returnType.size)
+		} else if returnType.kind == KindFloat {
+			err = g.writeInstruction0(negf, returnType.size)
 		} else {
 			panic("Unknown type for negate")
 		}
@@ -1936,7 +1940,7 @@ func (g *BytecodeGenerator) generateUnaryOpNode(uo UnaryOpNode) error {
 			return err
 		}
 
-		err = g.writeInstruction0(bnot, uo.Expression.returnType().kind&KindSizeMask)
+		err = g.writeInstruction0(bnot, uo.Expression.returnType().size)
 
 		if err != nil {
 			return err
@@ -1949,7 +1953,7 @@ func (g *BytecodeGenerator) generateUnaryOpNode(uo UnaryOpNode) error {
 	return nil
 }
 
-func (g *BytecodeGenerator) castUnsigned(requiredSize, currentSize Kind) (err error) {
+func (g *BytecodeGenerator) castUnsigned(requiredSize, currentSize int) (err error) {
 	for currentSize > requiredSize {
 		currentSize /= 2
 
@@ -1985,7 +1989,7 @@ func (g *BytecodeGenerator) castUnsigned(requiredSize, currentSize Kind) (err er
 	return nil
 }
 
-func (g *BytecodeGenerator) writeInstruction0(opcode Opcode, size Kind) error {
+func (g *BytecodeGenerator) writeInstruction0(opcode Opcode, size int) error {
 	_, err := g.Output.Write([]byte{byte(opcode), byte(size)})
 
 	if err != nil {
@@ -1998,7 +2002,7 @@ func (g *BytecodeGenerator) writeInstruction0(opcode Opcode, size Kind) error {
 	return nil
 }
 
-func (g *BytecodeGenerator) writeInstruction4(opcode Opcode, size Kind, argument uint32) error {
+func (g *BytecodeGenerator) writeInstruction4(opcode Opcode, size int, argument uint32) error {
 	_, err := g.Output.Write([]byte{byte(opcode), byte(size)})
 
 	if err != nil {
@@ -2017,7 +2021,7 @@ func (g *BytecodeGenerator) writeInstruction4(opcode Opcode, size Kind, argument
 	return nil
 }
 
-func (g *BytecodeGenerator) writeInstructionn(opcode Opcode, size Kind, argument uint64) error {
+func (g *BytecodeGenerator) writeInstructionn(opcode Opcode, size int, argument uint64) error {
 	_, err := g.Output.Write([]byte{byte(opcode), byte(size)})
 
 	if err != nil {

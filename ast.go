@@ -9,106 +9,32 @@ import (
 
 // This file needs to be split up in different files wtf is this monster
 
-/*
- * Kind is an integer which stores all the built-in types and some extra info
- * Note: multiple pieces of information are stored in the Kind, so it should
- * never be compared with `==` but with a mask and != 0
- * for example:
- * WRONG: k == KindInt
- * RIGHT: k & KindInt != 0
- */
 type Kind int
 
 const (
 	KindVoid Kind = 0
 	KindAny  Kind = ^0
 
-	Kind8        Kind = 0x1
-	Kind16       Kind = 0x2
-	Kind32       Kind = 0x4
-	Kind64       Kind = 0x8
-	KindSizeMask Kind = 0xf
-
-	KindInt      Kind = 0x10
-	KindFloat    Kind = 0x20
-	KindBoolType Kind = 0x40
-	//unused        Kind = 0x80
-	KindPointerType Kind = 0x100
-	KindArrayType   Kind = 0x200
-	KindTypeMask    Kind = 0x3f0
+	KindInt     Kind = 0x1
+	KindFloat   Kind = 0x2
+	KindBool    Kind = 0x4
+	KindPointer Kind = 0x8
+	KindArray   Kind = 0x10
 
 	KindNumberMask Kind = KindInt | KindFloat
 
-	KindInt8    Kind = KindInt | Kind8
-	KindInt16   Kind = KindInt | Kind16
-	KindInt32   Kind = KindInt | Kind32
-	KindInt64   Kind = KindInt | Kind64
-	KindFloat32 Kind = KindFloat | Kind32
-	KindFloat64 Kind = KindFloat | Kind64
-	KindBool    Kind = KindBoolType | Kind32
-	KindPointer Kind = KindPointerType | Kind64
-	KindArray   Kind = KindArrayType | Kind64
 	KindString  Kind = KindPointer
 )
-
-func KindFromString(str string) Kind {
-	switch str {
-	case "int8":
-		return KindInt8
-	case "int16":
-		return KindInt16
-	case "int32":
-		return KindInt32
-	case "int64":
-		return KindInt64
-	case "float32":
-		return KindFloat32
-	case "float64":
-		return KindFloat64
-	case "bool":
-		return KindBool
-	case "string":
-		return KindString
-	case "any":
-		return KindAny
-	default:
-		return KindVoid
-	}
-}
-
-func (k Kind) String() string {
-	switch k {
-	case KindVoid:
-		return "void"
-	case KindBool:
-		return "bool"
-	case KindString:
-		return "string"
-	case KindInt8:
-		return "int8"
-	case KindInt16:
-		return "int16"
-	case KindInt32:
-		return "int32"
-	case KindInt64:
-		return "int64"
-	case KindFloat32:
-		return "float32"
-	case KindFloat64:
-		return "float64"
-	case KindAny:
-		return "any"
-	default:
-		panic(fmt.Sprintf("Unkown kind: 0x%x", int(k)))
-	}
-}
 
 type Identifier string
 type Type struct {
 	kind  Kind
-	name  Identifier // unused until user-defined types exist
+	size  int
+	name  Identifier
 	inner *Type
 }
+
+var TypeVoid = Type{kind: KindVoid}
 
 type AstNode interface {
 	String() string
@@ -244,11 +170,11 @@ var _ Expression = (*BinaryOpNode)(nil)
 
 func NewBinaryOpNode(lhs, rhs Expression, op BinaryOp) (BinaryOpNode, error) {
 	if lhs.returnType().kind != rhs.returnType().kind {
-		return BinaryOpNode{}, errors.New("lhs and rhs types dont match: " + lhs.returnType().kind.String() + " " + rhs.returnType().kind.String())
+		return BinaryOpNode{}, errors.New("lhs and rhs types dont match: " + string(lhs.returnType().name) + " " + string(rhs.returnType().name))
 	}
 
 	if !op.InputAllowed(lhs.returnType().kind) {
-		return BinaryOpNode{}, errors.New("invalid opperation " + op.String() + " on " + lhs.returnType().kind.String())
+		return BinaryOpNode{}, errors.New("invalid opperation " + op.String() + " on " + string(lhs.returnType().name))
 	}
 
 	return BinaryOpNode{lhs, rhs, op}, nil
@@ -464,7 +390,7 @@ func (b BinaryOp) InputAllowed(input Kind) bool {
 	panic("illegal")
 }
 
-func (b BinaryOp) returnType(input Kind) Kind {
+func (b BinaryOp) returnType(input Type) Type {
 	if BOCount != 28 {
 		panic("Binary Opperation enum length changed")
 	}
@@ -495,37 +421,37 @@ func (b BinaryOp) returnType(input Kind) Kind {
 	case BOShr:
 		return input
 	case BOGt:
-		return KindBool
+		return Type{KindBool, 4, "bool", nil}
 	case BOLt:
-		return KindBool
+		return Type{KindBool, 4, "bool", nil}
 	case BOGtEq:
-		return KindBool
+		return Type{KindBool, 4, "bool", nil}
 	case BOLtEq:
-		return KindBool
+		return Type{KindBool, 4, "bool", nil}
 	case BOEquals:
-		return KindBool
+		return Type{KindBool, 4, "bool", nil}
 	case BONotEqual:
-		return KindBool
+		return Type{KindBool, 4, "bool", nil}
 	case BOAssign:
-		return KindVoid
+		return Type{KindBool, 4, "bool", nil}
 	case BOPlusAssign:
-		return KindVoid
+		return TypeVoid
 	case BODashAssign:
-		return KindVoid
+		return TypeVoid
 	case BOStarAssign:
-		return KindVoid
+		return TypeVoid
 	case BOSlashAssign:
-		return KindVoid
+		return TypeVoid
 	case BoAndAssign:
-		return KindVoid
+		return TypeVoid
 	case BoOrAssign:
-		return KindVoid
+		return TypeVoid
 	case BoXorAssign:
-		return KindVoid
+		return TypeVoid
 	case BOShrAssign:
-		return KindVoid
+		return TypeVoid
 	case BOShlAssign:
-		return KindVoid
+		return TypeVoid
 	}
 
 	panic("illegal")
@@ -640,12 +566,14 @@ const (
 	UONegative
 	UOBoolNot
 	UOBinNot
+	UORef
+	UODeref
 
 	UOCount
 )
 
 func (u UnaryOp) String() string {
-	if UOCount != 4 {
+	if UOCount != 6 {
 		panic("Unary opperation enum length changed")
 	}
 
@@ -658,18 +586,22 @@ func (u UnaryOp) String() string {
 		return "!"
 	case UOBinNot:
 		return "~"
+	case UORef:
+		return "&"
+	case UODeref:
+		return "*"
 	}
 
 	panic("not a unary op")
 }
 
 func (u UnaryOp) OnLeftSide() bool {
-	if UOCount != 4 {
+	if UOCount != 6 {
 		panic("Unary opperation enum length changed")
 	}
 
 	switch u {
-	case UOPlus, UONegative, UOBoolNot, UOBinNot:
+	case UOPlus, UONegative, UOBoolNot, UOBinNot, UORef, UODeref:
 		return true
 	}
 
@@ -677,7 +609,7 @@ func (u UnaryOp) OnLeftSide() bool {
 }
 
 func (u UnaryOp) InputAllowed(input Kind) bool {
-	if UOCount != 4 {
+	if UOCount != 6 {
 		panic("Unary opperation enum length changed")
 	}
 
@@ -687,16 +619,20 @@ func (u UnaryOp) InputAllowed(input Kind) bool {
 	case UONegative:
 		return input&KindNumberMask != 0
 	case UOBoolNot:
-		return input&KindBool&KindTypeMask != 0
+		return input&KindBool != 0
 	case UOBinNot:
 		return input&KindInt != 0
+	case UORef:
+		return true
+	case UODeref:
+		return input & KindPointer != 0
 	}
 
 	panic("not a unary op")
 }
 
-func (u UnaryOp) returnType(input Kind) Kind {
-	if UOCount != 4 {
+func (u UnaryOp) returnType(input Type) Type {
+	if UOCount != 6 {
 		panic("Unary opperation enum length changed")
 	}
 
@@ -709,13 +645,17 @@ func (u UnaryOp) returnType(input Kind) Kind {
 		return input
 	case UOBinNot:
 		return input
+	case UORef:
+		return Type{KindPointer, 8, "", &input}
+	case UODeref:
+		return *input.inner
 	}
 
 	panic("not a unary op")
 }
 
 func (t TokenType) ToUnOp() UnaryOp {
-	if UOCount != 4 {
+	if UOCount != 6 {
 		panic("Unary opperation enum length changed")
 	}
 
@@ -732,6 +672,10 @@ func (t TokenType) ToUnOp() UnaryOp {
 		return UOBoolNot
 	case TTTilde:
 		return UOBinNot
+	case TTAmp:
+		return UORef
+	case TTStar:
+		return UODeref
 	}
 
 	return -1
@@ -775,8 +719,7 @@ func (i IntLit) string() string {
 }
 
 func (i IntLit) returnType() Type {
-	kind := KindInt64
-	return Type{kind, Identifier(kind.String()), nil}
+	return Type{KindInt, 8, "int64", nil}
 }
 
 func (f FloatLit) string() string {
@@ -784,8 +727,7 @@ func (f FloatLit) string() string {
 }
 
 func (i FloatLit) returnType() Type {
-	kind := KindFloat64
-	return Type{kind, Identifier(kind.String()), nil}
+	return Type{KindFloat, 8, "float64", nil}
 }
 
 func (f StrLit) string() string {
@@ -793,8 +735,7 @@ func (f StrLit) string() string {
 }
 
 func (i StrLit) returnType() Type {
-	kind := KindString
-	return Type{kind, Identifier(kind.String()), nil}
+	return Type{KindString, 8, "string", nil}
 }
 
 func (f CharLit) string() string {
@@ -802,8 +743,7 @@ func (f CharLit) string() string {
 }
 
 func (i CharLit) returnType() Type {
-	kind := KindInt32
-	return Type{kind, Identifier(kind.String()), nil}
+	return Type{KindInt, 4, "int32", nil}
 }
 
 func (f BoolLit) string() string {
@@ -815,8 +755,7 @@ func (f BoolLit) string() string {
 }
 
 func (f BoolLit) returnType() Type {
-	kind := KindBool
-	return Type{kind, Identifier(kind.String()), nil}
+	return Type{KindBool, 4, "bool", nil}
 }
 
 func (v Var) string() string {
@@ -871,8 +810,7 @@ func (b BinaryOpNode) string() string {
 }
 
 func (b BinaryOpNode) returnType() Type {
-	kind := b.Op.returnType(b.Lhs.returnType().kind)
-	return Type{kind, Identifier(kind.String()), nil}
+	return b.Op.returnType(b.Lhs.returnType())
 }
 
 func (u UnaryOpNode) string() string {
@@ -884,8 +822,7 @@ func (u UnaryOpNode) string() string {
 }
 
 func (u UnaryOpNode) returnType() Type {
-	kind := u.Op.returnType(u.Expression.returnType().kind)
-	return Type{kind, Identifier(kind.String()), nil}
+	return u.Op.returnType(u.Expression.returnType())
 }
 
 ////////////////////
