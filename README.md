@@ -7,7 +7,7 @@
     use testdata dir with files for files to parse and expected output
  - [ ] fix the rest of this readme
  - [x] expand type system:  
-    arrays, structs, unsigned int, different sizes (int8 vs int64)
+    arrays, structs, unsigned int
  - [ ] use jump instructions for if statements instead of what happens now
  - [ ] for loops
  - [ ] calling functions that are declared further down the file
@@ -17,8 +17,7 @@
  - [ ] type system part 2 (less urgent): enums, interfaces
  - [ ] optimization (definitely not for now)
  - [ ] colapse `Var` and `Const` into a singe structure
- - [ ] casting
- - [ ] fix `sgne` instruction
+ - [ ] importing/modules
 
 # spec:
 

@@ -3,6 +3,8 @@
  * it can go on multiple lines
  */
 
+type anInt int32;
+
 var str: string = "\u0009string\n\tmulti line";
 var something: bool;
 
@@ -178,6 +180,17 @@ fn main() {
 		print("a in block");
 		print(a);
 	}
+
+
+	var aInt: anInt = (3: anInt);
+	print(aInt);
+	print((aInt: int8));
+
+	var aIntPtr: &anInt = &aInt;
+	*aIntPtr = (55: anInt);
+
+	print(aInt);
+	print(*aIntPtr);
 
 	return;
 }

@@ -69,7 +69,7 @@ islt | 0x28 | / | chekcs if the result of cmp is less (negative) and pushes 1 if
 over | 0x29 | / | copies the second value on the stack to the top
 swap | 0x2A | / | swaps the top two values on the stack
 rote | 0x2B | / | moves third value to second place, second value to top and top value to third c b a -> a c b
-sgne | 0x2C | / | extends top signed integer to be one size larger: 8 bits becomes 16, 16 32 and 32 64 janky but works i guess, size byte is input size
+sgne | 0x2C | / | extends top signed integer to be of given size: size byte = 8 -> pop 4 push 8
 band | 0x2D | / | performs a binary and on the top two values
 borr | 0x2E | / | performs a binary or on the top two values
 bnot | 0x2F | / | performs a binary not on the top value
@@ -86,6 +86,7 @@ base | 0x39 | / | pushes the stack base pointer
 free | 0x3A | / | frees the allocated pointer on the top of the stack
 farg | 0x3B | / | indicates that everything from now on until the next `call` instruction is a function argument
 sptr | 0x3C | / | pushes a pointer to the top of the stack
+cvtf | 0x3D | / | convert float to size byte size: size byte = 4 -> pop 8, push 4; size byte = 8 -> pop 4, push 8
 
 `over` `swap` and `rote` assume all elements are of same size because they probably are, otherwise
 what are you doing. These instructions were inspired by porth: [https://gitlab.com/tsoding/porth/-/blob/master/porth.porth?ref_type=heads]

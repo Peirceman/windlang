@@ -104,7 +104,9 @@ func (p *Parser) ParseAll() CodeBlockNode {
 	}
 
 	for statement, eof := p.ParseTopLevel(); !eof; statement, eof = p.ParseTopLevel() {
-		result.Statements = append(result.Statements, statement)
+		if statement != nil {
+			result.Statements = append(result.Statements, statement)
+		}
 	}
 
 	result.scope = p.currentScope[0]
@@ -150,7 +152,7 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 			Value: p.parseExpression(),
 		}
 
-		if node.typ.kind != node.Value.returnType().kind {
+		if !typesMatch(node.typ, node.Value.returnType()) {
 			panic(p.lex.curLoc.String() + " lhs and rhs types dont match")
 		}
 
@@ -194,7 +196,9 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 			Value: p.parseExpression(),
 		}
 
-		if node.typ.kind != node.Value.returnType().kind {
+		if !typesMatch(node.typ, node.Value.returnType()) {
+			fmt.Println(node.typ)
+			fmt.Println(node.Value.returnType())
 			panic(p.lex.curLoc.String() + " lhs and rhs types dont match")
 		}
 
@@ -211,7 +215,18 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 	case TTFn:
 		return p.parseFunc()
 	case TTType:
-		panic("not implemented")
+		p.lex.NextToken()
+
+		name := p.expect(TTIdentifier)
+
+		typ := p.parseType()
+		typ.name = Identifier(name.literal)
+
+		p.typeDefs = append(p.typeDefs, typ)
+
+		p.expect(TTSemiColon)
+
+		return nil, false
 
 	case TTEOF:
 		return nil, true
@@ -256,7 +271,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 			Value: p.parseExpression(),
 		}
 
-		if node.typ.kind != node.Value.returnType().kind {
+		if !typesMatch(node.typ, node.Value.returnType()) {
 			panic(fmt.Sprintf(p.lex.curLoc.String()+" lhs and rhs types dont match: %v, %v", node.typ, node.Value.returnType()))
 		}
 
@@ -294,7 +309,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 			Value: p.parseExpression(),
 		}
 
-		if node.typ.kind != node.Value.returnType().kind {
+		if !typesMatch(node.typ, node.Value.returnType()) {
 			panic(p.lex.curLoc.String() + " lhs and rhs types dont match")
 		}
 
@@ -345,7 +360,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 		node := IfChain{}
 		node.IfCondition = p.parseExpression()
 
-		if node.IfCondition.returnType().kind != KindBool {
+		if node.IfCondition.returnType().kind != KindBool { // Kind bool instead of "real" bool because typedefed bools can also be used
 			panic(p.lex.curLoc.String() + " boolean expression expected")
 		}
 
@@ -363,7 +378,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 
 			condition := p.parseExpression()
 
-			if condition.returnType().kind != KindBool {
+			if condition.returnType().kind != KindBool { // same as before
 				panic(p.lex.curLoc.String() + " boolean expression expected")
 			}
 
@@ -401,7 +416,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 		node := WhileNode{}
 		node.Condition = p.parseExpression()
 
-		if node.Condition.returnType().kind != KindBool {
+		if node.Condition.returnType().kind != KindBool { // same as in if
 			panic(p.lex.curLoc.String() + " boolean expression expected")
 		}
 
@@ -698,9 +713,9 @@ func (p *Parser) parsePrimary() Expression {
 		funcName := Identifier(tok.literal)
 
 		expr := FuncCall{}
-		switch val := p.get(funcName); val.(type) {
+		switch val := p.get(funcName).(type) {
 		case Func:
-			expr.fun = val.(Func)
+			expr.fun = val
 		default:
 			p.lex.NextToken()
 			fmt.Println(val)
@@ -722,9 +737,9 @@ func (p *Parser) parsePrimary() Expression {
 			expr.Args = append(expr.Args, arg)
 			argIdx++
 
-			expectedKind := expr.fun.Args[argIdx].returnType().kind
+			expectedType := expr.fun.Args[argIdx].returnType()
 
-			if arg.returnType().kind != expectedKind && expectedKind != KindAny {
+			if !typesMatch(arg.returnType(), expectedType) && expectedType.kind != KindAny {
 				panic(loc.String() + " Error: argument type mismatch")
 			}
 
@@ -773,11 +788,25 @@ func (p *Parser) parsePrimary() Expression {
 		p.lex.NextToken()
 		result := p.parseBinary(0)
 
-		if p.lex.NextToken().typ != TTRBrace {
-			panic(p.lex.curLoc.String() + " `)` expected") // TODO: better error handling
+		next := p.lex.NextToken().typ
+		if next == TTRBrace {
+			return result
 		}
 
-		return result
+		if next == TTColon {
+			typ := p.parseType()
+
+			// TODO: some sort of `canCast` function
+			if typ.kind != result.returnType().kind {
+				panic(fmt.Errorf("%s ERROR: cannot cast: incompatible types", p.lex.curLoc.String()))
+			}
+
+			p.expect(TTRBrace)
+
+			return Cast{inner: result, newType: typ}
+		}
+
+		p.expect(TTRBrace)
 	}
 
 	panic(p.lex.NextToken().String() + " illegal token") // TODO: better error handling

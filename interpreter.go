@@ -342,7 +342,7 @@ func (i *Interpreter) Execute() int {
 			ptr := pointerFromUint64(i.popUnsigned(8))
 			str := i.dataStart(ptr)
 			strLen := binary.BigEndian.Uint64(str)
-			str = str[8:8+strLen]
+			str = str[8 : 8+strLen]
 			fmt.Println(string(str))
 
 		case isgt:
@@ -418,8 +418,7 @@ func (i *Interpreter) Execute() int {
 			i.pushUnsigned(b, instruction.Size)
 
 		case sgne:
-			a := (0xffffffffffffffff << (instruction.Size * 8)) | i.popUnsigned(instruction.Size)
-			i.pushUnsigned(a, instruction.Size*2)
+			i.pushSigned(i.popSigned(instruction.Size/2), instruction.Size)
 
 		case band:
 			b := i.popUnsigned(instruction.Size)
@@ -486,7 +485,7 @@ func (i *Interpreter) Execute() int {
 				i.pushUnsigned(uint64(math.Float32bits(-a)), 4)
 			} else {
 				a := math.Float64frombits(uint64(i.popUnsigned(8)))
-				i.pushUnsigned(uint64(math.Float64bits(-a)), 8)
+				i.pushUnsigned(math.Float64bits(-a), 8)
 			}
 
 		case base:
@@ -501,6 +500,15 @@ func (i *Interpreter) Execute() int {
 
 		case sptr:
 			i.pushUnsigned(bytecodePointer{locStack, 0, uint64(len(i.Stack))}.toUint64(), 8)
+
+		case cvtf:
+			if instruction.Size == 4 {
+				a := math.Float64frombits(i.popUnsigned(8))
+				i.pushUnsigned(uint64(math.Float32bits(float32(a))), 4)
+			} else {
+				a := math.Float32frombits(uint32(i.popUnsigned(4)))
+				i.pushUnsigned(math.Float64bits(float64(a)), 8)
+			}
 
 		default:
 			fmt.Println("unknown: ", instruction.Code)

@@ -64,6 +64,7 @@ const (
 	free
 	farg
 	sptr
+	cvtf
 
 	jptr = jpne
 	jpfl = jpeq

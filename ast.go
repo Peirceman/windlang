@@ -36,6 +36,26 @@ type Type struct {
 
 var TypeVoid = Type{kind: KindVoid}
 
+func typesMatch(a, b Type) bool {
+	aPtr, bPtr := &a, &b
+
+	for ;aPtr != nil && bPtr != nil; aPtr, bPtr = aPtr.inner, bPtr.inner {
+		if aPtr.size != bPtr.size {
+			return false
+		}
+
+		if aPtr.kind != bPtr.kind {
+			return false
+		}
+
+		if aPtr.name != bPtr.name {
+			return false
+		}
+	}
+
+	return aPtr == nil && bPtr == nil
+}
+
 type AstNode interface {
 	String() string
 }
@@ -120,6 +140,13 @@ type FuncCall struct {
 
 var _ Expression = (*FuncCall)(nil)
 
+type Cast struct {
+	inner   Expression
+	newType Type
+}
+
+var _ Expression = (*Cast)(nil)
+
 type BinaryOp int
 
 const (
@@ -169,7 +196,7 @@ type BinaryOpNode struct {
 var _ Expression = (*BinaryOpNode)(nil)
 
 func NewBinaryOpNode(lhs, rhs Expression, op BinaryOp) (BinaryOpNode, error) {
-	if lhs.returnType().kind != rhs.returnType().kind {
+	if !typesMatch(lhs.returnType(), rhs.returnType()){
 		return BinaryOpNode{}, errors.New("lhs and rhs types dont match: " + string(lhs.returnType().name) + " " + string(rhs.returnType().name))
 	}
 
@@ -742,7 +769,7 @@ func (f StrLit) string() string {
 }
 
 func (i StrLit) returnType() Type {
-	return Type{KindString, 8, "string", nil}
+	return Type{KindString, 8, "string", &Type{KindInt, 1, "byte", nil}}
 }
 
 func (f CharLit) string() string {
@@ -810,6 +837,14 @@ func (f FuncCall) string() string {
 
 func (f FuncCall) returnType() Type {
 	return f.fun.returnType()
+}
+
+func (c Cast) string() string {
+	return ""
+}
+
+func (c Cast) returnType() Type {
+	return c.newType
 }
 
 func (b BinaryOpNode) string() string {

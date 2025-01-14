@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"reflect"
 	"slices"
 	"strconv"
 )
@@ -809,11 +810,58 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 			return err
 		}
 
+	case Cast:
+		switch expression.newType.kind {
+		case KindInt:
+			err := g.writeExpression(expression.inner)
+
+			if err != nil {
+				return err
+			}
+
+			err = g.castSigned(expression.newType.size, expression.inner.returnType().size)
+
+			if err != nil {
+				return err
+			}
+
+		case KindBool:
+			err := g.writeExpression(expression.inner)
+
+			if err != nil {
+				return err
+			}
+
+			err = g.castUnsigned(expression.newType.size, expression.inner.returnType().size)
+
+			if err != nil {
+				return err
+			}
+
+		case KindPointer:
+			panic("should not happen")
+
+		case KindFloat:
+			err := g.writeExpression(expression.inner)
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstruction0(cvtf, expression.newType.size)
+
+			if err != nil {
+				return err
+			}
+		}
+
 	case BinaryOpNode:
 		return g.generateBinaryOpNode(expression)
 
 	case UnaryOpNode:
 		return g.generateUnaryOpNode(expression)
+	default:
+		panic("Unknow or unimplemented expression: " + reflect.TypeOf(expression).String())
 	}
 
 	return nil
@@ -1973,6 +2021,35 @@ func (g *BytecodeGenerator) castUnsigned(requiredSize, currentSize int) (err err
 	return nil
 }
 
+func (g *BytecodeGenerator) castSigned(requiredSize, currentSize int) (err error) {
+	for currentSize > requiredSize {
+		currentSize /= 2
+
+		err = g.writeInstruction0(swap, currentSize)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(pops, currentSize)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	for currentSize < requiredSize {
+		currentSize *= 2
+		err = g.writeInstruction0(sgne, currentSize)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (g *BytecodeGenerator) writeInstruction0(opcode Opcode, size int) error {
 	_, err := g.Output.Write([]byte{byte(opcode), byte(size)})
 
@@ -2089,7 +2166,7 @@ found:
 	return nil
 }
 
-func (g *BytecodeGenerator) writeAssignLhs(lhs Expression) error{
+func (g *BytecodeGenerator) writeAssignLhs(lhs Expression) error {
 	derefCount := 0
 
 	for true {

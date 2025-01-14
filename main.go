@@ -52,10 +52,10 @@ func main() {
 
 		interpreter.Execute()
 
-		fmt.Println("\n *** stack dump ***")
-		fmt.Println(interpreter.Stack)
-		fmt.Println("\n *** data dump ***")
-		fmt.Println(interpreter.Data)
+		if len(interpreter.Stack) != 0 {
+			fmt.Fprintln(os.Stderr, "ERROR: data left on the stack")
+			fmt.Fprintln(os.Stderr, interpreter.Stack)
+		}
 	} else if fileName == "parse" {
 		val := floatparsing.Parse(os.Args[2])
 		fmt.Println("value:", val)
