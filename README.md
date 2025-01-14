@@ -22,9 +22,9 @@
 
 ### keywords
 ```
-const var    fn        return
+const var    fn        return false
 type  struct interface while
-if    elif   else
+if    elif   else      true
 ```
 
 ### letters & digits
