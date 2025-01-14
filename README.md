@@ -6,8 +6,7 @@
  - [ ] testing:  
     use testdata dir with files for files to parse and expected output
  - [ ] fix the rest of this readme
- - [x] expand type system:  
-    arrays, structs, unsigned int
+ - [x] expand type system: arrays, structs
  - [ ] use jump instructions for if statements instead of what happens now
  - [ ] for loops
  - [ ] calling functions that are declared further down the file

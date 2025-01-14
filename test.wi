@@ -192,6 +192,53 @@ fn main() {
 	print(aInt);
 	print(*aIntPtr);
 
+	/*
+	 in | out
+	--------
+	 u  =  u
+	 u  <  u
+	 u  >  u
+
+	 u  =  s
+	 u  <  s
+	 u  >  s
+
+	 s  =  u
+	 s  <  u
+	 s  >  u
+
+	 s  =  s
+	 s  <  s
+	 s  >  s
+	*/
+
+	print("");
+
+	var castTesterU: uint32 = (0xffffffff: uint32);
+	print((castTesterU: uint32));
+	print((castTesterU: uint64));
+	print((castTesterU: uint16));
+
+	print("");
+
+	print((castTesterU: int32));
+	print((castTesterU: int64));
+	print((castTesterU: int16));
+
+	var castTesterI: int32 = (0xffffffff: int32);
+
+	print("");
+
+	print((castTesterI: uint32));
+	print((castTesterI: uint64));
+	print((castTesterI: uint16));
+
+	print("");
+
+	print((castTesterI: int32));
+	print((castTesterI: int64));
+	print((castTesterI: int16));
+
 	return;
 }
 

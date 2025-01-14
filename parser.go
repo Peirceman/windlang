@@ -37,17 +37,20 @@ func ParserFromString(str string) (p *Parser) {
 }
 
 func (p *Parser) addBuiltIns() {
-	p.typeDefs = []Type {
+	p.typeDefs = []Type{
 		{KindInt, 1, "int8", nil},
 		{KindInt, 2, "int16", nil},
 		{KindInt, 4, "int32", nil},
 		{KindInt, 8, "int64", nil},
+		{KindUint, 1, "uint8", nil},
+		{KindUint, 2, "uint16", nil},
+		{KindUint, 4, "uint32", nil},
+		{KindUint, 8, "uint64", nil},
 		{KindFloat, 4, "float32", nil},
 		{KindFloat, 8, "float64", nil},
 		{KindBool, 4, "bool", nil},
-		{KindString, 8, "string", &Type{KindInt, 1, "byte", nil}},
+		{KindString, 8, "string", &Type{KindUint, 1, "uint8", nil}},
 	}
-
 
 	p.addFunc(Func{
 		"println",
@@ -797,7 +800,13 @@ func (p *Parser) parsePrimary() Expression {
 			typ := p.parseType()
 
 			// TODO: some sort of `canCast` function
-			if typ.kind != result.returnType().kind {
+			innerKind := typ.kind
+			resultKind := result.returnType().kind
+			sameKind := innerKind == resultKind
+			intToUint := (innerKind == KindUint && resultKind == KindInt) ||
+				(typ.kind == KindInt && resultKind == KindUint)
+
+			if !sameKind && !intToUint {
 				panic(fmt.Errorf("%s ERROR: cannot cast: incompatible types", p.lex.curLoc.String()))
 			}
 

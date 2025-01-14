@@ -16,12 +16,13 @@ const (
 	KindAny  Kind = ^0
 
 	KindInt     Kind = 0x1
-	KindFloat   Kind = 0x2
-	KindBool    Kind = 0x4
-	KindPointer Kind = 0x8
-	KindArray   Kind = 0x10
+	KindUint    Kind = 0x2
+	KindFloat   Kind = 0x4
+	KindBool    Kind = 0x8
+	KindPointer Kind = 0x10
+	KindArray   Kind = 0x20
 
-	KindNumberMask Kind = KindInt | KindFloat
+	KindNumberMask Kind = KindInt | KindUint | KindFloat
 
 	KindString  Kind = KindPointer
 )
@@ -769,7 +770,7 @@ func (f StrLit) string() string {
 }
 
 func (i StrLit) returnType() Type {
-	return Type{KindString, 8, "string", &Type{KindInt, 1, "byte", nil}}
+	return Type{KindString, 8, "string", &Type{KindUint, 1, "uint8", nil}}
 }
 
 func (f CharLit) string() string {

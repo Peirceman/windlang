@@ -727,8 +727,15 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 			}
 
 			switch arg.returnType().kind {
-			case KindInt, KindBool:
+			case KindInt:
 				err = g.writeInstruction0(prti, arg.returnType().size)
+
+				if err != nil {
+					return err
+				}
+
+			case KindUint, KindBool:
+				err = g.writeInstruction0(prtu, arg.returnType().size)
 
 				if err != nil {
 					return err
@@ -751,6 +758,9 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 				if err != nil {
 					return err
 				}
+
+			default:
+				panic("cannot print kind " + strconv.Itoa(int(arg.returnType().kind)))
 			}
 
 			break
@@ -819,13 +829,22 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 				return err
 			}
 
-			err = g.castSigned(expression.newType.size, expression.inner.returnType().size)
+			newSize, oldSize := expression.newType.size, expression.inner.returnType().size
+
+			if expression.inner.returnType().kind == KindInt || newSize == oldSize {
+				err = g.castSigned(newSize, oldSize)
+			} else {
+				// when casting from uint to int of different sizes 2 cases can occur:
+				// sizeof uint > sizeof int: for casting to smaller size, signed and unsigned behave the same
+				// sizeof uint < sizeof int: need to treat as unsigned cast ((0xff: uint8): int64) should be 255 not -1
+				err = g.castUnsigned(newSize, oldSize)
+			}
 
 			if err != nil {
 				return err
 			}
 
-		case KindBool:
+		case KindUint, KindBool:
 			err := g.writeExpression(expression.inner)
 
 			if err != nil {
