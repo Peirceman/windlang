@@ -38,30 +38,30 @@ func ParserFromString(str string) (p *Parser) {
 
 func (p *Parser) addBuiltIns() {
 	p.typeDefs = []Type{
-		{KindInt, 1, "int8", nil},
-		{KindInt, 2, "int16", nil},
-		{KindInt, 4, "int32", nil},
-		{KindInt, 8, "int64", nil},
-		{KindUint, 1, "uint8", nil},
-		{KindUint, 2, "uint16", nil},
-		{KindUint, 4, "uint32", nil},
-		{KindUint, 8, "uint64", nil},
-		{KindFloat, 4, "float32", nil},
-		{KindFloat, 8, "float64", nil},
-		{KindBool, 4, "bool", nil},
-		{KindString, 8, "string", &Type{KindUint, 1, "uint8", nil}},
+		SimpleType{KindInt, 1, "int8"},
+		SimpleType{KindInt, 2, "int16"},
+		SimpleType{KindInt, 4, "int32"},
+		SimpleType{KindInt, 8, "int64"},
+		SimpleType{KindUint, 1, "uint8"},
+		SimpleType{KindUint, 2, "uint16"},
+		SimpleType{KindUint, 4, "uint32"},
+		SimpleType{KindUint, 8, "uint64"},
+		SimpleType{KindFloat, 4, "float32"},
+		SimpleType{KindFloat, 8, "float64"},
+		SimpleType{KindBool, 4, "bool"},
+		PointerType{"string", SimpleType{KindUint, 1, "uint8"}},
 	}
 
 	p.addFunc(Func{
 		"println",
-		[]Var{{"any", Type{KindAny, 0, "any", nil}, false}},
-		Type{},
+		[]Var{{"any", SimpleType{KindAny, 0, "any"}, false}},
+		SimpleType{},
 	})
 
 	p.addFunc(Func{
 		"print",
-		[]Var{{"any", Type{KindAny, 0, "any", nil}, false}},
-		Type{},
+		[]Var{{"any", SimpleType{KindAny, 0, "any"}, false}},
+		SimpleType{},
 	})
 }
 
@@ -158,7 +158,7 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 			Value: p.parseExpression(),
 		}
 
-		if !typesMatch(node.typ, node.Value.returnType()) {
+		if !EqualTypes(node.typ, node.Value.returnType()) {
 			panic(p.lex.curLoc.String() + " lhs and rhs types dont match")
 		}
 
@@ -203,7 +203,7 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 
 		p.expect(TTSemiColon)
 
-		if !typesMatch(node.typ, node.Value.returnType()) {
+		if !EqualTypes(node.typ, node.Value.returnType()) {
 			fmt.Println(node.typ)
 			fmt.Println(node.Value.returnType())
 			panic(p.lex.curLoc.String() + " lhs and rhs types dont match")
@@ -219,13 +219,14 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 
 	case TTFn:
 		return p.parseFunc()
+
 	case TTType:
 		p.lex.NextToken()
 
 		name := p.expect(TTIdentifier)
 
 		typ := p.parseType()
-		typ.name = Identifier(name.literal)
+		typ = typ.SetName(Identifier(name.literal))
 
 		p.typeDefs = append(p.typeDefs, typ)
 
@@ -286,7 +287,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 
 		p.expect(TTSemiColon)
 
-		if !typesMatch(node.typ, node.Value.returnType()) {
+		if !EqualTypes(node.typ, node.Value.returnType()) {
 			panic(fmt.Sprintf(p.lex.curLoc.String()+" lhs and rhs types dont match: %v, %v", node.typ, node.Value.returnType()))
 		}
 
@@ -336,7 +337,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 
 		p.expect(TTSemiColon)
 
-		if !typesMatch(node.typ, node.Value.returnType()) {
+		if !EqualTypes(node.typ, node.Value.returnType()) {
 			panic(p.lex.curLoc.String() + " lhs and rhs types dont match")
 		}
 
@@ -385,7 +386,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 		node := IfChain{}
 		node.IfCondition = p.parseExpression()
 
-		if node.IfCondition.returnType().kind != KindBool { // Kind bool instead of "real" bool because typedefed bools can also be used
+		if node.IfCondition.returnType().Kind() != KindBool { // Kind bool instead of "real" bool because typedefed bools can also be used
 			panic(p.lex.curLoc.String() + " boolean expression expected")
 		}
 
@@ -403,7 +404,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 
 			condition := p.parseExpression()
 
-			if condition.returnType().kind != KindBool { // same as before
+			if condition.returnType().Kind() != KindBool { // same as before
 				panic(p.lex.curLoc.String() + " boolean expression expected")
 			}
 
@@ -441,7 +442,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 		node := WhileNode{}
 		node.Condition = p.parseExpression()
 
-		if node.Condition.returnType().kind != KindBool { // same as in if
+		if node.Condition.returnType().Kind() != KindBool { // same as in if
 			panic(p.lex.curLoc.String() + " boolean expression expected")
 		}
 
@@ -491,7 +492,7 @@ func (p *Parser) parseCodeBlock() (CodeBlockNode, bool) {
 
 func (p *Parser) parseFunc() (FuncNode, bool) {
 	p.lex.NextToken()
-	node := FuncNode{}
+	node := FuncNode{returnType: TypeVoid}
 
 	name := p.expect(TTIdentifier)
 	node.name = Identifier(name.literal)
@@ -545,23 +546,41 @@ func (p *Parser) parseFunc() (FuncNode, bool) {
 
 func (p *Parser) parseType() Type {
 	tok := p.lex.NextToken()
+
 	switch tok.typ {
 	case TTIdentifier:
 		for _, typedef := range p.typeDefs {
-			if typedef.name == Identifier(tok.literal) {
+			if typedef.Name() == Identifier(tok.literal) {
 				return typedef
 			}
 		}
+
 	case TTLSquare:
+		panic("arrays not yet fully implemented")
 		p.expect(TTRSquare)
-		inner := p.parseType()
-		return Type{KindArray, 8, "", &inner}
+		_ = p.parseType() // inner
+
+		// return SimpleType{KindArray, 8, "", &inner}
+
 	case TTAmp:
 		inner := p.parseType()
-		return Type{KindPointer, 8, "", &inner}
-	case TTAnd: // special case because `&&` is seen as 1 token but is actually 2 pointers
+		return PointerType{"", inner}
+
+	case TTAnd: // special case for `&&` which is seen as one token
 		inner := p.parseType()
-		return Type{KindPointer, 8, "", &Type{KindPointer, 8, "", &inner}}
+		return PointerType{"", PointerType{"", inner}}
+
+	case TTStruct:
+		p.expect(TTLSquirly)
+		for tok := p.lex.PeekToken(); tok.typ != TTRSquirly && tok.typ != TTEOF; tok = p.lex.PeekToken() {
+			p.lex.NextToken()
+
+			// iden := p.expect(TTIdentifier)
+
+			p.expect(TTColon)
+		}
+
+		p.expect(TTRSquirly)
 	}
 
 	panic(tok.loc.String() + " Error: expected type")
@@ -776,7 +795,7 @@ func (p *Parser) parsePrimary() Expression {
 
 			expectedType := expr.fun.Args[argIdx].returnType()
 
-			if !typesMatch(arg.returnType(), expectedType) && expectedType.kind != KindAny {
+			if !EqualTypes(arg.returnType(), expectedType) && expectedType.Kind() != KindAny {
 				panic(loc.String() + " Error: argument type mismatch")
 			}
 
@@ -834,11 +853,11 @@ func (p *Parser) parsePrimary() Expression {
 			typ := p.parseType()
 
 			// TODO: some sort of `canCast` function
-			innerKind := typ.kind
-			resultKind := result.returnType().kind
+			innerKind := typ.Kind()
+			resultKind := result.returnType().Kind()
 			sameKind := innerKind == resultKind
 			intToUint := (innerKind == KindUint && resultKind == KindInt) ||
-				(typ.kind == KindInt && resultKind == KindUint)
+				(typ.Kind() == KindInt && resultKind == KindUint)
 
 			if !sameKind && !intToUint {
 				panic(fmt.Errorf("%s ERROR: cannot cast: incompatible types", p.lex.curLoc.String()))

@@ -21,6 +21,7 @@ const (
 	KindBool    Kind = 0x8
 	KindPointer Kind = 0x10
 	KindArray   Kind = 0x20
+	KindStruct  Kind = 0x40
 
 	KindNumberMask Kind = KindInt | KindUint | KindFloat
 
@@ -28,33 +29,65 @@ const (
 )
 
 type Identifier string
-type Type struct {
-	kind  Kind
-	size  int
-	name  Identifier
-	inner *Type
+type Type interface {
+	Kind() Kind
+	Size() int
+	Name() Identifier
+	SetName(Identifier) Type
+	matches(other Type) bool
 }
 
-var TypeVoid = Type{kind: KindVoid}
+type SimpleType struct {
+	kind Kind
+	size int
+	name Identifier
+}
 
-func typesMatch(a, b Type) bool {
-	aPtr, bPtr := &a, &b
+var _ Type = (*SimpleType)(nil)
 
-	for ; aPtr != nil && bPtr != nil; aPtr, bPtr = aPtr.inner, bPtr.inner {
-		if aPtr.size != bPtr.size {
-			return false
-		}
+type PointerType struct {
+	name  Identifier
+	inner Type
+}
 
-		if aPtr.kind != bPtr.kind {
-			return false
-		}
+var _ Type = (*PointerType)(nil)
 
-		if aPtr.name != bPtr.name {
-			return false
-		}
+var TypeVoid = SimpleType{kind: KindVoid}
+
+func EqualTypes(a, b Type) bool {
+	switch a.(type) {
+	case SimpleType:
+		_, ok := b.(SimpleType)
+		return ok && a.matches(b)
+	case PointerType:
+		_, ok := b.(PointerType)
+		return ok && a.matches(b)
 	}
 
-	return aPtr == nil && bPtr == nil
+	panic("unknow Type")
+}
+
+func (s SimpleType) Kind() Kind              { return s.kind }
+func (s SimpleType) Size() int               { return s.size }
+func (s SimpleType) Name() Identifier        { return s.name }
+func (s SimpleType) matches(other Type) bool { return s == other.(SimpleType) }
+
+func (s SimpleType) SetName(iden Identifier) Type {
+	s.name = iden
+	return s
+}
+
+func (p PointerType) Kind() Kind       { return KindPointer }
+func (p PointerType) Size() int        { return 8 }
+func (p PointerType) Name() Identifier { return p.name }
+
+func (p PointerType) SetName(iden Identifier) Type {
+	p.name = iden
+	return p
+}
+
+func (p PointerType) matches(other Type) bool {
+	return EqualTypes(p.inner, other.(PointerType).inner)
 }
 
 type AstNode interface {
@@ -191,12 +224,12 @@ type BinaryOpNode struct {
 var _ Expression = (*BinaryOpNode)(nil)
 
 func NewBinaryOpNode(lhs, rhs Expression, op BinaryOp) (BinaryOpNode, error) {
-	if !typesMatch(lhs.returnType(), rhs.returnType()) {
-		return BinaryOpNode{}, errors.New("lhs and rhs types dont match: " + string(lhs.returnType().name) + " " + string(rhs.returnType().name))
+	if !EqualTypes(lhs.returnType(), rhs.returnType()) {
+		return BinaryOpNode{}, errors.New("lhs and rhs types dont match: " + string(lhs.returnType().Name()) + " " + string(rhs.returnType().Name()))
 	}
 
-	if !op.InputAllowed(lhs.returnType().kind) {
-		return BinaryOpNode{}, errors.New("invalid opperation " + op.String() + " on " + string(lhs.returnType().name))
+	if !op.InputAllowed(lhs.returnType().Kind()) {
+		return BinaryOpNode{}, errors.New("invalid opperation " + op.String() + " on " + string(lhs.returnType().Name()))
 	}
 
 	return BinaryOpNode{lhs, rhs, op}, nil
@@ -443,17 +476,17 @@ func (b BinaryOp) returnType(input Type) Type {
 	case BOShr:
 		return input
 	case BOGt:
-		return Type{KindBool, 4, "bool", nil}
+		return SimpleType{KindBool, 4, "bool"}
 	case BOLt:
-		return Type{KindBool, 4, "bool", nil}
+		return SimpleType{KindBool, 4, "bool"}
 	case BOGtEq:
-		return Type{KindBool, 4, "bool", nil}
+		return SimpleType{KindBool, 4, "bool"}
 	case BOLtEq:
-		return Type{KindBool, 4, "bool", nil}
+		return SimpleType{KindBool, 4, "bool"}
 	case BOEquals:
-		return Type{KindBool, 4, "bool", nil}
+		return SimpleType{KindBool, 4, "bool"}
 	case BONotEqual:
-		return Type{KindBool, 4, "bool", nil}
+		return SimpleType{KindBool, 4, "bool"}
 	case BOAssign:
 		return TypeVoid
 	case BOPlusAssign:
@@ -641,13 +674,13 @@ func (u UnaryOp) InputAllowed(input Kind) bool {
 	case UONegative:
 		return input&KindNumberMask != 0
 	case UOBoolNot:
-		return input&KindBool != 0
+		return input == KindBool
 	case UOBinNot:
-		return input&KindInt != 0
+		return input == KindInt || input == KindUint
 	case UORef:
 		return true
 	case UODeref:
-		return input&KindPointer != 0
+		return input == KindPointer
 	}
 
 	panic("not a unary op")
@@ -668,9 +701,9 @@ func (u UnaryOp) returnType(input Type) Type {
 	case UOBinNot:
 		return input
 	case UORef:
-		return Type{KindPointer, 8, "", &input}
+		return PointerType{"", input}
 	case UODeref:
-		return *input.inner
+		return input.(PointerType).inner
 	}
 
 	panic("not a unary op")
@@ -711,8 +744,8 @@ type UnaryOpNode struct {
 var _ Expression = (*UnaryOpNode)(nil)
 
 func NewUnaryOpNode(expression Expression, op UnaryOp) (Expression, error) {
-	if !op.InputAllowed(expression.returnType().kind) {
-		return UnaryOpNode{}, fmt.Errorf("Invalid opperation %s on %s", op.String(), expression.returnType().name)
+	if !op.InputAllowed(expression.returnType().Kind()) {
+		return UnaryOpNode{}, fmt.Errorf("Invalid opperation %s on %s", op.String(), expression.returnType().Name())
 	}
 
 	switch op {
@@ -749,7 +782,7 @@ func (i IntLit) string() string {
 }
 
 func (i IntLit) returnType() Type {
-	return Type{KindInt, 8, "int64", nil}
+	return SimpleType{KindInt, 8, "int64"}
 }
 
 func (f FloatLit) string() string {
@@ -757,7 +790,7 @@ func (f FloatLit) string() string {
 }
 
 func (i FloatLit) returnType() Type {
-	return Type{KindFloat, 8, "float64", nil}
+	return SimpleType{KindFloat, 8, "float64"}
 }
 
 func (f StrLit) string() string {
@@ -765,7 +798,7 @@ func (f StrLit) string() string {
 }
 
 func (i StrLit) returnType() Type {
-	return Type{KindString, 8, "string", &Type{KindUint, 1, "uint8", nil}}
+	return PointerType{"string", SimpleType{KindUint, 1, "uint8"}}
 }
 
 func (f CharLit) string() string {
@@ -773,7 +806,7 @@ func (f CharLit) string() string {
 }
 
 func (i CharLit) returnType() Type {
-	return Type{KindInt, 4, "int32", nil}
+	return SimpleType{KindInt, 4, "int32"}
 }
 
 func (f BoolLit) string() string {
@@ -785,7 +818,7 @@ func (f BoolLit) string() string {
 }
 
 func (f BoolLit) returnType() Type {
-	return Type{KindBool, 4, "bool", nil}
+	return SimpleType{KindBool, 4, "bool"}
 }
 
 func (v Var) string() string {
@@ -952,14 +985,14 @@ func (s *Scope) AddFunc(f Func) {
 func (v VarNode) String() string {
 	if v.isConst {
 		if v.Value == nil {
-			return "const " + string(v.name) + ": " + string(v.typ.name) + ";"
+			return "const " + string(v.name) + ": " + string(v.typ.Name()) + ";"
 		}
-		return "const " + string(v.name) + ": " + string(v.typ.name) + " = " + v.Value.string() + ";"
+		return "const " + string(v.name) + ": " + string(v.typ.Name()) + " = " + v.Value.string() + ";"
 	} else {
 		if v.Value == nil {
-			return "var " + string(v.name) + ": " + string(v.typ.name) + ";"
+			return "var " + string(v.name) + ": " + string(v.typ.Name()) + ";"
 		}
-		return "var " + string(v.name) + ": " + string(v.typ.name) + " = " + v.Value.string() + ";"
+		return "var " + string(v.name) + ": " + string(v.typ.Name()) + " = " + v.Value.string() + ";"
 	}
 }
 
@@ -973,20 +1006,20 @@ func (f FuncNode) String() string {
 	if len(f.Args) > 0 {
 		sb.WriteString(string(f.Args[0].name))
 		sb.WriteString(": ")
-		sb.WriteString(string(f.Args[0].typ.name))
+		sb.WriteString(string(f.Args[0].typ.Name()))
 		for _, arg := range f.Args[1:] {
 			sb.WriteString(", ")
 			sb.WriteString(string(arg.name))
 			sb.WriteString(": ")
-			sb.WriteString(string(arg.typ.name))
+			sb.WriteString(string(arg.typ.Name()))
 		}
 	}
 
 	sb.WriteRune(')')
 
-	if f.returnType.kind != KindVoid {
+	if f.returnType.Kind() != KindVoid {
 		sb.WriteString(": ")
-		sb.WriteString(string(f.returnType.name))
+		sb.WriteString(string(f.returnType.Name()))
 	}
 
 	sb.WriteRune(' ')
