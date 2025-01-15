@@ -58,7 +58,7 @@ identifier | [letter][let_and_d] ([letter][let_and_d] \| [digit][let_and_d] )*
 
 ### expressions
 
-a mathamatical expression
+a mathematical expression
 
 ### Types
 

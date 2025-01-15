@@ -150,7 +150,7 @@ func (l *Lexer) nextToken() *Token {
 		panic("TokenType enum length changed: " + strconv.Itoa(int(TTCount)))
 	}
 
-	if unicode.IsLetter(r) {
+	if unicode.IsLetter(r) || r == '_' {
 		return l.readAfterLetter()
 	}
 
@@ -615,7 +615,7 @@ func (l *Lexer) readAfterLetter() *Token {
 	tok := &Token{}
 	tok.loc = l.curLoc
 
-	for r, eof := l.peekRune(); !eof && (unicode.IsLetter(r) || unicode.IsDigit(r)); r, eof = l.peekRune() {
+	for r, eof := l.peekRune(); !eof && (unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_'); r, eof = l.peekRune() {
 		l.nextRune()
 		tokenText.WriteRune(r)
 	}
