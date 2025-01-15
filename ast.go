@@ -24,7 +24,7 @@ const (
 
 	KindNumberMask Kind = KindInt | KindUint | KindFloat
 
-	KindString  Kind = KindPointer
+	KindString Kind = KindPointer
 )
 
 type Identifier string
@@ -40,7 +40,7 @@ var TypeVoid = Type{kind: KindVoid}
 func typesMatch(a, b Type) bool {
 	aPtr, bPtr := &a, &b
 
-	for ;aPtr != nil && bPtr != nil; aPtr, bPtr = aPtr.inner, bPtr.inner {
+	for ; aPtr != nil && bPtr != nil; aPtr, bPtr = aPtr.inner, bPtr.inner {
 		if aPtr.size != bPtr.size {
 			return false
 		}
@@ -113,18 +113,12 @@ type BoolLit struct {
 var _ Expression = (*BoolLit)(nil)
 
 type Var struct {
-	name Identifier
-	typ  Type
+	name    Identifier
+	typ     Type
+	isConst bool
 }
 
 var _ Expression = (*Var)(nil)
-
-type Const struct {
-	name Identifier
-	typ  Type
-}
-
-var _ Expression = (*Const)(nil)
 
 type Func struct {
 	name    Identifier
@@ -197,7 +191,7 @@ type BinaryOpNode struct {
 var _ Expression = (*BinaryOpNode)(nil)
 
 func NewBinaryOpNode(lhs, rhs Expression, op BinaryOp) (BinaryOpNode, error) {
-	if !typesMatch(lhs.returnType(), rhs.returnType()){
+	if !typesMatch(lhs.returnType(), rhs.returnType()) {
 		return BinaryOpNode{}, errors.New("lhs and rhs types dont match: " + string(lhs.returnType().name) + " " + string(rhs.returnType().name))
 	}
 
@@ -461,7 +455,7 @@ func (b BinaryOp) returnType(input Type) Type {
 	case BONotEqual:
 		return Type{KindBool, 4, "bool", nil}
 	case BOAssign:
-		return Type{KindBool, 4, "bool", nil}
+		return TypeVoid
 	case BOPlusAssign:
 		return TypeVoid
 	case BODashAssign:
@@ -653,7 +647,7 @@ func (u UnaryOp) InputAllowed(input Kind) bool {
 	case UORef:
 		return true
 	case UODeref:
-		return input & KindPointer != 0
+		return input&KindPointer != 0
 	}
 
 	panic("not a unary op")
@@ -739,10 +733,11 @@ func NewUnaryOpNode(expression Expression, op UnaryOp) (Expression, error) {
 
 	case UORef:
 		if _, ok := expression.(Var); ok {
-		} else if _, ok := expression.(Const); ok {
+			// ok
 		} else {
 			return UnaryOpNode{}, errors.New("Can only take a reference to a variable or constant")
 		}
+
 	}
 
 	return UnaryOpNode{expression, op}, nil
@@ -801,13 +796,6 @@ func (v Var) returnType() Type {
 	return v.typ
 }
 
-func (c Const) string() string {
-	return string(c.name)
-}
-
-func (c Const) returnType() Type {
-	return c.typ
-}
 func (f Func) string() string {
 	return string(f.name)
 }
@@ -872,27 +860,16 @@ func (u UnaryOpNode) returnType() Type {
 // End Expression //
 ////////////////////
 
-type ConstScope map[Identifier]Const
 type VarScope map[Identifier]Var
 type FuncScope map[Identifier]Func
 
 type Scope struct {
-	vars   VarScope
-	consts ConstScope
-	Funcs  FuncScope
+	vars  VarScope
+	Funcs FuncScope
 }
-
-type ConstNode struct {
-	name  Identifier
-	typ   Type
-	Value Expression
-}
-
-var _ AstNode = (*ConstNode)(nil)
 
 type VarNode struct {
-	name  Identifier
-	typ   Type
+	Var
 	Value Expression
 }
 
@@ -945,10 +922,6 @@ func (s *Scope) Contains(iden Identifier) bool {
 		return true
 	}
 
-	if _, contains := s.consts[iden]; contains {
-		return true
-	}
-
 	if _, contains := s.Funcs[iden]; contains {
 		return true
 	}
@@ -958,10 +931,6 @@ func (s *Scope) Contains(iden Identifier) bool {
 
 func (s *Scope) Get(iden Identifier) any {
 	if val, contains := s.vars[iden]; contains {
-		return val
-	}
-
-	if val, contains := s.consts[iden]; contains {
 		return val
 	}
 
@@ -976,26 +945,22 @@ func (s *Scope) AddVar(v Var) {
 	s.vars[v.name] = v
 }
 
-func (s *Scope) AddConst(c Const) {
-	s.consts[c.name] = c
-}
-
 func (s *Scope) AddFunc(f Func) {
 	s.Funcs[f.name] = f
 }
 
-func (c ConstNode) String() string {
-	if c.Value == nil {
-		return "const " + string(c.name) + ": " + string(c.typ.name) + ";"
-	}
-	return "const " + string(c.name) + ": " + string(c.typ.name) + " = " + c.Value.string() + ";"
-}
-
 func (v VarNode) String() string {
-	if v.Value == nil {
-		return "var " + string(v.name) + ": " + string(v.typ.name) + ";"
+	if v.isConst {
+		if v.Value == nil {
+			return "const " + string(v.name) + ": " + string(v.typ.name) + ";"
+		}
+		return "const " + string(v.name) + ": " + string(v.typ.name) + " = " + v.Value.string() + ";"
+	} else {
+		if v.Value == nil {
+			return "var " + string(v.name) + ": " + string(v.typ.name) + ";"
+		}
+		return "var " + string(v.name) + ": " + string(v.typ.name) + " = " + v.Value.string() + ";"
 	}
-	return "var " + string(v.name) + ": " + string(v.typ.name) + " = " + v.Value.string() + ";"
 }
 
 func (f FuncNode) String() string {

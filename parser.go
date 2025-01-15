@@ -15,7 +15,7 @@ func ParserFromFilename(filename string) (p *Parser) {
 	p = &Parser{
 		lex: LexerFromFilename(filename),
 		currentScope: []Scope{
-			{make(VarScope), make(ConstScope), make(FuncScope)},
+			{make(VarScope), make(FuncScope)},
 		},
 	}
 
@@ -28,7 +28,7 @@ func ParserFromString(str string) (p *Parser) {
 	p = &Parser{
 		lex: LexerFromString(str),
 		currentScope: []Scope{
-			{make(VarScope), make(ConstScope), make(FuncScope)},
+			{make(VarScope), make(FuncScope)},
 		},
 	}
 	p.addBuiltIns()
@@ -54,13 +54,13 @@ func (p *Parser) addBuiltIns() {
 
 	p.addFunc(Func{
 		"println",
-		[]Var{{"any", Type{KindAny, 0, "any", nil}}},
+		[]Var{{"any", Type{KindAny, 0, "any", nil}, false}},
 		Type{},
 	})
 
 	p.addFunc(Func{
 		"print",
-		[]Var{{"any", Type{KindAny, 0, "any", nil}}},
+		[]Var{{"any", Type{KindAny, 0, "any", nil}, false}},
 		Type{},
 	})
 }
@@ -91,10 +91,6 @@ func (p *Parser) defined(iden Identifier) bool {
 
 func (p *Parser) addVar(v Var) {
 	p.currentScope[len(p.currentScope)-1].AddVar(v)
-}
-
-func (p *Parser) addConst(c Const) {
-	p.currentScope[len(p.currentScope)-1].AddConst(c)
 }
 
 func (p *Parser) addFunc(f Func) {
@@ -137,21 +133,28 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 				panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
 			}
 
-			node := ConstNode{
-				name: Identifier(name.literal),
-				typ:  typ,
+			node := VarNode{
+				Var: Var{
+					name:    Identifier(name.literal),
+					typ:     typ,
+					isConst: true,
+				},
+				Value: nil,
 			}
 
-			p.addConst(Const{node.name, node.typ})
+			p.addVar(node.Var)
 
 			return node, false
 		}
 
 		p.expect(TTAssign)
 
-		node := ConstNode{
-			name:  Identifier(name.literal),
-			typ:   typ,
+		node := VarNode{
+			Var: Var{
+				name:    Identifier(name.literal),
+				typ:     typ,
+				isConst: true,
+			},
 			Value: p.parseExpression(),
 		}
 
@@ -165,7 +168,7 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 			panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
 		}
 
-		p.addConst(Const{node.name, node.typ})
+		p.addVar(node.Var)
 
 		return node, false
 
@@ -182,11 +185,11 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 			}
 
 			node := VarNode{
-				name: Identifier(name.literal),
-				typ:  typ,
+				Var:   Var{name: Identifier(name.literal), typ: typ, isConst: false},
+				Value: nil,
 			}
 
-			p.addVar(Var{node.name, node.typ})
+			p.addVar(node.Var)
 
 			return node, false
 		}
@@ -194,10 +197,11 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 		p.expect(TTAssign)
 
 		node := VarNode{
-			name:  Identifier(name.literal),
-			typ:   typ,
+			Var:   Var{name: Identifier(name.literal), typ: typ, isConst: false},
 			Value: p.parseExpression(),
 		}
+
+		p.expect(TTSemiColon)
 
 		if !typesMatch(node.typ, node.Value.returnType()) {
 			fmt.Println(node.typ)
@@ -205,13 +209,11 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 			panic(p.lex.curLoc.String() + " lhs and rhs types dont match")
 		}
 
-		p.expect(TTSemiColon)
-
 		if p.defined(Identifier(name.literal)) {
 			panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
 		}
 
-		p.addVar(Var{node.name, node.typ})
+		p.addVar(node.Var)
 
 		return node, false
 
@@ -256,35 +258,43 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 			if p.defined(Identifier(name.literal)) {
 				panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
 			}
-			node := ConstNode{
-				name: Identifier(name.literal),
-				typ:  typ,
+
+			node := VarNode{
+				Var: Var{
+					name:    Identifier(name.literal),
+					typ:     typ,
+					isConst: true,
+				},
+				Value: nil,
 			}
 
-			p.addConst(Const{node.name, node.typ})
+			p.addVar(node.Var)
 
 			return node, false
 		}
 
 		p.expect(TTAssign)
 
-		node := ConstNode{
-			name:  Identifier(name.literal),
-			typ:   typ,
+		node := VarNode{
+			Var: Var{
+				name:    Identifier(name.literal),
+				typ:     typ,
+				isConst: true,
+			},
 			Value: p.parseExpression(),
 		}
+
+		p.expect(TTSemiColon)
 
 		if !typesMatch(node.typ, node.Value.returnType()) {
 			panic(fmt.Sprintf(p.lex.curLoc.String()+" lhs and rhs types dont match: %v, %v", node.typ, node.Value.returnType()))
 		}
 
-		p.expect(TTSemiColon)
-
 		if p.defined(Identifier(name.literal)) {
 			panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
 		}
 
-		p.addConst(Const{node.name, node.typ})
+		p.addVar(node.Var)
 		return node, false
 
 	case TTVar:
@@ -298,31 +308,43 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 			if p.defined(Identifier(name.literal)) {
 				panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
 			}
-			return VarNode{
-				name: Identifier(name.literal),
-				typ:  typ,
-			}, false
+
+			node := VarNode{
+				Var: Var{
+					name:    Identifier(name.literal),
+					typ:     typ,
+					isConst: false,
+				},
+				Value: nil,
+			}
+
+			p.addVar(node.Var)
+
+			return node, false
 		}
 
 		p.expect(TTAssign)
 
 		node := VarNode{
-			name:  Identifier(name.literal),
-			typ:   typ,
+			Var: Var{
+				name:    Identifier(name.literal),
+				typ:     typ,
+				isConst: false,
+			},
 			Value: p.parseExpression(),
 		}
+
+		p.expect(TTSemiColon)
 
 		if !typesMatch(node.typ, node.Value.returnType()) {
 			panic(p.lex.curLoc.String() + " lhs and rhs types dont match")
 		}
 
-		p.expect(TTSemiColon)
-
 		if p.defined(Identifier(name.literal)) {
 			panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
 		}
 
-		p.addVar(Var{node.name, node.typ})
+		p.addVar(node.Var)
 		return node, false
 
 	case TTFn:
@@ -443,7 +465,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 }
 
 func (p *Parser) parseCodeBlock() (CodeBlockNode, bool) {
-	block := CodeBlockNode{make([]AstNode, 0), Scope{make(VarScope), make(ConstScope), make(FuncScope)}}
+	block := CodeBlockNode{make([]AstNode, 0), Scope{make(VarScope), make(FuncScope)}}
 	p.currentScope = append(p.currentScope, block.scope)
 
 	for tok := p.lex.PeekToken(); tok.typ != TTEOF && tok.typ != TTRSquirly; tok = p.lex.PeekToken() {
@@ -478,7 +500,7 @@ func (p *Parser) parseFunc() (FuncNode, bool) {
 	}
 
 	p.expect(TTLBrace)
-	scope := Scope{make(VarScope), make(ConstScope), make(FuncScope)}
+	scope := Scope{make(VarScope), make(FuncScope)}
 
 	for tok := p.lex.PeekToken(); tok != nil && tok.typ != TTRBrace; tok = p.lex.PeekToken() {
 		arg := Var{}
@@ -590,11 +612,20 @@ func (p *Parser) parseBinary(precedence int) Expression {
 			}
 
 			if precedence == BOAssign.Precedence() {
-				switch lhs.(type) {
+				switch lhs := lhs.(type) {
 				case Var:
-				default:
-					panic(p.lex.curLoc.String() + " Error: can only assign to variable") // TODO: better error handling
+					if !lhs.isConst {
+						goto ok1 // oh noooooo goto such unreadableness
+					}
+				case UnaryOpNode:
+					if lhs.Op == UODeref {
+						goto ok1
+					}
 				}
+
+				panic(p.lex.curLoc.String() + " cannot assign to lhs")
+
+			ok1:
 			}
 
 			var err error
@@ -620,13 +651,18 @@ func (p *Parser) parseBinary(precedence int) Expression {
 			if precedence == BOAssign.Precedence() {
 				switch lhs := lhs.(type) {
 				case Var:
-				case UnaryOpNode:
-					if lhs.Op != UODeref {
-						panic(p.lex.curLoc.String() + " Error: can only assign to variable") // TODO: better error handling
+					if !lhs.isConst {
+						goto ok2
 					}
-				default:
-					panic(p.lex.curLoc.String() + " Error: can only assign to variable") // TODO: better error handling
+				case UnaryOpNode:
+					if lhs.Op == UODeref {
+						goto ok2
+					}
 				}
+
+				panic(p.lex.curLoc.String() + " cannot assign to lhs")
+
+			ok2:
 			}
 
 			var err error
@@ -703,8 +739,6 @@ func (p *Parser) parsePrimary() Expression {
 		if next := p.lex.PeekToken(); next == nil || next.typ != TTLBrace {
 			switch val := p.get(Identifier(tok.literal)).(type) {
 			case Var:
-				return val
-			case Const:
 				return val
 			case Func:
 				return val

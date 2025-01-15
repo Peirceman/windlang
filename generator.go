@@ -145,19 +145,12 @@ func (g *BytecodeGenerator) writeGlobal(codeBlock CodeBlockNode) error {
 		return err
 	}
 
-	g.vars = slices.Grow(g.vars, len(codeBlock.scope.vars)+len(codeBlock.scope.consts))
+	g.vars = slices.Grow(g.vars, len(codeBlock.scope.vars))
 	for _, varDef := range codeBlock.scope.vars {
 		g.vars = append(g.vars,
 			VarLocation{varDef.name, varDef.typ, bytecodePointer{locDataSection, 0, uint64(len(g.data))}},
 		)
 		g.data = append(g.data, make([]byte, varDef.typ.size)...)
-	}
-
-	for _, constDef := range codeBlock.scope.consts {
-		g.vars = append(g.vars,
-			VarLocation{constDef.name, constDef.typ, bytecodePointer{locDataSection, 0, uint64(len(g.data))}},
-		)
-		g.data = append(g.data, make([]byte, constDef.typ.size)...)
 	}
 
 	err = g.writeStatements(codeBlock.Statements)
@@ -190,7 +183,7 @@ func (g *BytecodeGenerator) writeGlobal(codeBlock CodeBlockNode) error {
 func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 	var err error
 
-	addedVars := len(codeBlock.scope.vars) + len(codeBlock.scope.consts)
+	addedVars := len(codeBlock.scope.vars)
 	oldBase := g.baseOffset
 	g.vars = slices.Grow(g.vars, addedVars)
 
@@ -200,21 +193,6 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 		)
 
 		size := varDef.typ.size
-		g.baseOffset += uint64(size)
-
-		err = g.writeInstructionn(push, size, 0)
-
-		if err != nil {
-			return err
-		}
-	}
-
-	for _, constDef := range codeBlock.scope.consts {
-		g.vars = append(g.vars,
-			VarLocation{constDef.name, constDef.typ, bytecodePointer{locStack, 0, g.baseOffset}},
-		)
-
-		size := constDef.typ.size
 		g.baseOffset += uint64(size)
 
 		err = g.writeInstructionn(push, size, 0)
@@ -243,16 +221,6 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 		}
 	}
 
-	for _, constDef := range codeBlock.scope.consts {
-		size := constDef.typ.size
-
-		err = g.writeInstruction0(pops, size)
-
-		if err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 
@@ -272,29 +240,6 @@ func (g *BytecodeGenerator) writeStatements(statements []AstNode) error {
 				if err != nil {
 					return err
 				}
-			}
-
-		case ConstNode:
-			if node.Value == nil {
-				break
-			}
-
-			err := g.varPointer(node.name)
-
-			if err != nil {
-				return err
-			}
-
-			err = g.writeExpression(node.Value)
-
-			if err != nil {
-				return err
-			}
-
-			err = g.writeInstruction0(stor, node.typ.size)
-
-			if err != nil {
-				return err
 			}
 
 		case VarNode:
@@ -620,7 +565,6 @@ func (g *BytecodeGenerator) writeIfChain(chain IfChain) error {
 }
 
 func (g *BytecodeGenerator) writeExpression(expression Expression) error {
-
 	switch expression := expression.(type) {
 	case IntLit:
 		size := expression.returnType().size
@@ -681,19 +625,6 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 		}
 
 	case Var:
-		err := g.varPointer(expression.name)
-
-		if err != nil {
-			return err
-		}
-
-		err = g.writeInstruction0(load, expression.typ.size)
-
-		if err != nil {
-			return err
-		}
-
-	case Const:
 		err := g.varPointer(expression.name)
 
 		if err != nil {
@@ -1960,22 +1891,13 @@ func (g *BytecodeGenerator) generateUnaryOpNode(uo UnaryOpNode) error {
 		}
 
 	case UORef:
-		switch expr := uo.Expression.(type) {
-		case Var:
+		if expr, ok := uo.Expression.(Var); ok {
 			err := g.varPointer(expr.name)
 
 			if err != nil {
 				return err
 			}
-
-		case Const:
-			err := g.varPointer(expr.name)
-
-			if err != nil {
-				return err
-			}
-
-		default:
+		} else {
 			panic("unreachable")
 		}
 
