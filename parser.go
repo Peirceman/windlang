@@ -3,19 +3,20 @@ package main
 import (
 	"fmt"
 	"strconv"
+	"windlang/ast"
 )
 
 type Parser struct {
 	lex          *Lexer
-	currentScope []Scope
-	typeDefs     []Type
+	currentScope []ast.Scope
+	typeDefs     []ast.Type
 }
 
 func ParserFromFilename(filename string) (p *Parser) {
 	p = &Parser{
 		lex: LexerFromFilename(filename),
-		currentScope: []Scope{
-			{make(VarScope), make(FuncScope)},
+		currentScope: []ast.Scope{
+			{Vars: make(ast.VarScope), Funcs: make(ast.FuncScope)},
 		},
 	}
 
@@ -27,8 +28,8 @@ func ParserFromFilename(filename string) (p *Parser) {
 func ParserFromString(str string) (p *Parser) {
 	p = &Parser{
 		lex: LexerFromString(str),
-		currentScope: []Scope{
-			{make(VarScope), make(FuncScope)},
+		currentScope: []ast.Scope{
+			{Vars: make(ast.VarScope), Funcs: make(ast.FuncScope)},
 		},
 	}
 	p.addBuiltIns()
@@ -37,35 +38,39 @@ func ParserFromString(str string) (p *Parser) {
 }
 
 func (p *Parser) addBuiltIns() {
-	p.typeDefs = []Type{
-		SimpleType{KindInt, 1, "int8"},
-		SimpleType{KindInt, 2, "int16"},
-		SimpleType{KindInt, 4, "int32"},
-		SimpleType{KindInt, 8, "int64"},
-		SimpleType{KindUint, 1, "uint8"},
-		SimpleType{KindUint, 2, "uint16"},
-		SimpleType{KindUint, 4, "uint32"},
-		SimpleType{KindUint, 8, "uint64"},
-		SimpleType{KindFloat, 4, "float32"},
-		SimpleType{KindFloat, 8, "float64"},
-		SimpleType{KindBool, 4, "bool"},
-		PointerType{"string", SimpleType{KindUint, 1, "uint8"}},
+	p.typeDefs = []ast.Type{
+		ast.SimpleType{Kind_: ast.KindInt, Size_: 1, Name_: "int8"},
+		ast.SimpleType{Kind_: ast.KindInt, Size_: 2, Name_: "int16"},
+		ast.SimpleType{Kind_: ast.KindInt, Size_: 4, Name_: "int32"},
+		ast.SimpleType{Kind_: ast.KindInt, Size_: 8, Name_: "int64"},
+		ast.SimpleType{Kind_: ast.KindUint, Size_: 1, Name_: "uint8"},
+		ast.SimpleType{Kind_: ast.KindUint, Size_: 2, Name_: "uint16"},
+		ast.SimpleType{Kind_: ast.KindUint, Size_: 4, Name_: "uint32"},
+		ast.SimpleType{Kind_: ast.KindUint, Size_: 8, Name_: "uint64"},
+		ast.SimpleType{Kind_: ast.KindFloat, Size_: 4, Name_: "float32"},
+		ast.SimpleType{Kind_: ast.KindFloat, Size_: 8, Name_: "float64"},
+		ast.SimpleType{Kind_: ast.KindBool, Size_: 4, Name_: "bool"},
+		ast.PointerType{Name_: "string", Inner: ast.SimpleType{Kind_: ast.KindUint, Size_: 1, Name_: "uint8"}},
 	}
 
-	p.addFunc(Func{
-		"println",
-		[]Var{{"any", SimpleType{KindAny, 0, "any"}, false}},
-		SimpleType{},
+	p.addFunc(ast.Func{
+		Name:    "println",
+		Args:    []ast.Var{
+			{Name: "any", Typ: ast.SimpleType{Kind_: ast.KindAny, Size_: 0, Name_: "any"}},
+		},
+		RetType: ast.TypeVoid,
 	})
 
-	p.addFunc(Func{
-		"print",
-		[]Var{{"any", SimpleType{KindAny, 0, "any"}, false}},
-		SimpleType{},
+	p.addFunc(ast.Func{
+		Name:    "print",
+		Args:    []ast.Var{
+			{Name: "any", Typ: ast.SimpleType{Kind_: ast.KindAny, Size_: 0, Name_: "any"}},
+		},
+		RetType: ast.TypeVoid,
 	})
 }
 
-func (p *Parser) get(iden Identifier) any {
+func (p *Parser) get(iden ast.Identifier) any {
 	for i := len(p.currentScope) - 1; i >= 0; i-- {
 		if p.currentScope[i].Contains(iden) {
 			return p.currentScope[i].Get(iden)
@@ -75,7 +80,7 @@ func (p *Parser) get(iden Identifier) any {
 	return nil
 }
 
-func (p *Parser) exists(iden Identifier) bool {
+func (p *Parser) exists(iden ast.Identifier) bool {
 	for i := len(p.currentScope) - 1; i >= 0; i-- {
 		if p.currentScope[i].Contains(iden) {
 			return true
@@ -85,20 +90,20 @@ func (p *Parser) exists(iden Identifier) bool {
 	return false
 }
 
-func (p *Parser) defined(iden Identifier) bool {
+func (p *Parser) defined(iden ast.Identifier) bool {
 	return p.currentScope[len(p.currentScope)-1].Contains(iden)
 }
 
-func (p *Parser) addVar(v Var) {
+func (p *Parser) addVar(v ast.Var) {
 	p.currentScope[len(p.currentScope)-1].AddVar(v)
 }
 
-func (p *Parser) addFunc(f Func) {
+func (p *Parser) addFunc(f ast.Func) {
 	p.currentScope[len(p.currentScope)-1].AddFunc(f)
 }
-func (p *Parser) ParseAll() CodeBlockNode {
-	result := CodeBlockNode{
-		Statements: make([]AstNode, 0),
+func (p *Parser) ParseAll() ast.CodeBlockNode {
+	result := ast.CodeBlockNode{
+		Statements: make([]ast.AstNode, 0),
 	}
 
 	for statement, eof := p.ParseTopLevel(); !eof; statement, eof = p.ParseTopLevel() {
@@ -107,12 +112,12 @@ func (p *Parser) ParseAll() CodeBlockNode {
 		}
 	}
 
-	result.scope = p.currentScope[0]
+	result.Scope = p.currentScope[0]
 
 	return result
 }
 
-func (p *Parser) ParseTopLevel() (AstNode, bool) {
+func (p *Parser) ParseTopLevel() (ast.AstNode, bool) {
 	if TTCount != 61 {
 		panic("TokenType enum length changed: " + strconv.Itoa(int(TTCount)))
 	}
@@ -128,15 +133,15 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 		if tok := p.lex.PeekToken(); tok.typ != TTAssign {
 			p.expect(TTSemiColon)
 
-			if p.defined(Identifier(name.literal)) {
+			if p.defined(ast.Identifier(name.literal)) {
 				panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
 			}
 
-			node := VarNode{
-				Var: Var{
-					name:    Identifier(name.literal),
-					typ:     typ,
-					isConst: true,
+			node := ast.VarNode{
+				Var: ast.Var{
+					Name:    ast.Identifier(name.literal),
+					Typ:     typ,
+					IsConst: true,
 				},
 				Value: nil,
 			}
@@ -148,22 +153,22 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 
 		p.expect(TTAssign)
 
-		node := VarNode{
-			Var: Var{
-				name:    Identifier(name.literal),
-				typ:     typ,
-				isConst: true,
+		node := ast.VarNode{
+			Var: ast.Var{
+				Name:    ast.Identifier(name.literal),
+				Typ:     typ,
+				IsConst: true,
 			},
 			Value: p.parseExpression(),
 		}
 
-		if !EqualTypes(node.typ, node.Value.returnType()) {
+		if !ast.EqualTypes(node.Typ, node.Value.ReturnType()) {
 			panic(p.lex.curLoc.String() + " lhs and rhs types dont match")
 		}
 
 		p.expect(TTSemiColon)
 
-		if p.defined(Identifier(name.literal)) {
+		if p.defined(ast.Identifier(name.literal)) {
 			panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
 		}
 
@@ -179,12 +184,12 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 
 		if tok := p.lex.PeekToken(); tok.typ != TTAssign {
 			p.expect(TTSemiColon)
-			if p.defined(Identifier(name.literal)) {
+			if p.defined(ast.Identifier(name.literal)) {
 				panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
 			}
 
-			node := VarNode{
-				Var:   Var{name: Identifier(name.literal), typ: typ, isConst: false},
+			node := ast.VarNode{
+				Var:   ast.Var{Name: ast.Identifier(name.literal), Typ: typ, IsConst: false},
 				Value: nil,
 			}
 
@@ -195,20 +200,20 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 
 		p.expect(TTAssign)
 
-		node := VarNode{
-			Var:   Var{name: Identifier(name.literal), typ: typ, isConst: false},
+		node := ast.VarNode{
+			Var:   ast.Var{Name: ast.Identifier(name.literal), Typ: typ, IsConst: false},
 			Value: p.parseExpression(),
 		}
 
 		p.expect(TTSemiColon)
 
-		if !EqualTypes(node.typ, node.Value.returnType()) {
-			fmt.Println(node.typ)
-			fmt.Println(node.Value.returnType())
+		if !ast.EqualTypes(node.Typ, node.Value.ReturnType()) {
+			fmt.Println(node.Typ)
+			fmt.Println(node.Value.ReturnType())
 			panic(p.lex.curLoc.String() + " lhs and rhs types dont match")
 		}
 
-		if p.defined(Identifier(name.literal)) {
+		if p.defined(ast.Identifier(name.literal)) {
 			panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
 		}
 
@@ -225,7 +230,7 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 		name := p.expect(TTIdentifier)
 
 		typ := p.parseType()
-		typ = typ.SetName(Identifier(name.literal))
+		typ = typ.SetName(ast.Identifier(name.literal))
 
 		p.typeDefs = append(p.typeDefs, typ)
 
@@ -240,7 +245,7 @@ func (p *Parser) ParseTopLevel() (AstNode, bool) {
 	panic(tok.loc.String() + " syntax error") // TODO: better error handling
 }
 
-func (p *Parser) parseFunctionBody() (AstNode, bool) {
+func (p *Parser) parseFunctionBody() (ast.AstNode, bool) {
 	if TTCount != 61 {
 		panic("TokenType enum length changed: " + strconv.Itoa(int(TTCount)))
 	}
@@ -255,15 +260,15 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 
 		if tok := p.lex.PeekToken(); tok.typ != TTAssign {
 			p.expect(TTSemiColon)
-			if p.defined(Identifier(name.literal)) {
+			if p.defined(ast.Identifier(name.literal)) {
 				panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
 			}
 
-			node := VarNode{
-				Var: Var{
-					name:    Identifier(name.literal),
-					typ:     typ,
-					isConst: true,
+			node := ast.VarNode{
+				Var: ast.Var{
+					Name:    ast.Identifier(name.literal),
+					Typ:     typ,
+					IsConst: true,
 				},
 				Value: nil,
 			}
@@ -275,22 +280,22 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 
 		p.expect(TTAssign)
 
-		node := VarNode{
-			Var: Var{
-				name:    Identifier(name.literal),
-				typ:     typ,
-				isConst: true,
+		node := ast.VarNode{
+			Var: ast.Var{
+				Name:    ast.Identifier(name.literal),
+				Typ:     typ,
+				IsConst: true,
 			},
 			Value: p.parseExpression(),
 		}
 
 		p.expect(TTSemiColon)
 
-		if !EqualTypes(node.typ, node.Value.returnType()) {
-			panic(fmt.Sprintf(p.lex.curLoc.String()+" lhs and rhs types dont match: %v, %v", node.typ, node.Value.returnType()))
+		if !ast.EqualTypes(node.Typ, node.Value.ReturnType()) {
+			panic(fmt.Sprintf(p.lex.curLoc.String()+" lhs and rhs types dont match: %v, %v", node.Typ, node.Value.ReturnType()))
 		}
 
-		if p.defined(Identifier(name.literal)) {
+		if p.defined(ast.Identifier(name.literal)) {
 			panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
 		}
 
@@ -305,15 +310,15 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 
 		if tok := p.lex.PeekToken(); tok.typ != TTAssign {
 			p.expect(TTSemiColon)
-			if p.defined(Identifier(name.literal)) {
+			if p.defined(ast.Identifier(name.literal)) {
 				panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
 			}
 
-			node := VarNode{
-				Var: Var{
-					name:    Identifier(name.literal),
-					typ:     typ,
-					isConst: false,
+			node := ast.VarNode{
+				Var: ast.Var{
+					Name:    ast.Identifier(name.literal),
+					Typ:     typ,
+					IsConst: false,
 				},
 				Value: nil,
 			}
@@ -325,22 +330,22 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 
 		p.expect(TTAssign)
 
-		node := VarNode{
-			Var: Var{
-				name:    Identifier(name.literal),
-				typ:     typ,
-				isConst: false,
+		node := ast.VarNode{
+			Var: ast.Var{
+				Name:    ast.Identifier(name.literal),
+				Typ:     typ,
+				IsConst: false,
 			},
 			Value: p.parseExpression(),
 		}
 
 		p.expect(TTSemiColon)
 
-		if !EqualTypes(node.typ, node.Value.returnType()) {
+		if !ast.EqualTypes(node.Typ, node.Value.ReturnType()) {
 			panic(p.lex.curLoc.String() + " lhs and rhs types dont match")
 		}
 
-		if p.defined(Identifier(name.literal)) {
+		if p.defined(ast.Identifier(name.literal)) {
 			panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
 		}
 
@@ -357,10 +362,10 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 		if tok.typ == TTSemiColon {
 			p.lex.nextToken()
 
-			return ReturnNode{nil}, false
+			return ast.ReturnNode{nil}, false
 		}
 
-		node := ReturnNode{p.parseExpression()}
+		node := ast.ReturnNode{p.parseExpression()}
 		p.expect(TTSemiColon)
 
 		return node, false
@@ -370,7 +375,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 		return p.parseCodeBlock()
 
 	case TTIdentifier, TTStar:
-		node := ExpressionNode{p.parseExpression()}
+		node := ast.ExpressionNode{p.parseExpression()}
 
 		p.expect(TTSemiColon)
 
@@ -382,10 +387,10 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 
 	case TTIf:
 		p.lex.NextToken()
-		node := IfChain{}
+		node := ast.IfChain{}
 		node.IfCondition = p.parseExpression()
 
-		if node.IfCondition.returnType().Kind() != KindBool { // Kind bool instead of "real" bool because typedefed bools can also be used
+		if node.IfCondition.ReturnType().Kind() != ast.KindBool { // Kind bool instead of "real" bool because typedefed bools can also be used
 			panic(p.lex.curLoc.String() + " boolean expression expected")
 		}
 
@@ -396,14 +401,14 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 			panic("unreachable")
 		}
 
-		node.IfStatement = statements.(CodeBlockNode)
+		node.IfStatement = statements.(ast.CodeBlockNode)
 
 		for nextToken := p.lex.PeekToken(); nextToken.typ == TTElif; nextToken = p.lex.PeekToken() {
 			p.lex.NextToken()
 
 			condition := p.parseExpression()
 
-			if condition.returnType().Kind() != KindBool { // same as before
+			if condition.ReturnType().Kind() != ast.KindBool { // same as before
 				panic(p.lex.curLoc.String() + " boolean expression expected")
 			}
 
@@ -417,11 +422,11 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 				panic("unreachable")
 			}
 
-			node.ElifStatements = append(node.ElifStatements, statements.(CodeBlockNode))
+			node.ElifStatements = append(node.ElifStatements, statements.(ast.CodeBlockNode))
 		}
 
 		if nextToken := p.lex.PeekToken(); nextToken != nil && nextToken.typ == TTElse {
-			node.hasElse = true
+			node.HasElse = true
 			p.lex.NextToken()
 
 			p.expectPeek(TTLSquirly)
@@ -431,17 +436,17 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 				panic("unreachable")
 			}
 
-			node.ElseStatement = statements.(CodeBlockNode)
+			node.ElseStatement = statements.(ast.CodeBlockNode)
 		}
 
 		return node, false
 
 	case TTWhile:
 		p.lex.NextToken()
-		node := WhileNode{}
+		node := ast.WhileNode{}
 		node.Condition = p.parseExpression()
 
-		if node.Condition.returnType().Kind() != KindBool { // same as in if
+		if node.Condition.ReturnType().Kind() != ast.KindBool { // same as in if
 			panic(p.lex.curLoc.String() + " boolean expression expected")
 		}
 
@@ -453,7 +458,7 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 			panic("unreachable")
 		}
 
-		node.Loop = statements.(CodeBlockNode)
+		node.Loop = statements.(ast.CodeBlockNode)
 
 		return node, false
 
@@ -464,9 +469,9 @@ func (p *Parser) parseFunctionBody() (AstNode, bool) {
 	panic(tok.String() + " syntax error ") // TODO: better error handling
 }
 
-func (p *Parser) parseCodeBlock() (CodeBlockNode, bool) {
-	block := CodeBlockNode{make([]AstNode, 0), Scope{make(VarScope), make(FuncScope)}}
-	p.currentScope = append(p.currentScope, block.scope)
+func (p *Parser) parseCodeBlock() (ast.CodeBlockNode, bool) {
+	block := ast.CodeBlockNode{make([]ast.AstNode, 0), ast.Scope{make(ast.VarScope), make(ast.FuncScope)}}
+	p.currentScope = append(p.currentScope, block.Scope)
 
 	for tok := p.lex.PeekToken(); tok.typ != TTEOF && tok.typ != TTRSquirly; tok = p.lex.PeekToken() {
 		statement, eof := p.parseFunctionBody()
@@ -489,28 +494,28 @@ func (p *Parser) parseCodeBlock() (CodeBlockNode, bool) {
 	return block, false
 }
 
-func (p *Parser) parseFunc() (FuncNode, bool) {
+func (p *Parser) parseFunc() (ast.FuncNode, bool) {
 	p.lex.NextToken()
-	node := FuncNode{returnType: TypeVoid}
+	node := ast.FuncNode{ReturnType: ast.TypeVoid}
 
 	name := p.expect(TTIdentifier)
-	node.name = Identifier(name.literal)
-	if p.defined(node.name) {
+	node.Name = ast.Identifier(name.literal)
+	if p.defined(node.Name) {
 		panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
 	}
 
 	p.expect(TTLBrace)
-	scope := Scope{make(VarScope), make(FuncScope)}
+	scope := ast.Scope{make(ast.VarScope), make(ast.FuncScope)}
 
 	for tok := p.lex.PeekToken(); tok != nil && tok.typ != TTRBrace; tok = p.lex.PeekToken() {
-		arg := Var{}
-		arg.name = Identifier(p.expect(TTIdentifier).literal)
+		arg := ast.Var{}
+		arg.Name = ast.Identifier(p.expect(TTIdentifier).literal)
 
 		p.expect(TTColon)
 
-		arg.typ = p.parseType()
+		arg.Typ = p.parseType()
 
-		if arg.typ.Kind() == KindStruct {
+		if arg.Typ.Kind() == ast.KindStruct {
 			panic("cannot pass struct as an argument yet")
 		}
 
@@ -530,8 +535,8 @@ func (p *Parser) parseFunc() (FuncNode, bool) {
 	tok := p.lex.PeekToken()
 	if tok.typ == TTColon {
 		p.lex.NextToken()
-		node.returnType = p.parseType()
-		if node.returnType.Kind() == KindStruct {
+		node.ReturnType = p.parseType()
+		if node.ReturnType.Kind() == ast.KindStruct {
 			panic("func may not return a struct yet")
 		}
 	}
@@ -545,18 +550,18 @@ func (p *Parser) parseFunc() (FuncNode, bool) {
 
 	p.currentScope = p.currentScope[:len(p.currentScope)-1]
 
-	p.addFunc(Func{node.name, node.Args, node.returnType})
+	p.addFunc(ast.Func{node.Name, node.Args, node.ReturnType})
 
 	return node, eof
 }
 
-func (p *Parser) parseType() Type {
+func (p *Parser) parseType() ast.Type {
 	tok := p.lex.NextToken()
 
 	switch tok.typ {
 	case TTIdentifier:
 		for _, typedef := range p.typeDefs {
-			if typedef.Name() == Identifier(tok.literal) {
+			if typedef.Name() == ast.Identifier(tok.literal) {
 				return typedef
 			}
 		}
@@ -570,37 +575,37 @@ func (p *Parser) parseType() Type {
 
 	case TTAmp:
 		inner := p.parseType()
-		return PointerType{"", inner}
+		return ast.PointerType{"", inner}
 
 	case TTAnd: // special case for `&&` which is seen as one token
 		inner := p.parseType()
-		return PointerType{"", PointerType{"", inner}}
+		return ast.PointerType{"", ast.PointerType{"", inner}}
 
 	case TTStruct:
 		p.expect(TTLSquirly)
 
-		typ := StructType{}
+		typ := ast.StructType{}
 
 		for tok := p.lex.PeekToken(); tok.typ != TTEOF && tok.typ != TTRSquirly; tok = p.lex.PeekToken() {
-			field := StructField{}
+			field := ast.StructField{}
 
-			field.offset = typ.size
+			field.Offset = typ.Size_
 			tok := p.expect(TTIdentifier)
-			field.name = Identifier(tok.literal)
+			field.Name = ast.Identifier(tok.literal)
 
 			p.expect(TTColon)
 
-			field.typ = p.parseType()
+			field.Typ = p.parseType()
 
-			for _, prevField := range typ.fields {
-				if prevField.name == field.name {
+			for _, prevField := range typ.Fields {
+				if prevField.Name == field.Name {
 					panic(tok.loc.String() + "ERROR: field redeclared")
 				}
 			}
 
-			typ.size += field.typ.Size()
+			typ.Size_ += field.Typ.Size()
 
-			typ.fields = append(typ.fields, field)
+			typ.Fields = append(typ.Fields, field)
 
 			tok = p.lex.PeekToken()
 
@@ -612,7 +617,7 @@ func (p *Parser) parseType() Type {
 		}
 
 		// round field up to multiple of 8
-		typ.size = (typ.size + 7) / 8 * 8
+		typ.Size_ = (typ.Size_ + 7) / 8 * 8
 
 		p.expect(TTRSquirly)
 
@@ -640,12 +645,12 @@ func (p *Parser) expectPeek(typ TokenType) *Token {
 	return tok
 }
 
-func (p *Parser) parseExpression() Expression {
+func (p *Parser) parseExpression() ast.Expression {
 	return p.parseBinary(0)
 }
 
-func (p *Parser) parseBinary(precedence int) Expression {
-	if precedence > MaxPrecedence {
+func (p *Parser) parseBinary(precedence int) ast.Expression {
+	if precedence > ast.MaxPrecedence {
 		return p.parseUnary()
 	}
 
@@ -655,7 +660,7 @@ func (p *Parser) parseBinary(precedence int) Expression {
 		return nil
 	}
 
-	if LeftToRight(precedence) {
+	if ast.LeftToRight(precedence) {
 		tok := p.lex.PeekToken()
 		opp := tok.typ.ToBinOp()
 		for tok != nil && tok.typ != TTEOF && opp != -1 && opp.Precedence() == precedence {
@@ -666,14 +671,18 @@ func (p *Parser) parseBinary(precedence int) Expression {
 				panic(p.lex.curLoc.String() + " opperand expected") // TODO: better error handling
 			}
 
-			if precedence == BOAssign.Precedence() {
+			if precedence == ast.BOAssign.Precedence() {
 				switch lhs := lhs.(type) {
-				case Var:
-					if !lhs.isConst {
+				case ast.Var:
+					if !lhs.IsConst {
 						goto ok1 // oh noooooo goto such unreadableness
 					}
-				case UnaryOpNode:
-					if lhs.Op == UODeref {
+				case ast.UnaryOpNode:
+					if lhs.Op == ast.UODeref {
+						goto ok1
+					}
+				case ast.StructIndex:
+					if _, ok := lhs.Base.(ast.Var); ok {
 						goto ok1
 					}
 				}
@@ -684,7 +693,7 @@ func (p *Parser) parseBinary(precedence int) Expression {
 			}
 
 			var err error
-			lhs, err = NewBinaryOpNode(lhs, rhs, opp)
+			lhs, err = ast.NewBinaryOpNode(lhs, rhs, opp)
 			if err != nil {
 				fmt.Println(opp.String())
 				panic(loc.String() + err.Error()) // TODO: better error handling
@@ -703,18 +712,18 @@ func (p *Parser) parseBinary(precedence int) Expression {
 				panic(loc.String() + " opperand expected") // TODO: better error handling
 			}
 
-			if precedence == BOAssign.Precedence() {
+			if precedence == ast.BOAssign.Precedence() {
 				switch lhs := lhs.(type) {
-				case Var:
-					if !lhs.isConst {
+				case ast.Var:
+					if !lhs.IsConst {
 						goto ok2
 					}
-				case UnaryOpNode:
-					if lhs.Op == UODeref {
+				case ast.UnaryOpNode:
+					if lhs.Op == ast.UODeref {
 						goto ok2
 					}
-				case StructIndex:
-					if _, ok := lhs.base.(Var); ok {
+				case ast.StructIndex:
+					if _, ok := lhs.Base.(ast.Var); ok {
 						goto ok2
 					}
 				}
@@ -725,7 +734,7 @@ func (p *Parser) parseBinary(precedence int) Expression {
 			}
 
 			var err error
-			lhs, err = NewBinaryOpNode(lhs, rhs, opp)
+			lhs, err = ast.NewBinaryOpNode(lhs, rhs, opp)
 			if err != nil {
 				fmt.Println(opp.String())
 				panic(p.lex.curLoc.String() + err.Error()) // TODO: better error handling
@@ -739,7 +748,7 @@ func (p *Parser) parseBinary(precedence int) Expression {
 	return lhs
 }
 
-func (p *Parser) parseUnary() Expression {
+func (p *Parser) parseUnary() ast.Expression {
 	tok := p.lex.PeekToken()
 	loc := tok.loc
 	opp := tok.typ.ToUnOp()
@@ -751,7 +760,7 @@ func (p *Parser) parseUnary() Expression {
 			panic(p.lex.curLoc.String() + " Error: opperand expected")
 		}
 
-		unOp, err := NewUnaryOpNode(expression, opp)
+		unOp, err := ast.NewUnaryOpNode(expression, opp)
 
 		if err != nil {
 			panic(loc.String() + err.Error())
@@ -770,7 +779,7 @@ func (p *Parser) parseUnary() Expression {
 	var err error
 	for opp = tok.typ.ToUnOp(); opp != -1 && !opp.OnLeftSide(); opp = tok.typ.ToUnOp() {
 		p.lex.NextToken()
-		expression, err = NewUnaryOpNode(expression, opp)
+		expression, err = ast.NewUnaryOpNode(expression, opp)
 
 		if err != nil {
 			panic(p.lex.curLoc.String() + err.Error())
@@ -782,7 +791,7 @@ func (p *Parser) parseUnary() Expression {
 	return expression
 }
 
-func (p *Parser) parsePrimary() Expression {
+func (p *Parser) parsePrimary() ast.Expression {
 	tok := p.lex.PeekToken()
 	if tok.typ == TTEOF {
 		panic("opperand expected")
@@ -791,19 +800,19 @@ func (p *Parser) parsePrimary() Expression {
 	switch tok.typ {
 	case TTIdentifier:
 		p.lex.NextToken()
-		if !p.exists(Identifier(tok.literal)) {
+		if !p.exists(ast.Identifier(tok.literal)) {
 			panic(tok.loc.String() + " Undefinded name: " + tok.literal)
 		}
 
-		var expr Expression
+		var expr ast.Expression
 
 		if next := p.lex.PeekToken(); next.typ == TTLBrace {
-			funcName := Identifier(tok.literal)
+			funcName := ast.Identifier(tok.literal)
 
-			funcCall := FuncCall{}
+			funcCall := ast.FuncCall{}
 
-			if val, ok := p.get(funcName).(Func); ok {
-				funcCall.fun = val
+			if val, ok := p.get(funcName).(ast.Func); ok {
+				funcCall.Fun = val
 			} else {
 				p.lex.NextToken()
 				fmt.Println(val)
@@ -815,7 +824,7 @@ func (p *Parser) parsePrimary() Expression {
 			argIdx := -1
 
 			for tok := p.lex.PeekToken(); tok != nil && tok.typ != TTRBrace; tok = p.lex.PeekToken() {
-				if len(funcCall.Args) >= len(funcCall.fun.Args) {
+				if len(funcCall.Args) >= len(funcCall.Fun.Args) {
 					panic(p.lex.curLoc.String() + " Error: to many arguments to function")
 				}
 
@@ -825,9 +834,9 @@ func (p *Parser) parsePrimary() Expression {
 				funcCall.Args = append(funcCall.Args, arg)
 				argIdx++
 
-				expectedType := funcCall.fun.Args[argIdx].returnType()
+				expectedType := funcCall.Fun.Args[argIdx].ReturnType()
 
-				if !EqualTypes(arg.returnType(), expectedType) && expectedType.Kind() != KindAny {
+				if !ast.EqualTypes(arg.ReturnType(), expectedType) && expectedType.Kind() != ast.KindAny {
 					panic(loc.String() + " Error: argument type mismatch")
 				}
 
@@ -839,7 +848,7 @@ func (p *Parser) parsePrimary() Expression {
 				p.lex.NextToken()
 			}
 
-			if len(funcCall.Args) < len(funcCall.fun.Args) {
+			if len(funcCall.Args) < len(funcCall.Fun.Args) {
 				panic(p.lex.curLoc.String() + " Error: to few arguments to function")
 			}
 
@@ -847,7 +856,7 @@ func (p *Parser) parsePrimary() Expression {
 
 			expr = funcCall
 		} else {
-			expr = p.get(Identifier(tok.literal)).(Var)
+			expr = p.get(ast.Identifier(tok.literal)).(ast.Var)
 		}
 
 		next := p.lex.PeekToken()
@@ -856,13 +865,13 @@ func (p *Parser) parsePrimary() Expression {
 			return expr
 		}
 
-		curVal := StructIndex{base: expr, typ: expr.returnType(), offset: 0}
+		curVal := ast.StructIndex{Base: expr, Typ: expr.ReturnType(), Offset: 0}
 		expr = curVal
 
 		for ; next.typ == TTPeriod; next = p.lex.PeekToken() {
 			p.lex.NextToken()
 
-			if curVal.typ.Kind() != KindStruct {
+			if curVal.Typ.Kind() != ast.KindStruct {
 				panic(p.lex.curLoc.String() + "ERROR: not a struct")
 			}
 
@@ -875,10 +884,10 @@ func (p *Parser) parsePrimary() Expression {
 			if next.typ == TTIdentifier {
 				p.lex.NextToken()
 
-				var field StructField
+				var field ast.StructField
 
-				for _, field = range curVal.typ.(StructType).fields {
-					if field.name == Identifier(next.literal) {
+				for _, field = range curVal.Typ.(ast.StructType).Fields {
+					if field.Name == ast.Identifier(next.literal) {
 						goto fieldOk
 					}
 				}
@@ -886,8 +895,8 @@ func (p *Parser) parsePrimary() Expression {
 				panic(p.lex.curLoc.String() + "ERROR: no field `" + next.literal + "`")
 
 			fieldOk:
-				curVal.offset += field.offset
-				curVal.typ = field.typ
+				curVal.Offset += field.Offset
+				curVal.Typ = field.Typ
 				expr = curVal
 				continue
 			}
@@ -900,27 +909,27 @@ func (p *Parser) parsePrimary() Expression {
 	case TTInt:
 		p.lex.NextToken()
 		val := tok.extraInfo.(int)
-		return IntLit{val}
+		return ast.IntLit{Value: int64(val)}
 
 	case TTFloat:
 		p.lex.NextToken()
-		return FloatLit{tok.literal}
+		return ast.FloatLit{tok.literal}
 
 	case TTString:
 		p.lex.NextToken()
-		return StrLit{tok.extraInfo.(string), tok.literal}
+		return ast.StrLit{tok.extraInfo.(string), tok.literal}
 
 	case TTChar:
 		p.lex.NextToken()
-		return CharLit{tok.extraInfo.(rune), tok.literal}
+		return ast.CharLit{tok.extraInfo.(rune), tok.literal}
 
 	case TTTrue:
 		p.lex.NextToken()
-		return BoolLit{true}
+		return ast.BoolLit{true}
 
 	case TTFalse:
 		p.lex.NextToken()
-		return BoolLit{false}
+		return ast.BoolLit{false}
 
 	case TTLBrace:
 		p.lex.NextToken()
@@ -936,18 +945,18 @@ func (p *Parser) parsePrimary() Expression {
 
 			// TODO: some sort of `canCast` function
 			innerKind := typ.Kind()
-			resultKind := result.returnType().Kind()
+			resultKind := result.ReturnType().Kind()
 			sameKind := innerKind == resultKind
-			intToUint := (innerKind == KindUint && resultKind == KindInt) ||
-				(typ.Kind() == KindInt && resultKind == KindUint)
+			intToUint := (innerKind == ast.KindUint && resultKind == ast.KindInt) ||
+				(typ.Kind() == ast.KindInt && resultKind == ast.KindUint)
 
-			if !sameKind && !intToUint && innerKind != KindStruct {
+			if !sameKind && !intToUint && innerKind != ast.KindStruct {
 				panic(fmt.Errorf("%s ERROR: cannot cast: incompatible types", p.lex.curLoc.String()))
 			}
 
 			p.expect(TTRBrace)
 
-			return Cast{inner: result, newType: typ}
+			return ast.Cast{Inner: result, NewType: typ}
 		}
 
 		p.expect(TTRBrace)

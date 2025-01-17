@@ -1,3 +1,3 @@
-module github.com/Peirceman/windlang
+module windlang
 
 go 1.23

@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	floatparsing "github.com/Peirceman/windlang/floatParsing"
+	floatparsing "windlang/floatParsing"
 )
 
 func main() {
