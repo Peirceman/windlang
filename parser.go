@@ -941,7 +941,7 @@ func (p *Parser) parsePrimary() Expression {
 			intToUint := (innerKind == KindUint && resultKind == KindInt) ||
 				(typ.Kind() == KindInt && resultKind == KindUint)
 
-			if !sameKind && !intToUint {
+			if !sameKind && !intToUint && innerKind != KindStruct {
 				panic(fmt.Errorf("%s ERROR: cannot cast: incompatible types", p.lex.curLoc.String()))
 			}
 
