@@ -862,7 +862,7 @@ func (f FuncCall) returnType() Type {
 }
 
 func (c Cast) string() string {
-	return ""
+	return "(" + c.inner.string() + ": " + string(c.newType.Name()) + ")"
 }
 
 func (c Cast) returnType() Type {
