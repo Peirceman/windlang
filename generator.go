@@ -195,10 +195,14 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 		size := varDef.typ.Size()
 		g.baseOffset += uint64(size)
 
-		err = g.writeInstructionn(push, size, 0)
+		for size > 0 {
+			err = g.writeInstructionn(push, min(size, 8), 0)
 
-		if err != nil {
-			return err
+			if err != nil {
+				return err
+			}
+
+			size -= min(size, 8)
 		}
 	}
 
@@ -214,11 +218,16 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock CodeBlockNode) error {
 	for _, varDef := range codeBlock.scope.vars {
 		size := varDef.typ.Size()
 
-		err = g.writeInstruction0(pops, size)
+		for size > 0 {
+			err = g.writeInstruction0(pops, min(size, 8))
 
-		if err != nil {
-			return err
+			if err != nil {
+				return err
+			}
+
+			size -= min(size, 8)
 		}
+
 	}
 
 	return nil
@@ -805,11 +814,42 @@ func (g *BytecodeGenerator) writeExpression(expression Expression) error {
 			}
 		}
 
+	case StructIndex:
+		switch base := expression.base.(type) {
+		case Var:
+			err := g.varPointer(base.name)
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstructionn(push, 8, uint64(expression.offset))
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstruction0(addu, 8)
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstruction0(load, expression.typ.Size())
+
+			if err != nil {
+				return err
+			}
+		default:
+			panic("help me pwease")
+		}
+
 	case BinaryOpNode:
 		return g.generateBinaryOpNode(expression)
 
 	case UnaryOpNode:
 		return g.generateUnaryOpNode(expression)
+
 	default:
 		panic("Unknow or unimplemented expression: " + reflect.TypeOf(expression).String())
 	}
@@ -1955,6 +1995,31 @@ func (g *BytecodeGenerator) generateUnaryOpNode(uo UnaryOpNode) error {
 			if err != nil {
 				return err
 			}
+		} else if expr, ok := uo.Expression.(StructIndex); ok {
+			base, ok := expr.base.(Var)
+
+			if !ok {
+				return errors.New("ERROR: can only take a reference to a variable")
+			}
+
+			err := g.varPointer(base.name)
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstructionn(push, 8, uint64(expr.offset))
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstruction0(addu, 8)
+
+			if err != nil {
+				return err
+			}
+
 		} else {
 			panic("unreachable")
 		}
@@ -2055,6 +2120,34 @@ func (g *BytecodeGenerator) writeAssignLhs(lhs Expression) error {
 	for true {
 		if lhs, ok := lhs.(Var); ok {
 			err := g.varPointer(lhs.name)
+
+			if err != nil {
+				return err
+			}
+
+			break
+		}
+
+		if lhs, ok := lhs.(StructIndex); ok {
+			base, ok := lhs.base.(Var)
+
+			if !ok {
+				panic("Assigning to not var?")
+			}
+
+			err := g.varPointer(base.name)
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstructionn(push, 8, uint64(lhs.offset))
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstruction0(addu, 8)
 
 			if err != nil {
 				return err

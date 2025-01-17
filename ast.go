@@ -52,6 +52,19 @@ type PointerType struct {
 
 var _ Type = (*PointerType)(nil)
 
+type StructField struct {
+	Var
+	offset int
+}
+
+type StructType struct {
+	name   Identifier
+	size   int
+	fields []StructField // TODO: padding
+}
+
+var _ Type = (*StructType)(nil)
+
 var TypeVoid = SimpleType{kind: KindVoid}
 
 func EqualTypes(a, b Type) bool {
@@ -61,6 +74,9 @@ func EqualTypes(a, b Type) bool {
 		return ok && a.matches(b)
 	case PointerType:
 		_, ok := b.(PointerType)
+		return ok && a.matches(b)
+	case StructType:
+		_, ok := b.(StructType)
 		return ok && a.matches(b)
 	}
 
@@ -88,6 +104,34 @@ func (p PointerType) SetName(iden Identifier) Type {
 
 func (p PointerType) matches(other Type) bool {
 	return EqualTypes(p.inner, other.(PointerType).inner)
+}
+
+func (s StructType) Kind() Kind       { return KindStruct }
+func (s StructType) Size() int        { return s.size }
+func (s StructType) Name() Identifier { return s.name }
+
+func (s StructType) SetName(iden Identifier) Type {
+	s.name = iden
+	return s
+}
+
+func (s StructType) matches(other Type) bool {
+	otherS := other.(StructType)
+	if s.name != otherS.name {
+		return false
+	}
+
+	for i, fieldA := range s.fields {
+		fieldB := otherS.fields[i]
+		if fieldA.name != fieldB.name ||
+			fieldA.offset != fieldB.offset ||
+			!EqualTypes(fieldA.typ, fieldB.typ) {
+
+			return false
+		}
+	}
+
+	return true
 }
 
 type AstNode interface {
@@ -174,6 +218,14 @@ type Cast struct {
 }
 
 var _ Expression = (*Cast)(nil)
+
+type StructIndex struct {
+	base   Expression
+	typ    Type
+	offset int
+}
+
+var _ Expression = (*StructIndex)(nil)
 
 type BinaryOp int
 
@@ -393,35 +445,35 @@ func (b BinaryOp) InputAllowed(input Kind) bool {
 	case BODiv:
 		return input&KindNumberMask != 0
 	case BOMod:
-		return input&KindInt != 0
+		return input == KindInt || input == KindUint
 	case BOBinAnd:
-		return input&KindInt != 0
+		return input == KindInt || input == KindUint
 	case BOBinOr:
-		return input&KindInt != 0
+		return input == KindInt || input == KindUint
 	case BOBinXor:
-		return input&KindInt != 0
+		return input == KindInt || input == KindUint
 	case BOBoolAnd:
-		return input&KindBool != 0
+		return input == KindBool
 	case BOBoolOr:
-		return input&KindBool != 0
+		return input == KindBool
 	case BOShl:
-		return input&KindInt != 0
+		return input == KindInt || input == KindUint
 	case BOShr:
-		return input&KindInt != 0
+		return input == KindInt || input == KindUint
 	case BOGt:
-		return input&KindInt != 0
+		return true
 	case BOLt:
-		return input&KindInt != 0
+		return true
 	case BOGtEq:
-		return input&KindInt != 0
+		return true
 	case BOLtEq:
-		return input&KindInt != 0
+		return true
 	case BOEquals:
 		return true
 	case BONotEqual:
 		return true
 	case BOAssign:
-		return true
+		return input != KindStruct
 	case BOPlusAssign:
 		return input&KindNumberMask != 0
 	case BODashAssign:
@@ -431,15 +483,15 @@ func (b BinaryOp) InputAllowed(input Kind) bool {
 	case BOSlashAssign:
 		return input&KindNumberMask != 0
 	case BoAndAssign:
-		return input&KindInt != 0
+		return input == KindInt || input == KindUint
 	case BoOrAssign:
-		return input&KindInt != 0
+		return input == KindInt || input == KindUint
 	case BoXorAssign:
-		return input&KindInt != 0
+		return input == KindInt || input == KindUint
 	case BOShrAssign:
-		return input&KindInt != 0
+		return input == KindInt || input == KindUint
 	case BOShlAssign:
-		return input&KindInt != 0
+		return input == KindInt || input == KindUint
 	}
 
 	panic("illegal")
@@ -767,6 +819,8 @@ func NewUnaryOpNode(expression Expression, op UnaryOp) (Expression, error) {
 	case UORef:
 		if _, ok := expression.(Var); ok {
 			// ok
+		} else if _, ok := expression.(StructIndex); ok {
+			// ok
 		} else {
 			return UnaryOpNode{}, errors.New("Can only take a reference to a variable or constant")
 		}
@@ -867,6 +921,14 @@ func (c Cast) string() string {
 
 func (c Cast) returnType() Type {
 	return c.newType
+}
+
+func (s StructIndex) string() string {
+	return "" // cant really do this
+}
+
+func (s StructIndex) returnType() Type {
+	return s.typ
 }
 
 func (b BinaryOpNode) string() string {

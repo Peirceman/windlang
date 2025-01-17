@@ -5,6 +5,17 @@
 
 type anInt int32;
 
+type AStruct struct {
+	a: int64,
+	b: float64,
+};
+
+type BStruct struct {
+	a: int64,
+	b: float64,
+	c: AStruct,
+};
+
 var str: string = "\u0009string\n\tmulti line";
 var something: bool;
 
@@ -238,6 +249,18 @@ fn main() {
 	print((castTesterI: int32));
 	print((castTesterI: int64));
 	print((castTesterI: int16));
+
+	print("");
+
+	var structVar: BStruct;
+	var fieldRef: &int64 = &structVar.c.a;
+	structVar.c.a = 3;
+	print(*fieldRef);
+	print(structVar.c.a);
+	print(structVar.a);
+
+	fieldRef = &structVar.a;
+	print(*fieldRef);
 
 	return;
 }

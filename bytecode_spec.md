@@ -105,6 +105,8 @@ to that location must be given as the first argument
 
 everything above the base pointer will be cleared after returning
 
+arguments larger than 8 bytes are always passed by pointer.
+
 #### stack base pointer
 points to the base of the stack, aka where the top of the stack was when the
 function was called, to insure arguments are on top of the base pointer, use the

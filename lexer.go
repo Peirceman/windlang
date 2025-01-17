@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -132,6 +133,33 @@ func (l *Lexer) NextToken() *Token {
 func (l *Lexer) Reset() {
 	l.idx = 0
 	l.curLoc = l.tokens[0].loc
+}
+
+// Seek sets the index for which token it is on depending on
+// the offset and the whence as described in [io.Seek]. On
+// error, the error is returned and the token is not changed.
+func (l *Lexer) Seek(offset int64, whence int) (int64, error) {
+	oldIdx := l.idx
+
+	switch whence {
+	case io.SeekStart:
+		l.idx = int(offset)
+	case io.SeekEnd:
+		l.idx = len(l.tokens) - int(offset)
+	case io.SeekCurrent:
+		l.idx += int(offset)
+	default:
+		return 0, errors.New("ERROR: invalid whence")
+	}
+
+	if l.idx < 0 || l.idx >= len(l.tokens) {
+		l.idx = oldIdx
+		return 0, errors.New("ERROR: seek out of bounds")
+	}
+
+	l.curLoc = l.tokens[l.idx].loc
+
+	return int64(l.idx), nil
 }
 
 func (l *Lexer) nextToken() *Token {
@@ -698,7 +726,7 @@ func (l *Lexer) readAfterDigit() *Token {
 		}
 
 		if !hasDecimalPoint {
-			intVal = intVal * base + charset[r]
+			intVal = intVal*base + charset[r]
 		}
 
 		r, eof = l.peekRune()

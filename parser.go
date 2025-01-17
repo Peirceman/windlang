@@ -96,7 +96,6 @@ func (p *Parser) addVar(v Var) {
 func (p *Parser) addFunc(f Func) {
 	p.currentScope[len(p.currentScope)-1].AddFunc(f)
 }
-
 func (p *Parser) ParseAll() CodeBlockNode {
 	result := CodeBlockNode{
 		Statements: make([]AstNode, 0),
@@ -511,6 +510,10 @@ func (p *Parser) parseFunc() (FuncNode, bool) {
 
 		arg.typ = p.parseType()
 
+		if arg.typ.Kind() == KindStruct {
+			panic("cannot pass struct as an argument yet")
+		}
+
 		node.Args = append(node.Args, arg)
 		scope.AddVar(arg)
 
@@ -528,6 +531,9 @@ func (p *Parser) parseFunc() (FuncNode, bool) {
 	if tok.typ == TTColon {
 		p.lex.NextToken()
 		node.returnType = p.parseType()
+		if node.returnType.Kind() == KindStruct {
+			panic("func may not return a struct yet")
+		}
 	}
 
 	p.expect(TTLSquirly)
@@ -572,15 +578,45 @@ func (p *Parser) parseType() Type {
 
 	case TTStruct:
 		p.expect(TTLSquirly)
-		for tok := p.lex.PeekToken(); tok.typ != TTRSquirly && tok.typ != TTEOF; tok = p.lex.PeekToken() {
-			p.lex.NextToken()
 
-			// iden := p.expect(TTIdentifier)
+		typ := StructType{}
+
+		for tok := p.lex.PeekToken(); tok.typ != TTEOF && tok.typ != TTRSquirly; tok = p.lex.PeekToken() {
+			field := StructField{}
+
+			field.offset = typ.size
+			tok := p.expect(TTIdentifier)
+			field.name = Identifier(tok.literal)
 
 			p.expect(TTColon)
+
+			field.typ = p.parseType()
+
+			for _, prevField := range typ.fields {
+				if prevField.name == field.name {
+					panic(tok.loc.String() + "ERROR: field redeclared")
+				}
+			}
+
+			typ.size += field.typ.Size()
+
+			typ.fields = append(typ.fields, field)
+
+			tok = p.lex.PeekToken()
+
+			if tok.typ != TTComma {
+				break
+			}
+
+			p.lex.NextToken()
 		}
 
+		// round field up to multiple of 8
+		typ.size = (typ.size + 7) / 8 * 8
+
 		p.expect(TTRSquirly)
+
+		return typ
 	}
 
 	panic(tok.loc.String() + " Error: expected type")
@@ -677,6 +713,10 @@ func (p *Parser) parseBinary(precedence int) Expression {
 					if lhs.Op == UODeref {
 						goto ok2
 					}
+				case StructIndex:
+					if _, ok := lhs.base.(Var); ok {
+						goto ok2
+					}
 				}
 
 				panic(p.lex.curLoc.String() + " cannot assign to lhs")
@@ -755,63 +795,105 @@ func (p *Parser) parsePrimary() Expression {
 			panic(tok.loc.String() + " Undefinded name: " + tok.literal)
 		}
 
-		if next := p.lex.PeekToken(); next == nil || next.typ != TTLBrace {
-			switch val := p.get(Identifier(tok.literal)).(type) {
-			case Var:
-				return val
-			case Func:
-				return val
-			default:
-				panic("unreachable")
+		var expr Expression
+
+		if next := p.lex.PeekToken(); next.typ == TTLBrace {
+			funcName := Identifier(tok.literal)
+
+			funcCall := FuncCall{}
+
+			if val, ok := p.get(funcName).(Func); ok {
+				funcCall.fun = val
+			} else {
+				p.lex.NextToken()
+				fmt.Println(val)
+				panic(p.lex.curLoc.String() + " Can only call functions")
 			}
+
+			p.lex.NextToken() // always`(` because of if condition
+
+			argIdx := -1
+
+			for tok := p.lex.PeekToken(); tok != nil && tok.typ != TTRBrace; tok = p.lex.PeekToken() {
+				if len(funcCall.Args) >= len(funcCall.fun.Args) {
+					panic(p.lex.curLoc.String() + " Error: to many arguments to function")
+				}
+
+				loc := p.lex.curLoc
+				arg := p.parseExpression()
+
+				funcCall.Args = append(funcCall.Args, arg)
+				argIdx++
+
+				expectedType := funcCall.fun.Args[argIdx].returnType()
+
+				if !EqualTypes(arg.returnType(), expectedType) && expectedType.Kind() != KindAny {
+					panic(loc.String() + " Error: argument type mismatch")
+				}
+
+				tok = p.lex.PeekToken()
+				if tok == nil || tok.typ != TTComma {
+					break
+				}
+
+				p.lex.NextToken()
+			}
+
+			if len(funcCall.Args) < len(funcCall.fun.Args) {
+				panic(p.lex.curLoc.String() + " Error: to few arguments to function")
+			}
+
+			p.expect(TTRBrace)
+
+			expr = funcCall
+		} else {
+			expr = p.get(Identifier(tok.literal)).(Var)
 		}
 
-		funcName := Identifier(tok.literal)
+		next := p.lex.PeekToken()
 
-		expr := FuncCall{}
-		switch val := p.get(funcName).(type) {
-		case Func:
-			expr.fun = val
-		default:
+		if next.typ != TTPeriod {
+			return expr
+		}
+
+		curVal := StructIndex{base: expr, typ: expr.returnType(), offset: 0}
+		expr = curVal
+
+		for ; next.typ == TTPeriod; next = p.lex.PeekToken() {
 			p.lex.NextToken()
-			fmt.Println(val)
-			panic(p.lex.curLoc.String() + " Can only call functions")
-		}
 
-		p.lex.NextToken() // always`(` because of if condition
-
-		argIdx := -1
-
-		for tok := p.lex.PeekToken(); tok != nil && tok.typ != TTRBrace; tok = p.lex.PeekToken() {
-			if len(expr.Args) >= len(expr.fun.Args) {
-				panic(p.lex.curLoc.String() + " Error: to many arguments to function")
+			if curVal.typ.Kind() != KindStruct {
+				panic(p.lex.curLoc.String() + "ERROR: not a struct")
 			}
 
-			loc := p.lex.curLoc
-			arg := p.parseExpression()
+			next = p.lex.PeekToken()
 
-			expr.Args = append(expr.Args, arg)
-			argIdx++
-
-			expectedType := expr.fun.Args[argIdx].returnType()
-
-			if !EqualTypes(arg.returnType(), expectedType) && expectedType.Kind() != KindAny {
-				panic(loc.String() + " Error: argument type mismatch")
+			if next.typ == TTLSquirly {
+				panic("struct initialization")
 			}
 
-			tok = p.lex.PeekToken()
-			if tok == nil || tok.typ != TTComma {
-				break
+			if next.typ == TTIdentifier {
+				p.lex.NextToken()
+
+				var field StructField
+
+				for _, field = range curVal.typ.(StructType).fields {
+					if field.name == Identifier(next.literal) {
+						goto fieldOk
+					}
+				}
+
+				panic(p.lex.curLoc.String() + "ERROR: no field `" + next.literal + "`")
+
+			fieldOk:
+				curVal.offset += field.offset
+				curVal.typ = field.typ
+				expr = curVal
+				continue
 			}
 
-			p.lex.NextToken()
+			p.expect(TTIdentifier) // throw error
 		}
-
-		if len(expr.Args) < len(expr.fun.Args) {
-			panic(p.lex.curLoc.String() + " Error: to few arguments to function")
-		}
-
-		p.expect(TTRBrace)
 
 		return expr
 
