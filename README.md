@@ -5,8 +5,10 @@
 ## Todo:
  - [ ] testing:  
     use testdata dir with files for files to parse and expected output
+ - [x] clean up codebase
  - [ ] fix the rest of this readme
- - [x] expand type system: arrays, structs
+ - [ ] expand type system: arrays
+ - [ ] allow structs to be copied and used as argument/return from function
  - [ ] use jump instructions for if statements instead of what happens now
  - [ ] for loops
  - [ ] calling functions that are declared further down the file
