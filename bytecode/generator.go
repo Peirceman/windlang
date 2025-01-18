@@ -257,7 +257,7 @@ func (g *Generator) writeStatements(statements []ast.AstNode) error {
 				break
 			}
 
-			err := g.varPointer(node.Name)
+			err := g.varPointer(node.Var)
 
 			if err != nil {
 				return err
@@ -636,7 +636,7 @@ func (g *Generator) writeExpression(expression ast.Expression) error {
 		}
 
 	case ast.Var:
-		err := g.varPointer(expression.Name)
+		err := g.varPointer(expression)
 
 		if err != nil {
 			return err
@@ -819,7 +819,7 @@ func (g *Generator) writeExpression(expression ast.Expression) error {
 	case ast.StructIndex:
 		switch base := expression.Base.(type) {
 		case ast.Var:
-			err := g.varPointer(base.Name)
+			err := g.varPointer(base)
 
 			if err != nil {
 				return err
@@ -866,194 +866,56 @@ func (g *Generator) generateBinaryOpNode(binopnode ast.BinaryOpNode) error {
 
 	switch binopnode.Op {
 	case ast.BOPlus:
-		err := g.writeExpression(binopnode.Lhs)
-
-		if err != nil {
-			return err
-		}
-
-		err = g.writeExpression(binopnode.Rhs)
-
-		if err != nil {
-			return err
-		}
-
-		typ := binopnode.Lhs.ReturnType()
-		if typ.Kind() == ast.KindInt {
-			err = g.writeInstruction0(adds, typ.Size())
-		} else if typ.Kind() == ast.KindUint {
-			err = g.writeInstruction0(addu, typ.Size())
-		} else {
-			err = g.writeInstruction0(addf, typ.Size())
-		}
+		err := g.writeArithmetic(binopnode, adds, addu, addf)
 
 		if err != nil {
 			return err
 		}
 
 	case ast.BOMinus:
-		err := g.writeExpression(binopnode.Lhs)
-
-		if err != nil {
-			return err
-		}
-
-		err = g.writeExpression(binopnode.Rhs)
-
-		if err != nil {
-			return err
-		}
-
-		typ := binopnode.Lhs.ReturnType()
-		if typ.Kind() == ast.KindInt {
-			err = g.writeInstruction0(subs, typ.Size())
-		} else if typ.Kind() == ast.KindUint {
-			err = g.writeInstruction0(subu, typ.Size())
-		} else {
-			err = g.writeInstruction0(subf, typ.Size())
-		}
+		err := g.writeArithmetic(binopnode, subs, subu, subf)
 
 		if err != nil {
 			return err
 		}
 
 	case ast.BOMul:
-		err := g.writeExpression(binopnode.Lhs)
-
-		if err != nil {
-			return err
-		}
-
-		err = g.writeExpression(binopnode.Rhs)
-
-		if err != nil {
-			return err
-		}
-
-		typ := binopnode.Lhs.ReturnType()
-		if typ.Kind() == ast.KindInt {
-			err = g.writeInstruction0(muls, typ.Size())
-		} else if typ.Kind() == ast.KindUint {
-			err = g.writeInstruction0(mulu, typ.Size())
-		} else {
-			err = g.writeInstruction0(mulf, typ.Size())
-		}
+		err := g.writeArithmetic(binopnode, muls, mulu, mulf)
 
 		if err != nil {
 			return err
 		}
 
 	case ast.BODiv:
-		err := g.writeExpression(binopnode.Lhs)
-
-		if err != nil {
-			return err
-		}
-
-		err = g.writeExpression(binopnode.Rhs)
-
-		if err != nil {
-			return err
-		}
-
-		typ := binopnode.Lhs.ReturnType()
-		if typ.Kind() == ast.KindInt {
-			err = g.writeInstruction0(divs, typ.Size())
-		} else if typ.Kind() == ast.KindUint {
-			err = g.writeInstruction0(divu, typ.Size())
-		} else {
-			err = g.writeInstruction0(divf, typ.Size())
-		}
+		err := g.writeArithmetic(binopnode, divs, divu, divf)
 
 		if err != nil {
 			return err
 		}
 
 	case ast.BOMod:
-		err := g.writeExpression(binopnode.Lhs)
-
-		if err != nil {
-			return err
-		}
-
-		err = g.writeExpression(binopnode.Rhs)
-
-		if err != nil {
-			return err
-		}
-
-		typ := binopnode.ReturnType()
-
-		if typ.Kind() == ast.KindInt {
-			err = g.writeInstruction0(mods, typ.Size())
-		} else if typ.Kind() == ast.KindUint {
-			err = g.writeInstruction0(modu, typ.Size())
-		} else {
-			panic("unreachable")
-		}
+		err := g.writeArithmetic(binopnode, mods, modu, -1)
 
 		if err != nil {
 			return err
 		}
 
 	case ast.BOBinAnd:
-		err := g.writeExpression(binopnode.Lhs)
-
-		if err != nil {
-			return err
-		}
-
-		err = g.writeExpression(binopnode.Rhs)
-
-		if err != nil {
-			return err
-		}
-
-		size := binopnode.ReturnType().Size()
-
-		err = g.writeInstruction0(band, size)
+		err := g.writeArithmetic(binopnode, band, band, -1)
 
 		if err != nil {
 			return err
 		}
 
 	case ast.BOBinOr:
-		err := g.writeExpression(binopnode.Lhs)
-
-		if err != nil {
-			return err
-		}
-
-		err = g.writeExpression(binopnode.Rhs)
-
-		if err != nil {
-			return err
-		}
-
-		size := binopnode.ReturnType().Size()
-
-		err = g.writeInstruction0(borr, size)
+		err := g.writeArithmetic(binopnode, borr, borr, -1)
 
 		if err != nil {
 			return err
 		}
 
 	case ast.BOBinXor:
-		err := g.writeExpression(binopnode.Lhs)
-
-		if err != nil {
-			return err
-		}
-
-		err = g.writeExpression(binopnode.Rhs)
-
-		if err != nil {
-			return err
-		}
-
-		size := binopnode.ReturnType().Size()
-
-		err = g.writeInstruction0(bxor, size)
+		err := g.writeArithmetic(binopnode, bxor, bxor, -1)
 
 		if err != nil {
 			return err
@@ -1250,277 +1112,60 @@ func (g *Generator) generateBinaryOpNode(binopnode ast.BinaryOpNode) error {
 		}
 
 	case ast.BOShl:
-		err := g.writeExpression(binopnode.Lhs)
-
-		if err != nil {
-			return err
-		}
-
-		err = g.writeExpression(binopnode.Rhs)
-
-		if err != nil {
-			return err
-		}
-
-		size := binopnode.ReturnType().Size()
-		err = g.writeInstruction0(bshl, size)
+		err := g.writeArithmetic(binopnode, bshl, bshl, -1)
 
 		if err != nil {
 			return err
 		}
 
 	case ast.BOShr:
-		err := g.writeExpression(binopnode.Lhs)
-
-		if err != nil {
-			return err
-		}
-
-		err = g.writeExpression(binopnode.Rhs)
-
-		if err != nil {
-			return err
-		}
-
-		typ := binopnode.ReturnType()
-
-		if typ.Kind() == ast.KindInt {
-			err = g.writeInstruction0(bsrs, typ.Size())
-		} else if typ.Kind() == ast.KindUint {
-			err = g.writeInstruction0(bsru, typ.Size())
-		}
+		err := g.writeArithmetic(binopnode, bsrs, bsru, -1)
 
 		if err != nil {
 			return err
 		}
 
 	case ast.BOGt:
-		err := g.writeExpression(binopnode.Lhs)
+		err := g.writeBoolExpression(binopnode, isgt)
 
 		if err != nil {
 			return err
 		}
-
-		err = g.writeExpression(binopnode.Rhs)
-
-		if err != nil {
-			return err
-		}
-
-		typ := binopnode.Lhs.ReturnType()
-
-		if typ.Kind() == ast.KindInt {
-			err = g.writeInstruction0(cmps, typ.Size())
-		} else if typ.Kind() == ast.KindUint {
-			err = g.writeInstruction0(cmpu, typ.Size())
-		} else if typ.Kind() == ast.KindFloat {
-			err = g.writeInstruction0(cmpf, typ.Size())
-		}
-
-		if err != nil {
-			return err
-		}
-
-		err = g.writeInstruction0(isgt, binopnode.ReturnType().Size())
-
-		if err != nil {
-			return err
-		}
-
-		requiredSize := binopnode.ReturnType().Size()
-		curSize := binopnode.Lhs.ReturnType().Size()
-
-		g.castUnsigned(requiredSize, curSize)
 
 	case ast.BOLt:
-		err := g.writeExpression(binopnode.Lhs)
+		err := g.writeBoolExpression(binopnode, islt)
 
 		if err != nil {
 			return err
 		}
-
-		err = g.writeExpression(binopnode.Rhs)
-
-		if err != nil {
-			return err
-		}
-
-		typ := binopnode.Lhs.ReturnType()
-
-		if typ.Kind() == ast.KindInt {
-			err = g.writeInstruction0(cmps, typ.Size())
-		} else if typ.Kind() == ast.KindUint {
-			err = g.writeInstruction0(cmpu, typ.Size())
-		} else if typ.Kind() == ast.KindFloat {
-			err = g.writeInstruction0(cmpf, typ.Size())
-		}
-
-		if err != nil {
-			return err
-		}
-
-		err = g.writeInstruction0(islt, binopnode.ReturnType().Size())
-
-		if err != nil {
-			return err
-		}
-
-		requiredSize := binopnode.ReturnType().Size()
-		curSize := binopnode.Lhs.ReturnType().Size()
-
-		g.castUnsigned(requiredSize, curSize)
 
 	case ast.BOGtEq:
-		err := g.writeExpression(binopnode.Lhs)
+		err := g.writeBoolExpression(binopnode, isge)
 
 		if err != nil {
 			return err
 		}
-
-		err = g.writeExpression(binopnode.Rhs)
-
-		if err != nil {
-			return err
-		}
-
-		typ := binopnode.Lhs.ReturnType()
-
-		if typ.Kind() == ast.KindInt {
-			err = g.writeInstruction0(cmps, typ.Size())
-		} else if typ.Kind() == ast.KindUint {
-			err = g.writeInstruction0(cmpu, typ.Size())
-		} else if typ.Kind() == ast.KindFloat {
-			err = g.writeInstruction0(cmpf, typ.Size())
-		}
-
-		if err != nil {
-			return err
-		}
-
-		err = g.writeInstruction0(isge, binopnode.ReturnType().Size())
-
-		if err != nil {
-			return err
-		}
-
-		requiredSize := binopnode.ReturnType().Size()
-		curSize := binopnode.Lhs.ReturnType().Size()
-
-		g.castUnsigned(requiredSize, curSize)
 
 	case ast.BOLtEq:
-		err := g.writeExpression(binopnode.Lhs)
+		err := g.writeBoolExpression(binopnode, isle)
 
 		if err != nil {
 			return err
 		}
-
-		err = g.writeExpression(binopnode.Rhs)
-
-		if err != nil {
-			return err
-		}
-
-		typ := binopnode.Lhs.ReturnType()
-
-		if typ.Kind() == ast.KindInt {
-			err = g.writeInstruction0(cmps, typ.Size())
-		} else if typ.Kind() == ast.KindUint {
-			err = g.writeInstruction0(cmpu, typ.Size())
-		} else if typ.Kind() == ast.KindFloat {
-			err = g.writeInstruction0(cmpf, typ.Size())
-		}
-
-		if err != nil {
-			return err
-		}
-
-		err = g.writeInstruction0(isle, binopnode.ReturnType().Size())
-
-		if err != nil {
-			return err
-		}
-
-		requiredSize := binopnode.ReturnType().Size()
-		curSize := binopnode.Lhs.ReturnType().Size()
-
-		g.castUnsigned(requiredSize, curSize)
 
 	case ast.BOEquals:
-		err := g.writeExpression(binopnode.Lhs)
+		err := g.writeBoolExpression(binopnode, iseq)
 
 		if err != nil {
 			return err
 		}
-
-		err = g.writeExpression(binopnode.Rhs)
-
-		if err != nil {
-			return err
-		}
-
-		typ := binopnode.Lhs.ReturnType()
-
-		if typ.Kind() == ast.KindInt {
-			err = g.writeInstruction0(cmps, typ.Size())
-		} else if typ.Kind() == ast.KindUint {
-			err = g.writeInstruction0(cmpu, typ.Size())
-		} else if typ.Kind() == ast.KindFloat {
-			err = g.writeInstruction0(cmpf, typ.Size())
-		}
-
-		if err != nil {
-			return err
-		}
-
-		err = g.writeInstruction0(iseq, binopnode.ReturnType().Size())
-
-		if err != nil {
-			return err
-		}
-
-		requiredSize := binopnode.ReturnType().Size()
-		curSize := binopnode.Lhs.ReturnType().Size()
-
-		g.castUnsigned(requiredSize, curSize)
 
 	case ast.BONotEqual:
-		err := g.writeExpression(binopnode.Lhs)
+		err := g.writeBoolExpression(binopnode, isne)
 
 		if err != nil {
 			return err
 		}
-
-		err = g.writeExpression(binopnode.Rhs)
-
-		if err != nil {
-			return err
-		}
-
-		typ := binopnode.Lhs.ReturnType()
-
-		if typ.Kind() == ast.KindInt {
-			err = g.writeInstruction0(cmps, typ.Size())
-		} else if typ.Kind() == ast.KindUint {
-			err = g.writeInstruction0(cmpu, typ.Size())
-		} else if typ.Kind() == ast.KindFloat {
-			err = g.writeInstruction0(cmpf, typ.Size())
-		}
-
-		if err != nil {
-			return err
-		}
-
-		err = g.writeInstruction0(isne, binopnode.ReturnType().Size())
-
-		if err != nil {
-			return err
-		}
-
-		requiredSize := binopnode.ReturnType().Size()
-		curSize := binopnode.Lhs.ReturnType().Size()
-
-		g.castUnsigned(requiredSize, curSize)
 
 	case ast.BOAssign:
 		err := g.writeAssignLhs(binopnode.Lhs)
@@ -1931,6 +1576,7 @@ func (g *Generator) generateUnaryOpNode(uo ast.UnaryOpNode) error {
 	switch uo.Op {
 	case ast.UOPlus:
 		return g.writeExpression(uo.Expression)
+
 	case ast.UONegative:
 		err := g.writeExpression(uo.Expression)
 
@@ -1992,7 +1638,7 @@ func (g *Generator) generateUnaryOpNode(uo ast.UnaryOpNode) error {
 
 	case ast.UORef:
 		if expr, ok := uo.Expression.(ast.Var); ok {
-			err := g.varPointer(expr.Name)
+			err := g.varPointer(expr)
 
 			if err != nil {
 				return err
@@ -2004,7 +1650,7 @@ func (g *Generator) generateUnaryOpNode(uo ast.UnaryOpNode) error {
 				return errors.New("ERROR: can only take a reference to a variable")
 			}
 
-			err := g.varPointer(base.Name)
+			err := g.varPointer(base)
 
 			if err != nil {
 				return err
@@ -2049,6 +1695,79 @@ func (g *Generator) generateUnaryOpNode(uo ast.UnaryOpNode) error {
 	}
 
 	return nil
+}
+
+func (g *Generator) writeArithmetic(binopnode ast.BinaryOpNode,
+	signedOp, unsignedOp, floatOp Opcode) error {
+	err := g.writeExpression(binopnode.Lhs)
+
+	if err != nil {
+		return err
+	}
+
+	err = g.writeExpression(binopnode.Rhs)
+
+	if err != nil {
+		return err
+	}
+
+	typ := binopnode.Lhs.ReturnType()
+
+	switch typ.Kind() {
+	case ast.KindInt:
+		err = g.writeInstruction0(signedOp, typ.Size())
+	case ast.KindUint:
+		err = g.writeInstruction0(unsignedOp, typ.Size())
+	case ast.KindFloat:
+		err = g.writeInstruction0(floatOp, typ.Size())
+	default:
+		panic("unreachable")
+	}
+
+	return err
+}
+
+func (g *Generator) writeBoolExpression(binopnode ast.BinaryOpNode, instruction Opcode) error {
+	err := g.writeExpression(binopnode.Lhs)
+
+	if err != nil {
+		return err
+	}
+
+	err = g.writeExpression(binopnode.Rhs)
+
+	if err != nil {
+		return err
+	}
+
+	typ := binopnode.Lhs.ReturnType()
+
+	if typ.Kind() == ast.KindInt {
+		err = g.writeInstruction0(cmps, typ.Size())
+	} else if typ.Kind() == ast.KindUint {
+		err = g.writeInstruction0(cmpu, typ.Size())
+	} else if typ.Kind() == ast.KindFloat {
+		err = g.writeInstruction0(cmpf, typ.Size())
+	} else {
+		panic("uncomparable types")
+	}
+
+	if err != nil {
+		return err
+	}
+
+	err = g.writeInstruction0(instruction, binopnode.ReturnType().Size())
+
+	if err != nil {
+		return err
+	}
+
+	requiredSize := binopnode.ReturnType().Size()
+	curSize := binopnode.Lhs.ReturnType().Size()
+
+	err = g.castUnsigned(requiredSize, curSize)
+
+	return err
 }
 
 func (g *Generator) castUnsigned(requiredSize, currentSize int) (err error) {
@@ -2119,31 +1838,31 @@ func (g *Generator) castSigned(requiredSize, currentSize int) (err error) {
 func (g *Generator) writeAssignLhs(lhs ast.Expression) error {
 	derefCount := 0
 
+loop:
 	for true {
-		if lhs, ok := lhs.(ast.Var); ok {
-			err := g.varPointer(lhs.Name)
+		switch lhsTyp := lhs.(type) {
+		case ast.Var:
+			err := g.varPointer(lhsTyp)
 
 			if err != nil {
 				return err
 			}
 
-			break
-		}
-
-		if lhs, ok := lhs.(ast.StructIndex); ok {
-			base, ok := lhs.Base.(ast.Var)
+			break loop
+		case ast.StructIndex:
+			base, ok := lhsTyp.Base.(ast.Var)
 
 			if !ok {
 				panic("Assigning to not var?")
 			}
 
-			err := g.varPointer(base.Name)
+			err := g.varPointer(base)
 
 			if err != nil {
 				return err
 			}
 
-			err = g.writeInstructionn(push, 8, uint64(lhs.Offset))
+			err = g.writeInstructionn(push, 8, uint64(lhsTyp.Offset))
 
 			if err != nil {
 				return err
@@ -2155,22 +1874,19 @@ func (g *Generator) writeAssignLhs(lhs ast.Expression) error {
 				return err
 			}
 
-			break
-		}
-
-		if lhsUnOp, ok := lhs.(ast.UnaryOpNode); ok {
-			if lhsUnOp.Op != ast.UODeref {
+			break loop
+		case ast.UnaryOpNode:
+			if lhsTyp.Op != ast.UODeref {
 				panic("assertion failed")
 			}
 
 			derefCount++
 
-			lhs = lhsUnOp.Expression
+			lhs = lhsTyp.Expression
 
-			continue
+		default:
+			panic("assigning to not variable???")
 		}
-
-		panic("assigning to not variable???")
 	}
 
 	for i := range derefCount {
@@ -2262,18 +1978,18 @@ func (g *Generator) findVar(identifier ast.Identifier) int {
 	return -1
 }
 
-func (g *Generator) varPointer(identifier ast.Identifier) error {
+func (g *Generator) varPointer(variable ast.Var) error {
 	var varLoc VarLocation
 
 	for i := len(g.vars) - 1; i >= 0; i-- {
 		cur := g.vars[i]
-		if cur.identifier == identifier {
+		if cur.identifier == variable.Name {
 			varLoc = cur
 			goto found
 		}
 	}
 
-	panic("variable ´" + identifier + "´ not found")
+	panic("variable ´" + variable.Name + "´ not found")
 
 found:
 	switch varLoc.pointer.location {

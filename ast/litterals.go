@@ -34,12 +34,13 @@ type BoolLit struct {
 
 var _ Expression = (*BoolLit)(nil)
 
+
 func (i IntLit) string() string {
 	return strconv.FormatInt(i.Value, 10)
 }
 
 func (i IntLit) ReturnType() Type {
-	return SimpleType{KindInt, 8, "int64"}
+	return TypeInt64
 }
 
 func (f FloatLit) string() string {
@@ -47,7 +48,7 @@ func (f FloatLit) string() string {
 }
 
 func (i FloatLit) ReturnType() Type {
-	return SimpleType{KindFloat, 8, "float64"}
+	return TypeFloat64
 }
 
 func (f StrLit) string() string {
@@ -55,7 +56,7 @@ func (f StrLit) string() string {
 }
 
 func (i StrLit) ReturnType() Type {
-	return PointerType{"string", SimpleType{KindUint, 1, "uint8"}}
+	return TypeString
 }
 
 func (f CharLit) string() string {
@@ -63,7 +64,7 @@ func (f CharLit) string() string {
 }
 
 func (i CharLit) ReturnType() Type {
-	return SimpleType{KindInt, 4, "int32"}
+	return TypeChar
 }
 
 func (f BoolLit) string() string {
@@ -75,5 +76,5 @@ func (f BoolLit) string() string {
 }
 
 func (f BoolLit) ReturnType() Type {
-	return SimpleType{KindBool, 4, "bool"}
+	return TypeBool
 }

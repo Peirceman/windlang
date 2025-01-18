@@ -36,8 +36,6 @@ type SimpleType struct {
 
 var _ Type = (*SimpleType)(nil)
 
-var TypeVoid = SimpleType{Kind_: KindVoid}
-
 type PointerType struct {
 	Name_ Identifier
 	Inner Type
@@ -57,6 +55,28 @@ type StructType struct {
 }
 
 var _ Type = (*StructType)(nil)
+
+// Default types
+var (
+	TypeVoid = SimpleType{KindVoid, 0, ""}
+
+	TypeInt8 = SimpleType{KindInt, 1, "int8"}
+	TypeInt16 = SimpleType{KindInt, 2, "int16"}
+	TypeInt32 = SimpleType{KindInt, 4, "int32"}
+	TypeInt64 = SimpleType{KindInt, 8, "int64"}
+
+	TypeUint8 = SimpleType{KindUint, 1, "uint8"}
+	TypeUint16 = SimpleType{KindUint, 2, "uint16"}
+	TypeUint32 = SimpleType{KindUint, 4, "uint32"}
+	TypeUint64 = SimpleType{KindUint, 8, "uint64"}
+
+	TypeFloat32 = SimpleType{KindFloat, 4, "float32"}
+	TypeFloat64 = SimpleType{KindFloat, 8, "float64"}
+
+	TypeBool = SimpleType{KindBool, 4, "bool"}
+	TypeChar = SimpleType{KindInt, 4, "char"}
+	TypeString = PointerType{"string", TypeUint8}
+)
 
 func EqualTypes(a, b Type) bool {
 	switch a.(type) {

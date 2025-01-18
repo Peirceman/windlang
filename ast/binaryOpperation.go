@@ -305,17 +305,17 @@ func (b BinaryOp) ReturnType(input Type) Type {
 	case BOShr:
 		return input
 	case BOGt:
-		return SimpleType{KindBool, 4, "bool"}
+		return TypeBool
 	case BOLt:
-		return SimpleType{KindBool, 4, "bool"}
+		return TypeBool
 	case BOGtEq:
-		return SimpleType{KindBool, 4, "bool"}
+		return TypeBool
 	case BOLtEq:
-		return SimpleType{KindBool, 4, "bool"}
+		return TypeBool
 	case BOEquals:
-		return SimpleType{KindBool, 4, "bool"}
+		return TypeBool
 	case BONotEqual:
-		return SimpleType{KindBool, 4, "bool"}
+		return TypeBool
 	case BOAssign:
 		return TypeVoid
 	case BOPlusAssign:

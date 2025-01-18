@@ -38,19 +38,21 @@ func ParserFromString(str string) (p *Parser) {
 }
 
 func (p *Parser) addBuiltIns() {
-	p.typeDefs = []ast.Type{
-		ast.SimpleType{Kind_: ast.KindInt, Size_: 1, Name_: "int8"},
-		ast.SimpleType{Kind_: ast.KindInt, Size_: 2, Name_: "int16"},
-		ast.SimpleType{Kind_: ast.KindInt, Size_: 4, Name_: "int32"},
-		ast.SimpleType{Kind_: ast.KindInt, Size_: 8, Name_: "int64"},
-		ast.SimpleType{Kind_: ast.KindUint, Size_: 1, Name_: "uint8"},
-		ast.SimpleType{Kind_: ast.KindUint, Size_: 2, Name_: "uint16"},
-		ast.SimpleType{Kind_: ast.KindUint, Size_: 4, Name_: "uint32"},
-		ast.SimpleType{Kind_: ast.KindUint, Size_: 8, Name_: "uint64"},
-		ast.SimpleType{Kind_: ast.KindFloat, Size_: 4, Name_: "float32"},
-		ast.SimpleType{Kind_: ast.KindFloat, Size_: 8, Name_: "float64"},
-		ast.SimpleType{Kind_: ast.KindBool, Size_: 4, Name_: "bool"},
-		ast.PointerType{Name_: "string", Inner: ast.SimpleType{Kind_: ast.KindUint, Size_: 1, Name_: "uint8"}},
+	p.typeDefs = []ast.Type{ // TODO: better way of importing all defaults
+		ast.TypeVoid,
+		ast.TypeInt8,
+		ast.TypeInt16,
+		ast.TypeInt32,
+		ast.TypeInt64,
+		ast.TypeUint8,
+		ast.TypeUint16,
+		ast.TypeUint32,
+		ast.TypeUint64,
+		ast.TypeFloat32,
+		ast.TypeFloat64,
+		ast.TypeBool,
+		ast.TypeChar,
+		ast.TypeString,
 	}
 
 	p.addFunc(ast.Func{
