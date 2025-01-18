@@ -314,25 +314,7 @@ func (g *generator) writeStatements(statements []ast.AstNode) error {
 
 		case ast.ReturnNode:
 			if node.Expr != nil {
-				err := g.writeInstruction0(base, 0)
-
-				if err != nil {
-					return err
-				}
-
-				err = g.writeInstruction0(load, 8)
-
-				if err != nil {
-					return err
-				}
-
-				err = g.writeExpression(node.Expr)
-
-				if err != nil {
-					return err
-				}
-
-				err = g.writeInstruction0(stor, node.Expr.ReturnType().Size())
+				err := g.writeAssignment(ast.Var{Name: "return", Typ: node.Expr.ReturnType()}, node.Expr)
 
 				if err != nil {
 					return err
@@ -810,10 +792,13 @@ func (g *generator) writeExpression(expression ast.Expression) error {
 		}
 
 		if expression.ReturnType().Kind() != ast.KindVoid {
-			err = g.writeInstructionn(push, expression.ReturnType().Size(), 0)
+			size := expression.ReturnType().Size()
+			for i := size; i > 0; i -= 8 {
+				err = g.writeInstructionn(push, min(i, 8), 0)
 
-			if err != nil {
-				return err
+				if err != nil {
+					return err
+				}
 			}
 
 			err = g.writeInstruction0(farg, 0)
@@ -828,7 +813,7 @@ func (g *generator) writeExpression(expression ast.Expression) error {
 				return err
 			}
 
-			err = g.writeInstructionn(push, 8, uint64(expression.ReturnType().Size()))
+			err = g.writeInstructionn(push, 8, uint64(size))
 
 			if err != nil {
 				return err
@@ -2184,6 +2169,16 @@ found:
 }
 
 func (g *generator) varPointer(variable ast.Var) error {
+	if variable.Name == "return" {
+		err := g.writeInstruction0(base, 0)
+
+		if err != nil {
+			return err
+		}
+
+		return g.writeInstruction0(load, 8)
+	}
+
 	var varLoc varLocation
 
 	for i := len(g.vars) - 1; i >= 0; i-- {

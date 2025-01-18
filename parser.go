@@ -416,9 +416,6 @@ func (p *Parser) parseFunc() (ast.FuncNode, bool) {
 	if tok.typ == TTColon {
 		p.lex.NextToken()
 		node.ReturnType = p.parseType()
-		if node.ReturnType.Kind() == ast.KindStruct {
-			panic("func may not return a struct yet")
-		}
 	}
 
 	p.expect(TTLSquirly)

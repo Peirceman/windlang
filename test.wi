@@ -59,6 +59,15 @@ fn structArg(arg: BStruct): float64 {
 	return arg.c.b;
 }
 
+fn structRet(a: int64, b: float64): AStruct {
+	var result: AStruct;
+
+	result.a = a;
+	result.b = b;
+
+	return result;
+}
+
 fn testLocalScope() {
 	print("");
 
@@ -347,6 +356,8 @@ fn main() {
 	print(copied.c.b);
 
 	print(structArg(structVar));
+
+	structVar.c = structRet(100, 200.0);
 
 	print(structVar.a);
 	print(structVar.b);
