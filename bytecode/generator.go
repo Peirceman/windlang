@@ -12,28 +12,28 @@ import (
 	"windlang/ast"
 )
 
-type VarLocation struct {
+type varLocation struct {
 	identifier ast.Identifier
 	typ        ast.Type
 	pointer    pointer // note offset for LocStack is relative to base
 }
 
-type Generator struct {
+type generator struct {
 	Output         io.WriteSeeker
 	data           []byte
 	instructionIdx int
 	bytesWritten   int
 	funcs          map[ast.Identifier]uint32
-	vars           []VarLocation
+	vars           []varLocation
 	baseOffset    uint64
 	scratchLoc     uint64
 }
 
 func Generate(output io.WriteSeeker, code ast.CodeBlockNode) error {
-	g := &Generator{
+	g := &generator{
 		Output:         output,
 		data:           make([]byte, 0),
-		vars:           make([]VarLocation, 0),
+		vars:           make([]varLocation, 0),
 		funcs:          make(map[ast.Identifier]uint32),
 		instructionIdx: 0,
 		bytesWritten:   0,
@@ -115,7 +115,7 @@ func Generate(output io.WriteSeeker, code ast.CodeBlockNode) error {
 	return nil
 }
 
-func (g *Generator) writeGlobal(codeBlock ast.CodeBlockNode) error {
+func (g *generator) writeGlobal(codeBlock ast.CodeBlockNode) error {
 	_, exists := codeBlock.Scope.Funcs["main"]
 	if !exists {
 		return errors.New("Error generating bytecode: no main function found")
@@ -150,7 +150,7 @@ func (g *Generator) writeGlobal(codeBlock ast.CodeBlockNode) error {
 	g.vars = slices.Grow(g.vars, len(codeBlock.Scope.Vars))
 	for _, varDef := range codeBlock.Scope.Vars {
 		g.vars = append(g.vars,
-			VarLocation{varDef.Name, varDef.Typ, pointer{locDataSection, 0, uint64(len(g.data))}},
+			varLocation{varDef.Name, varDef.Typ, pointer{locDataSection, 0, uint64(len(g.data))}},
 		)
 		g.data = append(g.data, make([]byte, varDef.Typ.Size())...)
 	}
@@ -182,7 +182,7 @@ func (g *Generator) writeGlobal(codeBlock ast.CodeBlockNode) error {
 	return nil
 }
 
-func (g *Generator) writeCodeBlock(codeBlock ast.CodeBlockNode) error {
+func (g *generator) writeCodeBlock(codeBlock ast.CodeBlockNode) error {
 	var err error
 
 	addedVars := len(codeBlock.Scope.Vars)
@@ -191,7 +191,7 @@ func (g *Generator) writeCodeBlock(codeBlock ast.CodeBlockNode) error {
 
 	for _, varDef := range codeBlock.Scope.Vars {
 		g.vars = append(g.vars,
-			VarLocation{varDef.Name, varDef.Typ, pointer{locStack, 0, g.baseOffset}},
+			varLocation{varDef.Name, varDef.Typ, pointer{locStack, 0, g.baseOffset}},
 		)
 
 		size := varDef.Typ.Size()
@@ -210,7 +210,7 @@ func (g *Generator) writeCodeBlock(codeBlock ast.CodeBlockNode) error {
 	return nil
 }
 
-func (g *Generator) writeStatements(statements []ast.AstNode) error {
+func (g *generator) writeStatements(statements []ast.AstNode) error {
 	for _, node := range statements {
 		switch node := node.(type) {
 		case ast.ExpressionNode:
@@ -366,7 +366,7 @@ func (g *Generator) writeStatements(statements []ast.AstNode) error {
 	return nil
 }
 
-func (g *Generator) writeFuncNode(fun ast.FuncNode) error {
+func (g *generator) writeFuncNode(fun ast.FuncNode) error {
 	g.funcs[fun.Name] = uint32(g.instructionIdx)
 
 	if g.baseOffset != 0 { // should be 0 since functions are declared on the top level
@@ -381,7 +381,7 @@ func (g *Generator) writeFuncNode(fun ast.FuncNode) error {
 	for i := len(fun.Args) - 1; i >= 0; i-- {
 		arg := fun.Args[i]
 		g.vars = append(g.vars,
-			VarLocation{arg.Name, arg.Typ, pointer{locStack, 0, g.baseOffset}},
+			varLocation{arg.Name, arg.Typ, pointer{locStack, 0, g.baseOffset}},
 		)
 
 		size := arg.Typ.Size()
@@ -483,7 +483,7 @@ func analyseNeededScratch(expr ast.Expression) (scratchBytes uint64) {
 	return // always 0 for now
 }
 
-func (g *Generator) writeIfChain(chain ast.IfChain) error {
+func (g *generator) writeIfChain(chain ast.IfChain) error {
 	var seekEnds []int64
 	var seekFalse int64
 
@@ -645,7 +645,7 @@ func (g *Generator) writeIfChain(chain ast.IfChain) error {
 	return nil
 }
 
-func (g *Generator) writeExpression(expression ast.Expression) error {
+func (g *generator) writeExpression(expression ast.Expression) error {
 	switch expression := expression.(type) {
 	case ast.IntLit:
 		size := expression.ReturnType().Size()
@@ -929,7 +929,7 @@ func (g *Generator) writeExpression(expression ast.Expression) error {
 	return nil
 }
 
-func (g *Generator) generateBinaryOpNode(binopnode ast.BinaryOpNode) error {
+func (g *generator) generateBinaryOpNode(binopnode ast.BinaryOpNode) error {
 	if ast.BOCount != 28 {
 		panic("Unary opperation enum length changed")
 	}
@@ -1638,7 +1638,7 @@ func (g *Generator) generateBinaryOpNode(binopnode ast.BinaryOpNode) error {
 	return nil
 }
 
-func (g *Generator) generateUnaryOpNode(uo ast.UnaryOpNode) error {
+func (g *generator) generateUnaryOpNode(uo ast.UnaryOpNode) error {
 	if ast.UOCount != 6 {
 		panic("Unary opperation enum length changed")
 	}
@@ -1767,7 +1767,7 @@ func (g *Generator) generateUnaryOpNode(uo ast.UnaryOpNode) error {
 	return nil
 }
 
-func (g *Generator) writeArithmetic(binopnode ast.BinaryOpNode,
+func (g *generator) writeArithmetic(binopnode ast.BinaryOpNode,
 	signedOp, unsignedOp, floatOp Opcode) error {
 	err := g.writeExpression(binopnode.Lhs)
 
@@ -1797,7 +1797,7 @@ func (g *Generator) writeArithmetic(binopnode ast.BinaryOpNode,
 	return err
 }
 
-func (g *Generator) writeBoolExpression(binopnode ast.BinaryOpNode, instruction Opcode) error {
+func (g *generator) writeBoolExpression(binopnode ast.BinaryOpNode, instruction Opcode) error {
 	err := g.writeExpression(binopnode.Lhs)
 
 	if err != nil {
@@ -1840,7 +1840,7 @@ func (g *Generator) writeBoolExpression(binopnode ast.BinaryOpNode, instruction 
 	return err
 }
 
-func (g *Generator) castUnsigned(requiredSize, currentSize int) (err error) {
+func (g *generator) castUnsigned(requiredSize, currentSize int) (err error) {
 	for currentSize > requiredSize {
 		currentSize /= 2
 
@@ -1876,7 +1876,7 @@ func (g *Generator) castUnsigned(requiredSize, currentSize int) (err error) {
 	return nil
 }
 
-func (g *Generator) castSigned(requiredSize, currentSize int) (err error) {
+func (g *generator) castSigned(requiredSize, currentSize int) (err error) {
 	for currentSize > requiredSize {
 		currentSize /= 2
 
@@ -1905,7 +1905,7 @@ func (g *Generator) castSigned(requiredSize, currentSize int) (err error) {
 	return nil
 }
 
-func (g *Generator) writeAssignLhs(lhs ast.Expression) error {
+func (g *generator) writeAssignLhs(lhs ast.Expression) error {
 	derefCount := 0
 
 loop:
@@ -1978,7 +1978,7 @@ loop:
 	return nil
 }
 
-func (g *Generator) writeInstruction0(opcode Opcode, size int) error {
+func (g *generator) writeInstruction0(opcode Opcode, size int) error {
 	_, err := g.Output.Write([]byte{byte(opcode), byte(size)})
 
 	if err != nil {
@@ -1991,7 +1991,7 @@ func (g *Generator) writeInstruction0(opcode Opcode, size int) error {
 	return nil
 }
 
-func (g *Generator) writeInstruction4(opcode Opcode, size int, argument uint32) error {
+func (g *generator) writeInstruction4(opcode Opcode, size int, argument uint32) error {
 	_, err := g.Output.Write([]byte{byte(opcode), byte(size)})
 
 	if err != nil {
@@ -2010,7 +2010,7 @@ func (g *Generator) writeInstruction4(opcode Opcode, size int, argument uint32) 
 	return nil
 }
 
-func (g *Generator) writeInstructionn(opcode Opcode, size int, argument uint64) error {
+func (g *generator) writeInstructionn(opcode Opcode, size int, argument uint64) error {
 	_, err := g.Output.Write([]byte{byte(opcode), byte(size)})
 
 	if err != nil {
@@ -2038,7 +2038,7 @@ func (g *Generator) writeInstructionn(opcode Opcode, size int, argument uint64) 
 	return nil
 }
 
-func (g *Generator) findVar(identifier ast.Identifier) int {
+func (g *generator) findVar(identifier ast.Identifier) int {
 	for i := len(g.vars) - 1; i >= 0; i-- {
 		if g.vars[i].identifier == identifier {
 			return i
@@ -2048,8 +2048,8 @@ func (g *Generator) findVar(identifier ast.Identifier) int {
 	return -1
 }
 
-func (g *Generator) varPointer(variable ast.Var) error {
-	var varLoc VarLocation
+func (g *generator) varPointer(variable ast.Var) error {
+	var varLoc varLocation
 
 	for i := len(g.vars) - 1; i >= 0; i-- {
 		cur := g.vars[i]
@@ -2094,7 +2094,7 @@ found:
 	return nil
 }
 
-func (g *Generator) scratchPointer() error {
+func (g *generator) scratchPointer() error {
 	err := g.writeInstruction0(base, 0)
 
 	if err != nil {
