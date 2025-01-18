@@ -55,19 +55,16 @@ func (p *Parser) addBuiltIns() {
 		ast.TypeString,
 	}
 
+	anyVar := ast.Var{Name: "any", Typ: ast.SimpleType{Kind_: ast.KindAny, Size_: 0, Name_: "any"}}
 	p.addFunc(ast.Func{
-		Name: "println",
-		Args: []ast.Var{
-			{Name: "any", Typ: ast.SimpleType{Kind_: ast.KindAny, Size_: 0, Name_: "any"}},
-		},
+		Name:    "println",
+		Args:    []ast.Var{anyVar},
 		RetType: ast.TypeVoid,
 	})
 
 	p.addFunc(ast.Func{
-		Name: "print",
-		Args: []ast.Var{
-			{Name: "any", Typ: ast.SimpleType{Kind_: ast.KindAny, Size_: 0, Name_: "any"}},
-		},
+		Name:    "print",
+		Args:    []ast.Var{anyVar},
 		RetType: ast.TypeVoid,
 	})
 }
@@ -333,15 +330,15 @@ func (p *Parser) parseFunctionBody() (ast.AstNode, bool) {
 			panic(p.lex.curLoc.String() + " boolean expression expected")
 		}
 
-		p.expectPeek(TTLSquirly)
+		p.expect(TTLSquirly)
 
-		statements, eof := p.parseFunctionBody()
+		statements, eof := p.parseCodeBlock()
 
 		if eof {
 			panic("unreachable")
 		}
 
-		node.Body = statements.(ast.CodeBlockNode)
+		node.Body = statements
 
 		return node, false
 
@@ -455,10 +452,6 @@ func (p *Parser) parseType() ast.Type {
 
 	case TTLSquare:
 		panic("arrays not yet fully implemented")
-		p.expect(TTRSquare)
-		_ = p.parseType() // inner
-
-		// return SimpleType{KindArray, 8, "", &inner}
 
 	case TTAmp:
 		inner := p.parseType()
@@ -503,7 +496,7 @@ func (p *Parser) parseType() ast.Type {
 			p.lex.NextToken()
 		}
 
-		// round field up to multiple of 8
+		// round size up to multiple of 8
 		typ.Size_ = (typ.Size_ + 7) / 8 * 8
 
 		p.expect(TTRSquirly)
@@ -642,7 +635,9 @@ func (p *Parser) parseUnary() ast.Expression {
 
 	if opp != -1 && opp.OnLeftSide() {
 		p.lex.NextToken()
+
 		expression := p.parseUnary()
+
 		if expression == nil {
 			panic(p.lex.curLoc.String() + " Error: opperand expected")
 		}

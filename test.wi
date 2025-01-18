@@ -45,6 +45,66 @@ fn inc(val: &int64) {
 	return;
 }
 
+fn testLocalScope() {
+	print("");
+
+	{
+		var a: int64 = 1;
+		var b: int64 = 2;
+		var c: int64 = 3;
+		var d: int64 = 4;
+
+		print(a);
+		print(b);
+		print(c);
+		print(d);
+
+		if c == 3 {
+			var a: int64 = 5;
+			print(a);
+			{
+				var e: int64 = 32;
+				print(e);
+			}
+			print(b);
+		}
+
+		print(a);
+	}
+
+	print("");
+
+	{
+		var a: int64 = 2;
+		{
+			var b: int64 = 4;
+			{
+				var c: int64 = 6;
+				{
+					var d: int64 = 8;
+					print(a);
+					print(b);
+					print(c);
+					print(d);
+				}
+				var e: int64 = 10;
+				print(e);
+			}
+		}
+
+		var f: int64 = 12;
+		{
+			var g: int64 = 14;
+			print(f);
+			print(g);
+		}
+	}
+
+	print("");
+
+	return;
+}
+
 fn main() {
 	const αConst: int64 = 69;
 	var a: int64 = 0x1A4;
@@ -261,6 +321,8 @@ fn main() {
 
 	fieldRef = &structVar.a;
 	print(*fieldRef);
+
+	testLocalScope();
 
 	return;
 }

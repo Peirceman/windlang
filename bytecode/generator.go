@@ -25,7 +25,8 @@ type Generator struct {
 	bytesWritten   int
 	funcs          map[ast.Identifier]uint32
 	vars           []VarLocation
-	baseOffset     uint64
+	baseOffset    uint64
+	scratchLoc     uint64
 }
 
 func Generate(output io.WriteSeeker, code ast.CodeBlockNode) error {
@@ -36,7 +37,7 @@ func Generate(output io.WriteSeeker, code ast.CodeBlockNode) error {
 		funcs:          make(map[ast.Identifier]uint32),
 		instructionIdx: 0,
 		bytesWritten:   0,
-		baseOffset:     0,
+		baseOffset:    0,
 	}
 
 	_, err := g.Output.Write([]byte{'W', 'B', 'C', 0, 0, 0, 0, 0})
@@ -195,16 +196,6 @@ func (g *Generator) writeCodeBlock(codeBlock ast.CodeBlockNode) error {
 
 		size := varDef.Typ.Size()
 		g.baseOffset += uint64(size)
-
-		for size > 0 {
-			err = g.writeInstructionn(push, min(size, 8), 0)
-
-			if err != nil {
-				return err
-			}
-
-			size -= min(size, 8)
-		}
 	}
 
 	err = g.writeStatements(codeBlock.Statements)
@@ -215,21 +206,6 @@ func (g *Generator) writeCodeBlock(codeBlock ast.CodeBlockNode) error {
 
 	g.vars = g.vars[:len(g.vars)-addedVars]
 	g.baseOffset = oldBase
-
-	for _, varDef := range codeBlock.Scope.Vars {
-		size := varDef.Typ.Size()
-
-		for size > 0 {
-			err = g.writeInstruction0(pops, min(size, 8))
-
-			if err != nil {
-				return err
-			}
-
-			size -= min(size, 8)
-		}
-
-	}
 
 	return nil
 }
@@ -276,34 +252,11 @@ func (g *Generator) writeStatements(statements []ast.AstNode) error {
 			}
 
 		case ast.FuncNode:
-			g.funcs[node.Name] = uint32(g.instructionIdx)
-
-			if g.baseOffset != 0 { // should be 0 since functions are declared on the top level
-				fmt.Println(node.Name, g.baseOffset)
-				panic("assertion failed")
-			}
-
-			if node.ReturnType.Kind() != ast.KindVoid {
-				g.baseOffset = 8 // return value pointer
-			}
-
-			for i := len(node.Args) - 1; i >= 0; i-- {
-				arg := node.Args[i]
-				g.vars = append(g.vars,
-					VarLocation{arg.Name, arg.Typ, pointer{locStack, 0, g.baseOffset}},
-				)
-
-				size := arg.Typ.Size()
-				g.baseOffset += uint64(size)
-			}
-
-			err := g.writeCodeBlock(node.Body)
+			err := g.writeFuncNode(node)
 
 			if err != nil {
 				return err
 			}
-
-			g.baseOffset = 0
 
 		case ast.CodeBlockNode:
 			err := g.writeCodeBlock(node)
@@ -411,6 +364,123 @@ func (g *Generator) writeStatements(statements []ast.AstNode) error {
 	}
 
 	return nil
+}
+
+func (g *Generator) writeFuncNode(fun ast.FuncNode) error {
+	g.funcs[fun.Name] = uint32(g.instructionIdx)
+
+	if g.baseOffset != 0 { // should be 0 since functions are declared on the top level
+		fmt.Println(fun.Name, g.baseOffset)
+		panic("assertion failed")
+	}
+
+	if fun.ReturnType.Kind() != ast.KindVoid {
+		g.baseOffset = 8 // return value pointer
+	}
+
+	for i := len(fun.Args) - 1; i >= 0; i-- {
+		arg := fun.Args[i]
+		g.vars = append(g.vars,
+			VarLocation{arg.Name, arg.Typ, pointer{locStack, 0, g.baseOffset}},
+		)
+
+		size := arg.Typ.Size()
+		g.baseOffset += uint64(size)
+	}
+
+	localBytes, scratchBytes := analyseStackUsage(fun.Body)
+
+	g.scratchLoc = g.baseOffset + localBytes
+
+	localBytes += scratchBytes
+
+	localBytes = (localBytes+7)/8*8 // round up to multiple of 8
+
+	for range localBytes/8 {
+		err := g.writeInstructionn(push, 8, 0)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	err := g.writeCodeBlock(fun.Body)
+
+	if err != nil {
+		return err
+	}
+
+	g.baseOffset = 0
+	g.scratchLoc = 0
+
+	return nil
+}
+
+func analyseStackUsage(block ast.CodeBlockNode) (localBytes, scratchBytes uint64) {
+	for _, varDef := range block.Scope.Vars {
+		localBytes += uint64(varDef.Typ.Size())
+	}
+
+	var extraLocal uint64
+	for _, node := range block.Statements {
+		switch node := node.(type) {
+		case ast.IfChain:
+
+			scratchBytes = max(scratchBytes, analyseNeededScratch(node.IfCondition))
+
+			statementLocals, statementScratch := analyseStackUsage(node.IfStatement)
+
+			scratchBytes = max(scratchBytes, statementScratch)
+			extraLocal = max(extraLocal, statementLocals)
+
+			for i, condition := range node.ElifConditions {
+				scratchBytes = max(scratchBytes, analyseNeededScratch(condition))
+
+				statementLocals, statementScratch = analyseStackUsage(node.ElifStatements[i])
+
+				extraLocal = max(extraLocal, statementLocals)
+				scratchBytes = max(scratchBytes, statementScratch)
+			}
+
+			if node.HasElse {
+				statementLocals, statementScratch = analyseStackUsage(node.ElseStatement)
+
+				extraLocal = max(extraLocal, statementLocals)
+				scratchBytes = max(scratchBytes, statementScratch)
+			}
+
+		case ast.WhileNode:
+
+			scratchBytes = max(scratchBytes, analyseNeededScratch(node.Condition))
+
+			statementLocals, statementScratch := analyseStackUsage(node.Body)
+
+			extraLocal = max(extraLocal, statementLocals)
+			scratchBytes = max(scratchBytes, statementScratch)
+
+		case ast.CodeBlockNode:
+			statementLocals, statementScratch := analyseStackUsage(node)
+
+			extraLocal = max(extraLocal, statementLocals)
+			scratchBytes = max(scratchBytes, statementScratch)
+
+		case ast.ReturnNode:
+			if node.Expr != nil {
+				scratchBytes = max(scratchBytes, analyseNeededScratch(node.Expr))
+			}
+
+		case ast.ExpressionNode:
+			scratchBytes = max(scratchBytes, analyseNeededScratch(node.Expr))
+		}
+	}
+
+	localBytes += extraLocal
+
+	return
+}
+
+func analyseNeededScratch(expr ast.Expression) (scratchBytes uint64) {
+	return // always 0 for now
 }
 
 func (g *Generator) writeIfChain(chain ast.IfChain) error {
@@ -2022,4 +2092,20 @@ found:
 	}
 
 	return nil
+}
+
+func (g *Generator) scratchPointer() error {
+	err := g.writeInstruction0(base, 0)
+
+	if err != nil {
+		return err
+	}
+
+	err = g.writeInstructionn(push, 8, g.scratchLoc)
+
+	if err != nil {
+		return err
+	}
+
+	return g.writeInstruction0(addu, 8)
 }
