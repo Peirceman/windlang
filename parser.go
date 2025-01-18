@@ -399,10 +399,6 @@ func (p *Parser) parseFunc() (ast.FuncNode, bool) {
 
 		arg.Typ = p.parseType()
 
-		if arg.Typ.Kind() == ast.KindStruct {
-			panic("cannot pass struct as an argument yet")
-		}
-
 		node.Args = append(node.Args, arg)
 		scope.AddVar(arg)
 

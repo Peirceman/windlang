@@ -7,7 +7,7 @@
     use testdata dir with files for files to parse and expected output
  - [ ] fix the rest of this readme
  - [ ] expand type system: arrays
- - [x] allow structs to be used as argument to/return from function
+ - [x] allow structs to be used as return from function
  - [ ] use jump instructions for if statements instead of what happens now
  - [ ] for loops
  - [ ] calling functions that are declared further down the file

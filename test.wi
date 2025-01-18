@@ -45,6 +45,20 @@ fn inc(val: &int64) {
 	return;
 }
 
+fn structArg(arg: BStruct): float64 {
+	arg.a = 32;
+
+	print("\narg: {");
+	print(arg.a);
+	print(arg.b);
+	print(arg.c.a);
+	print(arg.c.b);
+	print("}\n");
+
+
+	return arg.c.b;
+}
+
 fn testLocalScope() {
 	print("");
 
@@ -326,6 +340,18 @@ fn main() {
 	print(*fieldRef);
 
 	var copied: BStruct = structVar;
+
+	print(copied.a);
+	print(copied.b);
+	print(copied.c.a);
+	print(copied.c.b);
+
+	print(structArg(structVar));
+
+	print(structVar.a);
+	print(structVar.b);
+	print(structVar.c.a);
+	print(structVar.c.b);
 
 	print(copied.a);
 	print(copied.b);
