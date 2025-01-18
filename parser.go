@@ -126,98 +126,40 @@ func (p *Parser) ParseTopLevel() (ast.AstNode, bool) {
 
 	tok := p.lex.PeekToken()
 	switch tok.typ {
-	case TTConst:
+	case TTConst, TTVar:
 		p.lex.NextToken()
-		name := p.expect(TTIdentifier)
-		p.expect(TTColon)
-		typ := p.parseType()
 
-		if tok := p.lex.PeekToken(); tok.typ != TTAssign {
-			p.expect(TTSemiColon)
+		nameTok := p.expect(TTIdentifier)
+		name := ast.Identifier(nameTok.literal)
 
-			if p.defined(ast.Identifier(name.literal)) {
-				panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
-			}
-
-			node := ast.VarNode{
-				Var: ast.Var{
-					Name:    ast.Identifier(name.literal),
-					Typ:     typ,
-					IsConst: true,
-				},
-				Value: nil,
-			}
-
-			p.addVar(node.Var)
-
-			return node, false
+		if p.defined(name) {
+			panic(nameTok.loc.String() + " ERROR: `" + nameTok.literal + "` is already defined in this scope")
 		}
 
-		p.expect(TTAssign)
+		p.expect(TTColon)
+
+		typ := p.parseType()
 
 		node := ast.VarNode{
 			Var: ast.Var{
-				Name:    ast.Identifier(name.literal),
+				Name:    name,
 				Typ:     typ,
-				IsConst: true,
+				IsConst: tok.typ == TTConst,
 			},
-			Value: p.parseExpression(),
+			Value: nil,
 		}
 
-		if !ast.EqualTypes(node.Typ, node.Value.ReturnType()) {
-			panic(p.lex.curLoc.String() + " lhs and rhs types dont match")
+		if tok := p.lex.PeekToken(); tok.typ == TTAssign {
+			p.lex.NextToken()
+			node.Value = p.parseExpression()
+
+			if !ast.EqualTypes(node.Typ, node.Value.ReturnType()) {
+				panic(fmt.Sprintf(p.lex.curLoc.String()+" lhs and rhs types dont match: %v, %v", node.Typ, node.Value.ReturnType()))
+			}
+
 		}
 
 		p.expect(TTSemiColon)
-
-		if p.defined(ast.Identifier(name.literal)) {
-			panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
-		}
-
-		p.addVar(node.Var)
-
-		return node, false
-
-	case TTVar:
-		p.lex.NextToken()
-		name := p.expect(TTIdentifier)
-		p.expect(TTColon)
-		typ := p.parseType()
-
-		if tok := p.lex.PeekToken(); tok.typ != TTAssign {
-			p.expect(TTSemiColon)
-			if p.defined(ast.Identifier(name.literal)) {
-				panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
-			}
-
-			node := ast.VarNode{
-				Var:   ast.Var{Name: ast.Identifier(name.literal), Typ: typ, IsConst: false},
-				Value: nil,
-			}
-
-			p.addVar(node.Var)
-
-			return node, false
-		}
-
-		p.expect(TTAssign)
-
-		node := ast.VarNode{
-			Var:   ast.Var{Name: ast.Identifier(name.literal), Typ: typ, IsConst: false},
-			Value: p.parseExpression(),
-		}
-
-		p.expect(TTSemiColon)
-
-		if !ast.EqualTypes(node.Typ, node.Value.ReturnType()) {
-			fmt.Println(node.Typ)
-			fmt.Println(node.Value.ReturnType())
-			panic(p.lex.curLoc.String() + " lhs and rhs types dont match")
-		}
-
-		if p.defined(ast.Identifier(name.literal)) {
-			panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
-		}
 
 		p.addVar(node.Var)
 
@@ -254,104 +196,43 @@ func (p *Parser) parseFunctionBody() (ast.AstNode, bool) {
 
 	tok := p.lex.PeekToken()
 	switch tok.typ {
-	case TTConst:
+	case TTConst, TTVar:
 		p.lex.NextToken()
-		name := p.expect(TTIdentifier)
-		p.expect(TTColon)
-		typ := p.parseType()
 
-		if tok := p.lex.PeekToken(); tok.typ != TTAssign {
-			p.expect(TTSemiColon)
-			if p.defined(ast.Identifier(name.literal)) {
-				panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
-			}
+		nameTok := p.expect(TTIdentifier)
+		name := ast.Identifier(nameTok.literal)
 
-			node := ast.VarNode{
-				Var: ast.Var{
-					Name:    ast.Identifier(name.literal),
-					Typ:     typ,
-					IsConst: true,
-				},
-				Value: nil,
-			}
-
-			p.addVar(node.Var)
-
-			return node, false
+		if p.defined(name) {
+			panic(nameTok.loc.String() + " ERROR: `" + nameTok.literal + "` is already defined in this scope")
 		}
 
-		p.expect(TTAssign)
+		p.expect(TTColon)
+
+		typ := p.parseType()
 
 		node := ast.VarNode{
 			Var: ast.Var{
-				Name:    ast.Identifier(name.literal),
+				Name:    name,
 				Typ:     typ,
-				IsConst: true,
+				IsConst: tok.typ == TTConst,
 			},
-			Value: p.parseExpression(),
+			Value: nil,
+		}
+
+		if tok := p.lex.PeekToken(); tok.typ == TTAssign {
+			p.lex.NextToken()
+			node.Value = p.parseExpression()
+
+			if !ast.EqualTypes(node.Typ, node.Value.ReturnType()) {
+				panic(fmt.Sprintf(p.lex.curLoc.String()+" lhs and rhs types dont match: %v, %v", node.Typ, node.Value.ReturnType()))
+			}
+
 		}
 
 		p.expect(TTSemiColon)
 
-		if !ast.EqualTypes(node.Typ, node.Value.ReturnType()) {
-			panic(fmt.Sprintf(p.lex.curLoc.String()+" lhs and rhs types dont match: %v, %v", node.Typ, node.Value.ReturnType()))
-		}
-
-		if p.defined(ast.Identifier(name.literal)) {
-			panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
-		}
-
 		p.addVar(node.Var)
-		return node, false
 
-	case TTVar:
-		p.lex.NextToken()
-		name := p.expect(TTIdentifier)
-		p.expect(TTColon)
-		typ := p.parseType()
-
-		if tok := p.lex.PeekToken(); tok.typ != TTAssign {
-			p.expect(TTSemiColon)
-			if p.defined(ast.Identifier(name.literal)) {
-				panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
-			}
-
-			node := ast.VarNode{
-				Var: ast.Var{
-					Name:    ast.Identifier(name.literal),
-					Typ:     typ,
-					IsConst: false,
-				},
-				Value: nil,
-			}
-
-			p.addVar(node.Var)
-
-			return node, false
-		}
-
-		p.expect(TTAssign)
-
-		node := ast.VarNode{
-			Var: ast.Var{
-				Name:    ast.Identifier(name.literal),
-				Typ:     typ,
-				IsConst: false,
-			},
-			Value: p.parseExpression(),
-		}
-
-		p.expect(TTSemiColon)
-
-		if !ast.EqualTypes(node.Typ, node.Value.ReturnType()) {
-			panic(p.lex.curLoc.String() + " lhs and rhs types dont match")
-		}
-
-		if p.defined(ast.Identifier(name.literal)) {
-			panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
-		}
-
-		p.addVar(node.Var)
 		return node, false
 
 	case TTFn:
@@ -460,7 +341,7 @@ func (p *Parser) parseFunctionBody() (ast.AstNode, bool) {
 			panic("unreachable")
 		}
 
-		node.Loop = statements.(ast.CodeBlockNode)
+		node.Body = statements.(ast.CodeBlockNode)
 
 		return node, false
 

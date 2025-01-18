@@ -60,7 +60,7 @@ var _ AstNode = (*IfChain)(nil)
 
 type WhileNode struct {
 	Condition Expression
-	Loop      CodeBlockNode
+	Body      CodeBlockNode
 }
 
 var _ AstNode = (*WhileNode)(nil)
@@ -188,7 +188,7 @@ func (w WhileNode) String() string {
 	sb.WriteString("while ")
 	sb.WriteString(w.Condition.string())
 	sb.WriteString(" ")
-	sb.WriteString(w.Loop.String())
+	sb.WriteString(w.Body.String())
 
 	return sb.String()
 }

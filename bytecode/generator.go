@@ -342,7 +342,7 @@ func (g *Generator) writeStatements(statements []ast.AstNode) error {
 
 			seekFalse -= 4
 
-			err = g.writeCodeBlock(node.Loop)
+			err = g.writeCodeBlock(node.Body)
 
 			if err != nil {
 				return err
