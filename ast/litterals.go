@@ -9,7 +9,7 @@ type IntLit struct {
 var _ Expression = (*IntLit)(nil)
 
 type FloatLit struct {
-	Value string // float as string
+	Value float64
 }
 
 var _ Expression = (*FloatLit)(nil)
@@ -43,7 +43,7 @@ func (i IntLit) ReturnType() Type {
 }
 
 func (f FloatLit) string() string {
-	return f.Value
+	return strconv.FormatFloat(f.Value, 'g', -1, 64)
 }
 
 func (i FloatLit) ReturnType() Type {

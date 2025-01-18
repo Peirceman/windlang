@@ -121,11 +121,7 @@ func NewUnaryOpNode(expression Expression, op UnaryOp) (Expression, error) {
 			lit.Value = -lit.Value
 			return lit, nil
 		} else if lit, ok := expression.(FloatLit); ok {
-			if lit.Value[0] == '-' {
-				lit.Value = lit.Value[1:]
-			} else {
-				lit.Value = "-" + lit.Value
-			}
+			lit.Value = -lit.Value
 			return lit, nil
 		}
 

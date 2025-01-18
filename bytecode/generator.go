@@ -277,6 +277,7 @@ func (g *Generator) writeStatements(statements []ast.AstNode) error {
 
 		case ast.FuncNode:
 			g.funcs[node.Name] = uint32(g.instructionIdx)
+
 			if g.baseOffset != 0 { // should be 0 since functions are declared on the top level
 				fmt.Println(node.Name, g.baseOffset)
 				panic("assertion failed")
@@ -586,7 +587,7 @@ func (g *Generator) writeExpression(expression ast.Expression) error {
 
 	case ast.FloatLit:
 		size := expression.ReturnType().Size()
-		float, _ := strconv.ParseFloat(expression.Value, int(size*8)) // at this point it should be a valid float
+		float := expression.Value
 
 		var err error
 

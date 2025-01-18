@@ -741,6 +741,7 @@ func (l *Lexer) readAfterDigit() *Token {
 
 	if hasDecimalPoint {
 		tok.typ = TTFloat
+		tok.extraInfo, _ = strconv.ParseFloat(tok.literal, 64)
 	} else {
 		tok.typ = TTInt
 		tok.extraInfo = intVal

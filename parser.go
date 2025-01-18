@@ -54,16 +54,16 @@ func (p *Parser) addBuiltIns() {
 	}
 
 	p.addFunc(ast.Func{
-		Name:    "println",
-		Args:    []ast.Var{
+		Name: "println",
+		Args: []ast.Var{
 			{Name: "any", Typ: ast.SimpleType{Kind_: ast.KindAny, Size_: 0, Name_: "any"}},
 		},
 		RetType: ast.TypeVoid,
 	})
 
 	p.addFunc(ast.Func{
-		Name:    "print",
-		Args:    []ast.Var{
+		Name: "print",
+		Args: []ast.Var{
 			{Name: "any", Typ: ast.SimpleType{Kind_: ast.KindAny, Size_: 0, Name_: "any"}},
 		},
 		RetType: ast.TypeVoid,
@@ -472,7 +472,7 @@ func (p *Parser) parseFunctionBody() (ast.AstNode, bool) {
 func (p *Parser) parseCodeBlock() (ast.CodeBlockNode, bool) {
 	block := ast.CodeBlockNode{
 		Statements: make([]ast.AstNode, 0),
-		Scope: ast.Scope{Vars: make(ast.VarScope), Funcs: make(ast.FuncScope)},
+		Scope:      ast.Scope{Vars: make(ast.VarScope), Funcs: make(ast.FuncScope)},
 	}
 
 	p.currentScope = append(p.currentScope, block.Scope)
@@ -917,15 +917,16 @@ func (p *Parser) parsePrimary() ast.Expression {
 
 	case TTFloat:
 		p.lex.NextToken()
-		return ast.FloatLit{Value: tok.literal}
+		val := tok.extraInfo.(float64)
+		return ast.FloatLit{Value: val}
 
 	case TTString:
 		p.lex.NextToken()
-		return ast.StrLit{Value: tok.extraInfo.(string),Litteral: tok.literal}
+		return ast.StrLit{Value: tok.extraInfo.(string), Litteral: tok.literal}
 
 	case TTChar:
 		p.lex.NextToken()
-		return ast.CharLit{Value: tok.extraInfo.(rune),Litteral: tok.literal}
+		return ast.CharLit{Value: tok.extraInfo.(rune), Litteral: tok.literal}
 
 	case TTTrue:
 		p.lex.NextToken()
