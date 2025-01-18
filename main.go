@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	floatparsing "windlang/floatParsing"
+	"windlang/bytecode"
 )
 
 func main() {
@@ -29,7 +30,7 @@ func main() {
 
 		defer out.Close()
 
-		err = GenerateBytecode(out, ast)
+		err = bytecode.Generate(out, ast)
 
 		if err != nil {
 			panic(err)
@@ -44,7 +45,7 @@ func main() {
 
 		defer file.Close()
 
-		interpreter, err := InterpeterFromReader(file)
+		interpreter, err := bytecode.InterpeterFromReader(file)
 
 		if err != nil {
 			panic(err)
@@ -66,7 +67,7 @@ func main() {
 		fmt.Println("value: ", stdVal)
 		fmt.Printf("bits: %b\n", math.Float64bits(stdVal))
 
-		fmt.Printf("diff: %b\n", math.Float64bits(stdVal) ^ math.Float64bits(val))
+		fmt.Printf("diff: %b\n", math.Float64bits(stdVal)^math.Float64bits(val))
 	} else {
 		panic("unknown file extention")
 	}

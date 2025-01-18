@@ -362,10 +362,10 @@ func (p *Parser) parseFunctionBody() (ast.AstNode, bool) {
 		if tok.typ == TTSemiColon {
 			p.lex.nextToken()
 
-			return ast.ReturnNode{nil}, false
+			return ast.ReturnNode{Expr: nil}, false
 		}
 
-		node := ast.ReturnNode{p.parseExpression()}
+		node := ast.ReturnNode{Expr: p.parseExpression()}
 		p.expect(TTSemiColon)
 
 		return node, false
@@ -375,7 +375,7 @@ func (p *Parser) parseFunctionBody() (ast.AstNode, bool) {
 		return p.parseCodeBlock()
 
 	case TTIdentifier, TTStar:
-		node := ast.ExpressionNode{p.parseExpression()}
+		node := ast.ExpressionNode{Expr: p.parseExpression()}
 
 		p.expect(TTSemiColon)
 
@@ -470,7 +470,11 @@ func (p *Parser) parseFunctionBody() (ast.AstNode, bool) {
 }
 
 func (p *Parser) parseCodeBlock() (ast.CodeBlockNode, bool) {
-	block := ast.CodeBlockNode{make([]ast.AstNode, 0), ast.Scope{make(ast.VarScope), make(ast.FuncScope)}}
+	block := ast.CodeBlockNode{
+		Statements: make([]ast.AstNode, 0),
+		Scope: ast.Scope{Vars: make(ast.VarScope), Funcs: make(ast.FuncScope)},
+	}
+
 	p.currentScope = append(p.currentScope, block.Scope)
 
 	for tok := p.lex.PeekToken(); tok.typ != TTEOF && tok.typ != TTRSquirly; tok = p.lex.PeekToken() {
@@ -505,7 +509,7 @@ func (p *Parser) parseFunc() (ast.FuncNode, bool) {
 	}
 
 	p.expect(TTLBrace)
-	scope := ast.Scope{make(ast.VarScope), make(ast.FuncScope)}
+	scope := ast.Scope{Vars: make(ast.VarScope), Funcs: make(ast.FuncScope)}
 
 	for tok := p.lex.PeekToken(); tok != nil && tok.typ != TTRBrace; tok = p.lex.PeekToken() {
 		arg := ast.Var{}
@@ -550,7 +554,7 @@ func (p *Parser) parseFunc() (ast.FuncNode, bool) {
 
 	p.currentScope = p.currentScope[:len(p.currentScope)-1]
 
-	p.addFunc(ast.Func{node.Name, node.Args, node.ReturnType})
+	p.addFunc(ast.Func{Name: node.Name, Args: node.Args, RetType: node.ReturnType})
 
 	return node, eof
 }
@@ -575,11 +579,11 @@ func (p *Parser) parseType() ast.Type {
 
 	case TTAmp:
 		inner := p.parseType()
-		return ast.PointerType{"", inner}
+		return ast.PointerType{Name_: "", Inner: inner}
 
 	case TTAnd: // special case for `&&` which is seen as one token
 		inner := p.parseType()
-		return ast.PointerType{"", ast.PointerType{"", inner}}
+		return ast.PointerType{Name_: "", Inner: ast.PointerType{Name_: "", Inner: inner}}
 
 	case TTStruct:
 		p.expect(TTLSquirly)
@@ -913,23 +917,23 @@ func (p *Parser) parsePrimary() ast.Expression {
 
 	case TTFloat:
 		p.lex.NextToken()
-		return ast.FloatLit{tok.literal}
+		return ast.FloatLit{Value: tok.literal}
 
 	case TTString:
 		p.lex.NextToken()
-		return ast.StrLit{tok.extraInfo.(string), tok.literal}
+		return ast.StrLit{Value: tok.extraInfo.(string),Litteral: tok.literal}
 
 	case TTChar:
 		p.lex.NextToken()
-		return ast.CharLit{tok.extraInfo.(rune), tok.literal}
+		return ast.CharLit{Value: tok.extraInfo.(rune),Litteral: tok.literal}
 
 	case TTTrue:
 		p.lex.NextToken()
-		return ast.BoolLit{true}
+		return ast.BoolLit{Value: true}
 
 	case TTFalse:
 		p.lex.NextToken()
-		return ast.BoolLit{false}
+		return ast.BoolLit{Value: false}
 
 	case TTLBrace:
 		p.lex.NextToken()

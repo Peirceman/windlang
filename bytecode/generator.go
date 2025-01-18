@@ -1,4 +1,4 @@
-package main
+package bytecode
 
 import (
 	"encoding/binary"
@@ -15,10 +15,10 @@ import (
 type VarLocation struct {
 	identifier ast.Identifier
 	typ        ast.Type
-	pointer    bytecodePointer // note offset for LocStack is relative to base
+	pointer    pointer // note offset for LocStack is relative to base
 }
 
-type BytecodeGenerator struct {
+type Generator struct {
 	Output         io.WriteSeeker
 	data           []byte
 	instructionIdx int
@@ -28,8 +28,8 @@ type BytecodeGenerator struct {
 	baseOffset     uint64
 }
 
-func GenerateBytecode(output io.WriteSeeker, code ast.CodeBlockNode) error {
-	g := &BytecodeGenerator{
+func Generate(output io.WriteSeeker, code ast.CodeBlockNode) error {
+	g := &Generator{
 		Output:         output,
 		data:           make([]byte, 0),
 		vars:           make([]VarLocation, 0),
@@ -114,7 +114,7 @@ func GenerateBytecode(output io.WriteSeeker, code ast.CodeBlockNode) error {
 	return nil
 }
 
-func (g *BytecodeGenerator) writeGlobal(codeBlock ast.CodeBlockNode) error {
+func (g *Generator) writeGlobal(codeBlock ast.CodeBlockNode) error {
 	_, exists := codeBlock.Scope.Funcs["main"]
 	if !exists {
 		return errors.New("Error generating bytecode: no main function found")
@@ -149,7 +149,7 @@ func (g *BytecodeGenerator) writeGlobal(codeBlock ast.CodeBlockNode) error {
 	g.vars = slices.Grow(g.vars, len(codeBlock.Scope.Vars))
 	for _, varDef := range codeBlock.Scope.Vars {
 		g.vars = append(g.vars,
-			VarLocation{varDef.Name, varDef.Typ, bytecodePointer{locDataSection, 0, uint64(len(g.data))}},
+			VarLocation{varDef.Name, varDef.Typ, pointer{locDataSection, 0, uint64(len(g.data))}},
 		)
 		g.data = append(g.data, make([]byte, varDef.Typ.Size())...)
 	}
@@ -181,7 +181,7 @@ func (g *BytecodeGenerator) writeGlobal(codeBlock ast.CodeBlockNode) error {
 	return nil
 }
 
-func (g *BytecodeGenerator) writeCodeBlock(codeBlock ast.CodeBlockNode) error {
+func (g *Generator) writeCodeBlock(codeBlock ast.CodeBlockNode) error {
 	var err error
 
 	addedVars := len(codeBlock.Scope.Vars)
@@ -190,7 +190,7 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock ast.CodeBlockNode) error {
 
 	for _, varDef := range codeBlock.Scope.Vars {
 		g.vars = append(g.vars,
-			VarLocation{varDef.Name, varDef.Typ, bytecodePointer{locStack, 0, g.baseOffset}},
+			VarLocation{varDef.Name, varDef.Typ, pointer{locStack, 0, g.baseOffset}},
 		)
 
 		size := varDef.Typ.Size()
@@ -234,7 +234,7 @@ func (g *BytecodeGenerator) writeCodeBlock(codeBlock ast.CodeBlockNode) error {
 	return nil
 }
 
-func (g *BytecodeGenerator) writeStatements(statements []ast.AstNode) error {
+func (g *Generator) writeStatements(statements []ast.AstNode) error {
 	for _, node := range statements {
 		switch node := node.(type) {
 		case ast.ExpressionNode:
@@ -289,7 +289,7 @@ func (g *BytecodeGenerator) writeStatements(statements []ast.AstNode) error {
 			for i := len(node.Args) - 1; i >= 0; i-- {
 				arg := node.Args[i]
 				g.vars = append(g.vars,
-					VarLocation{arg.Name, arg.Typ, bytecodePointer{locStack, 0, g.baseOffset}},
+					VarLocation{arg.Name, arg.Typ, pointer{locStack, 0, g.baseOffset}},
 				)
 
 				size := arg.Typ.Size()
@@ -412,7 +412,7 @@ func (g *BytecodeGenerator) writeStatements(statements []ast.AstNode) error {
 	return nil
 }
 
-func (g *BytecodeGenerator) writeIfChain(chain ast.IfChain) error {
+func (g *Generator) writeIfChain(chain ast.IfChain) error {
 	var seekEnds []int64
 	var seekFalse int64
 
@@ -574,7 +574,7 @@ func (g *BytecodeGenerator) writeIfChain(chain ast.IfChain) error {
 	return nil
 }
 
-func (g *BytecodeGenerator) writeExpression(expression ast.Expression) error {
+func (g *Generator) writeExpression(expression ast.Expression) error {
 	switch expression := expression.(type) {
 	case ast.IntLit:
 		size := expression.ReturnType().Size()
@@ -602,7 +602,7 @@ func (g *BytecodeGenerator) writeExpression(expression ast.Expression) error {
 		}
 
 	case ast.StrLit:
-		ptr := bytecodePointer{locDataSection, 0, uint64(len(g.data))}
+		ptr := pointer{locDataSection, 0, uint64(len(g.data))}
 		g.data = binary.BigEndian.AppendUint64(g.data, uint64(len(expression.Value)))
 		g.data = append(g.data, []byte(expression.Value)...)
 
@@ -858,7 +858,7 @@ func (g *BytecodeGenerator) writeExpression(expression ast.Expression) error {
 	return nil
 }
 
-func (g *BytecodeGenerator) generateBinaryOpNode(binopnode ast.BinaryOpNode) error {
+func (g *Generator) generateBinaryOpNode(binopnode ast.BinaryOpNode) error {
 	if ast.BOCount != 28 {
 		panic("Unary opperation enum length changed")
 	}
@@ -1922,7 +1922,7 @@ func (g *BytecodeGenerator) generateBinaryOpNode(binopnode ast.BinaryOpNode) err
 	return nil
 }
 
-func (g *BytecodeGenerator) generateUnaryOpNode(uo ast.UnaryOpNode) error {
+func (g *Generator) generateUnaryOpNode(uo ast.UnaryOpNode) error {
 	if ast.UOCount != 6 {
 		panic("Unary opperation enum length changed")
 	}
@@ -2050,7 +2050,7 @@ func (g *BytecodeGenerator) generateUnaryOpNode(uo ast.UnaryOpNode) error {
 	return nil
 }
 
-func (g *BytecodeGenerator) castUnsigned(requiredSize, currentSize int) (err error) {
+func (g *Generator) castUnsigned(requiredSize, currentSize int) (err error) {
 	for currentSize > requiredSize {
 		currentSize /= 2
 
@@ -2086,7 +2086,7 @@ func (g *BytecodeGenerator) castUnsigned(requiredSize, currentSize int) (err err
 	return nil
 }
 
-func (g *BytecodeGenerator) castSigned(requiredSize, currentSize int) (err error) {
+func (g *Generator) castSigned(requiredSize, currentSize int) (err error) {
 	for currentSize > requiredSize {
 		currentSize /= 2
 
@@ -2115,7 +2115,7 @@ func (g *BytecodeGenerator) castSigned(requiredSize, currentSize int) (err error
 	return nil
 }
 
-func (g *BytecodeGenerator) writeAssignLhs(lhs ast.Expression) error {
+func (g *Generator) writeAssignLhs(lhs ast.Expression) error {
 	derefCount := 0
 
 	for true {
@@ -2191,7 +2191,7 @@ func (g *BytecodeGenerator) writeAssignLhs(lhs ast.Expression) error {
 	return nil
 }
 
-func (g *BytecodeGenerator) writeInstruction0(opcode Opcode, size int) error {
+func (g *Generator) writeInstruction0(opcode Opcode, size int) error {
 	_, err := g.Output.Write([]byte{byte(opcode), byte(size)})
 
 	if err != nil {
@@ -2204,7 +2204,7 @@ func (g *BytecodeGenerator) writeInstruction0(opcode Opcode, size int) error {
 	return nil
 }
 
-func (g *BytecodeGenerator) writeInstruction4(opcode Opcode, size int, argument uint32) error {
+func (g *Generator) writeInstruction4(opcode Opcode, size int, argument uint32) error {
 	_, err := g.Output.Write([]byte{byte(opcode), byte(size)})
 
 	if err != nil {
@@ -2223,7 +2223,7 @@ func (g *BytecodeGenerator) writeInstruction4(opcode Opcode, size int, argument 
 	return nil
 }
 
-func (g *BytecodeGenerator) writeInstructionn(opcode Opcode, size int, argument uint64) error {
+func (g *Generator) writeInstructionn(opcode Opcode, size int, argument uint64) error {
 	_, err := g.Output.Write([]byte{byte(opcode), byte(size)})
 
 	if err != nil {
@@ -2251,7 +2251,7 @@ func (g *BytecodeGenerator) writeInstructionn(opcode Opcode, size int, argument 
 	return nil
 }
 
-func (g *BytecodeGenerator) findVar(identifier ast.Identifier) int {
+func (g *Generator) findVar(identifier ast.Identifier) int {
 	for i := len(g.vars) - 1; i >= 0; i-- {
 		if g.vars[i].identifier == identifier {
 			return i
@@ -2261,7 +2261,7 @@ func (g *BytecodeGenerator) findVar(identifier ast.Identifier) int {
 	return -1
 }
 
-func (g *BytecodeGenerator) varPointer(identifier ast.Identifier) error {
+func (g *Generator) varPointer(identifier ast.Identifier) error {
 	var varLoc VarLocation
 
 	for i := len(g.vars) - 1; i >= 0; i-- {

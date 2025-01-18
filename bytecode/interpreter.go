@@ -1,4 +1,4 @@
-package main
+package bytecode
 
 import (
 	"container/list"
@@ -18,7 +18,7 @@ const (
 	locAlloc
 )
 
-type bytecodePointer struct {
+type pointer struct {
 	location   pointerLocation
 	index      uint16
 	byteOffset uint64 // only low 5 bytes in case of allocation else low 7 bytes
@@ -31,7 +31,7 @@ type linkedList struct {
 
 type callFrame struct {
 	instruction uint32
-	basePointer bytecodePointer
+	basePointer pointer
 }
 
 type Interpreter struct {
@@ -42,11 +42,11 @@ type Interpreter struct {
 	allocations  [][]byte
 	emptySlots   []int
 	callStack    []callFrame
-	fargBase     *bytecodePointer // optional
+	fargBase     *pointer // optional
 }
 
-func pointerFromUint64(i uint64) bytecodePointer {
-	result := bytecodePointer{}
+func pointerFromUint64(i uint64) pointer {
+	result := pointer{}
 	result.location = pointerLocation(i >> (7 * 8))
 
 	if result.location == locAlloc {
@@ -59,7 +59,7 @@ func pointerFromUint64(i uint64) bytecodePointer {
 	return result
 }
 
-func (p bytecodePointer) toUint64() uint64 {
+func (p pointer) toUint64() uint64 {
 	return (uint64(p.location) << (7 * 8)) | (uint64(p.index) << (5 * 8)) | p.byteOffset
 }
 
@@ -158,7 +158,7 @@ func (i *Interpreter) Execute() int {
 
 			i.allocations[allocIndex] = make([]byte, alocSize)
 
-			p := bytecodePointer{locAlloc, allocIndex, 0}
+			p := pointer{locAlloc, allocIndex, 0}
 			i.pushUnsigned(p.toUint64(), 8)
 
 		case stor:
@@ -455,12 +455,12 @@ func (i *Interpreter) Execute() int {
 			i.pushUnsigned(a>>b, instruction.Size)
 
 		case call:
-			var base bytecodePointer
+			var base pointer
 			if i.fargBase != nil {
 				base = *i.fargBase
 				i.fargBase = nil
 			} else {
-				base = bytecodePointer{locStack, 0, uint64(len(i.Stack))}
+				base = pointer{locStack, 0, uint64(len(i.Stack))}
 			}
 
 			i.callStack = append(i.callStack, callFrame{uint32(idx), base})
@@ -490,16 +490,25 @@ func (i *Interpreter) Execute() int {
 
 		case base:
 			if len(i.callStack) == 0 {
-				i.pushUnsigned(bytecodePointer{locStack, 0, 0}.toUint64(), 8)
+				i.pushUnsigned(pointer{locStack, 0, 0}.toUint64(), 8)
 			} else {
 				i.pushUnsigned(i.callStack[len(i.callStack)-1].basePointer.toUint64(), 8)
 			}
 
+		case free:
+			ptr := pointerFromUint64(i.popUnsigned(8))
+			if ptr.location != locAlloc {
+				panic("cannot free pointer: not dynamically allocated")
+			}
+
+			i.allocations[ptr.index] = nil
+			i.freeIndexes = &linkedList{ptr.index, i.freeIndexes}
+
 		case farg:
-			i.fargBase = &bytecodePointer{locStack, 0, uint64(len(i.Stack))}
+			i.fargBase = &pointer{locStack, 0, uint64(len(i.Stack))}
 
 		case sptr:
-			i.pushUnsigned(bytecodePointer{locStack, 0, uint64(len(i.Stack))}.toUint64(), 8)
+			i.pushUnsigned(pointer{locStack, 0, uint64(len(i.Stack))}.toUint64(), 8)
 
 		case cvtf:
 			if instruction.Size == 4 {
@@ -598,7 +607,7 @@ func (i *Interpreter) nextAllocIdx() uint16 {
 	return uint16(n)
 }
 
-func (i *Interpreter) dataStart(p bytecodePointer) []byte {
+func (i *Interpreter) dataStart(p pointer) []byte {
 	switch p.location {
 	case locDataSection:
 		return i.Data[p.byteOffset:]
