@@ -250,7 +250,7 @@ func (b BinaryOp) InputAllowed(input Kind) bool {
 	case BONotEqual:
 		return true
 	case BOAssign:
-		return input != KindStruct
+		return true
 	case BOPlusAssign:
 		return input&KindNumberMask != 0
 	case BODashAssign:

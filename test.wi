@@ -313,14 +313,24 @@ fn main() {
 	print("");
 
 	var structVar: BStruct;
-	var fieldRef: &int64 = &structVar.c.a;
+	structVar.a = 1;
+	structVar.b = 2.0;
 	structVar.c.a = 3;
+	structVar.c.b = 4.0;
+	var fieldRef: &int64 = &structVar.c.a;
 	print(*fieldRef);
 	print(structVar.c.a);
 	print(structVar.a);
 
 	fieldRef = &structVar.a;
 	print(*fieldRef);
+
+	var copied: BStruct = structVar;
+
+	print(copied.a);
+	print(copied.b);
+	print(copied.c.a);
+	print(copied.c.b);
 
 	testLocalScope();
 

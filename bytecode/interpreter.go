@@ -413,9 +413,9 @@ func (i *Interpreter) Execute() int {
 			b := i.popUnsigned(instruction.Size)
 			c := i.popUnsigned(instruction.Size)
 
+			i.pushUnsigned(b, instruction.Size)
 			i.pushUnsigned(a, instruction.Size)
 			i.pushUnsigned(c, instruction.Size)
-			i.pushUnsigned(b, instruction.Size)
 
 		case sgne:
 			i.pushSigned(i.popSigned(instruction.Size/2), instruction.Size)
@@ -518,6 +518,17 @@ func (i *Interpreter) Execute() int {
 				a := math.Float32frombits(uint32(i.popUnsigned(4)))
 				i.pushUnsigned(math.Float64bits(float64(a)), 8)
 			}
+
+		case debg:
+			fmt.Println("*`debg` instruction read stopping execution*")
+			fmt.Println("Stack:")
+			fmt.Println(i.Stack)
+			fmt.Println("callstack:")
+			fmt.Println(i.callStack)
+			fmt.Println("data:")
+			fmt.Println(i.Data)
+
+			return 1
 
 		default:
 			fmt.Println("unknown: ", instruction.Code)

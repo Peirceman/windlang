@@ -5,10 +5,9 @@
 ## Todo:
  - [ ] testing:  
     use testdata dir with files for files to parse and expected output
- - [x] clean up codebase
  - [ ] fix the rest of this readme
  - [ ] expand type system: arrays
- - [ ] allow structs to be copied and used as argument/return from function
+ - [x] allow structs to be used as argument to/return from function
  - [ ] use jump instructions for if statements instead of what happens now
  - [ ] for loops
  - [ ] calling functions that are declared further down the file
@@ -17,6 +16,7 @@
  - [ ] better errors
  - [ ] type system part 2 (less urgent): enums, interfaces
  - [ ] optimization (definitely not for now)
+ - [ ] clean up codebase
  - [ ] importing/modules
 
 # spec:

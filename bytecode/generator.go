@@ -25,7 +25,7 @@ type generator struct {
 	bytesWritten   int
 	funcs          map[ast.Identifier]uint32
 	vars           []varLocation
-	baseOffset    uint64
+	baseOffset     uint64
 	scratchLoc     uint64
 }
 
@@ -37,7 +37,7 @@ func Generate(output io.WriteSeeker, code ast.CodeBlockNode) error {
 		funcs:          make(map[ast.Identifier]uint32),
 		instructionIdx: 0,
 		bytesWritten:   0,
-		baseOffset:    0,
+		baseOffset:     0,
 	}
 
 	_, err := g.Output.Write([]byte{'W', 'B', 'C', 0, 0, 0, 0, 0})
@@ -232,20 +232,7 @@ func (g *generator) writeStatements(statements []ast.AstNode) error {
 			if node.Value == nil {
 				break
 			}
-
-			err := g.varPointer(node.Var)
-
-			if err != nil {
-				return err
-			}
-
-			err = g.writeExpression(node.Value)
-
-			if err != nil {
-				return err
-			}
-
-			err = g.writeInstruction0(stor, node.Typ.Size())
+			err := g.writeAssignment(node.Var, node.Value)
 
 			if err != nil {
 				return err
@@ -394,9 +381,9 @@ func (g *generator) writeFuncNode(fun ast.FuncNode) error {
 
 	localBytes += scratchBytes
 
-	localBytes = (localBytes+7)/8*8 // round up to multiple of 8
+	localBytes = (localBytes + 7) / 8 * 8 // round up to multiple of 8
 
-	for range localBytes/8 {
+	for range localBytes / 8 {
 		err := g.writeInstructionn(push, 8, 0)
 
 		if err != nil {
@@ -479,7 +466,7 @@ func analyseStackUsage(block ast.CodeBlockNode) (localBytes, scratchBytes uint64
 	return
 }
 
-func analyseNeededScratch(expr ast.Expression) (scratchBytes uint64) {
+func analyseNeededScratch(_ ast.Expression) (scratchBytes uint64) {
 	return // always 0 for now
 }
 
@@ -712,10 +699,54 @@ func (g *generator) writeExpression(expression ast.Expression) error {
 			return err
 		}
 
-		err = g.writeInstruction0(load, expression.Typ.Size())
+		if size := expression.Typ.Size(); size <= 8 {
+			err = g.writeInstruction0(load, size)
 
-		if err != nil {
-			return err
+			if err != nil {
+				return err
+			}
+		} else {
+			if size%8 != 0 {
+				panic("assertion failed")
+			}
+
+			for i := 0; i < size; i += 8 {
+				err = g.writeInstruction0(dupe, 8)
+
+				if err != nil {
+					return err
+				}
+
+				err = g.writeInstructionn(push, 8, uint64(i))
+
+				if err != nil {
+					return err
+				}
+
+				err = g.writeInstruction0(addu, 8)
+
+				if err != nil {
+					return err
+				}
+
+				err = g.writeInstruction0(load, 8)
+
+				if err != nil {
+					return err
+				}
+
+				err = g.writeInstruction0(swap, 8)
+
+				if err != nil {
+					return err
+				}
+			}
+
+			err = g.writeInstruction0(pops, 8)
+
+			if err != nil {
+				return err
+			}
 		}
 
 	case ast.Func:
@@ -1238,19 +1269,7 @@ func (g *generator) generateBinaryOpNode(binopnode ast.BinaryOpNode) error {
 		}
 
 	case ast.BOAssign:
-		err := g.writeAssignLhs(binopnode.Lhs)
-
-		if err != nil {
-			return err
-		}
-
-		err = g.writeExpression(binopnode.Rhs)
-
-		if err != nil {
-			return err
-		}
-
-		err = g.writeInstruction0(stor, binopnode.Rhs.ReturnType().Size())
+		err := g.writeAssignment(binopnode.Lhs, binopnode.Rhs)
 
 		if err != nil {
 			return err
@@ -1920,25 +1939,13 @@ loop:
 
 			break loop
 		case ast.StructIndex:
-			base, ok := lhsTyp.Base.(ast.Var)
+			_, ok := lhsTyp.Base.(ast.Var)
 
 			if !ok {
 				panic("Assigning to not var?")
 			}
 
-			err := g.varPointer(base)
-
-			if err != nil {
-				return err
-			}
-
-			err = g.writeInstructionn(push, 8, uint64(lhsTyp.Offset))
-
-			if err != nil {
-				return err
-			}
-
-			err = g.writeInstruction0(addu, 8)
+			err := g.structIndexPointer(lhsTyp)
 
 			if err != nil {
 				return err
@@ -2046,6 +2053,134 @@ func (g *generator) findVar(identifier ast.Identifier) int {
 	}
 
 	return -1
+}
+
+func (g *generator) writeAssignment(lhs, rhs ast.Expression) error {
+	if rhs.ReturnType().Size() <= 8 {
+		err := g.writeAssignLhs(lhs)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeExpression(rhs)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(stor, rhs.ReturnType().Size())
+
+		if err != nil {
+			return err
+		}
+	} else {
+		if rhs.ReturnType().Size()%8 != 0 {
+			panic("types with sizes larger than 8 bytes should have a size divisible by 8")
+		}
+
+		err := g.writeExpression(rhs)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeAssignLhs(lhs)
+
+		if err != nil {
+			return err
+		}
+
+		sizeRemaining := rhs.ReturnType().Size()
+		for sizeRemaining > 0 {
+			sizeRemaining -= 8
+
+			err = g.writeInstruction0(dupe, 8)
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstructionn(push, 8, uint64(sizeRemaining))
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstruction0(addu, 8)
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstruction0(rote, 8)
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstruction0(stor, 8)
+
+			if err != nil {
+				return err
+			}
+		}
+
+		err = g.writeInstruction0(pops, 8) // pop remaining pointer to data
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (g *generator) structIndexPointer(struc ast.StructIndex) error {
+	var varLoc varLocation
+	variable := struc.Base.(ast.Var)
+
+	for i := len(g.vars) - 1; i >= 0; i-- {
+		cur := g.vars[i]
+		if cur.identifier == variable.Name {
+			varLoc = cur
+			goto found
+		}
+	}
+
+	panic("variable ´" + variable.Name + "´ not found")
+
+found:
+	switch varLoc.pointer.location {
+	case locDataSection: // global var
+		err := g.writeInstructionn(push, 8, varLoc.pointer.toUint64()+uint64(struc.Offset))
+
+		if err != nil {
+			return err
+		}
+	case locStack: // local var
+		err := g.writeInstruction0(base, 0)
+
+		if err != nil {
+			return err
+		}
+		err = g.writeInstructionn(push, 8, varLoc.pointer.byteOffset+uint64(struc.Offset))
+
+		if err != nil {
+			return err
+		}
+		err = g.writeInstruction0(addu, 8)
+
+		if err != nil {
+			return err
+		}
+	case locAlloc:
+		fallthrough // dynamically allocated pointer/array, already stored in local var
+	default:
+		panic("unreachable")
+	}
+
+	return nil
 }
 
 func (g *generator) varPointer(variable ast.Var) error {

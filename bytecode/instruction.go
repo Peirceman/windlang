@@ -65,6 +65,7 @@ const (
 	farg
 	sptr
 	cvtf
+	debg
 
 	jptr = jpne
 	jpfl = jpeq
