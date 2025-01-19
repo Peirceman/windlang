@@ -359,6 +359,10 @@ fn main() {
 
 	structVar.c = structRet(100, 200.0);
 
+	print(structRet(1, 0.0).a);
+
+	print("");
+
 	print(structVar.a);
 	print(structVar.b);
 	print(structVar.c.a);

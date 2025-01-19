@@ -448,8 +448,28 @@ func analyseStackUsage(block ast.CodeBlockNode) (localBytes, scratchBytes uint64
 	return
 }
 
-func analyseNeededScratch(_ ast.Expression) (scratchBytes uint64) {
-	return // always 0 for now
+func analyseNeededScratch(expr ast.Expression) (scratchBytes uint64) {
+	switch expr := expr.(type) {
+	case ast.BinaryOpNode:
+		scratchBytes = max(scratchBytes, analyseNeededScratch(expr.Lhs), analyseNeededScratch(expr.Rhs))
+	case ast.UnaryOpNode:
+		scratchBytes = max(scratchBytes, analyseNeededScratch(expr.Expression))
+	case ast.FuncCall:
+		if size := expr.ReturnType().Size(); size > 8 {
+			scratchBytes = max(scratchBytes, uint64(size))
+		}
+
+		for _, arg := range expr.Args {
+			scratchBytes = max(scratchBytes, analyseNeededScratch(arg))
+		}
+
+	case ast.Cast:
+		scratchBytes = max(scratchBytes, analyseNeededScratch(expr.Inner))
+	case ast.StructIndex:
+		scratchBytes = max(scratchBytes, analyseNeededScratch(expr.Base))
+	}
+
+	return
 }
 
 func (g *generator) writeIfChain(chain ast.IfChain) error {
@@ -903,9 +923,9 @@ func (g *generator) writeExpression(expression ast.Expression) error {
 		}
 
 	case ast.StructIndex:
-		switch base := expression.Base.(type) {
+		switch structBase := expression.Base.(type) {
 		case ast.Var:
-			err := g.varPointer(base)
+			err := g.varPointer(structBase)
 
 			if err != nil {
 				return err
@@ -928,6 +948,64 @@ func (g *generator) writeExpression(expression ast.Expression) error {
 			if err != nil {
 				return err
 			}
+
+		case ast.FuncCall:
+			if structBase.ReturnType().Kind() == ast.KindVoid {
+				panic("assertion failed") // parser should have caught
+			}
+
+			err := g.scratchPointer()
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstruction0(farg, 0)
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstruction0(dupe, 8)
+
+			if err != nil {
+				return err
+			}
+
+			for i := len(structBase.Args) - 1; i >= 0; i-- {
+				arg := structBase.Args[i]
+
+				err := g.writeExpression(arg)
+
+				if err != nil {
+					return err
+				}
+			}
+
+			err = g.writeInstruction4(call, 0, g.funcs[structBase.Fun.Name])
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstructionn(push, 8, uint64(expression.Offset))
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstruction0(addu, 8)
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstruction0(load, expression.Typ.Size())
+
+			if err != nil {
+				return err
+			}
+
 		default:
 			panic("help me pwease")
 		}

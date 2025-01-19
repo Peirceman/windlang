@@ -7,6 +7,7 @@
     use testdata dir with files for files to parse and expected output
  - [ ] fix the rest of this readme
  - [ ] expand type system: arrays
+ - [ ] indexing temp structs, eg. return of functions
  - [ ] use jump instructions for if statements instead of what happens now
  - [ ] for loops
  - [ ] calling functions that are declared further down the file
