@@ -69,7 +69,7 @@ func (p *Parser) addBuiltIns() {
 	})
 }
 
-func (p *Parser) get(iden ast.Identifier) any {
+func (p *Parser) get(iden ast.Identifier) ast.Expression {
 	for i := len(p.currentScope) - 1; i >= 0; i-- {
 		if p.currentScope[i].Contains(iden) {
 			return p.currentScope[i].Get(iden)
@@ -650,55 +650,59 @@ func (p *Parser) parseUnary() ast.Expression {
 		panic(p.lex.curLoc.String() + " Error: opperand expected")
 	}
 
-	tok = p.lex.PeekToken()
-	var err error
-	for opp = tok.typ.ToUnOp(); opp != -1 && !opp.OnLeftSide(); opp = tok.typ.ToUnOp() {
-		p.lex.NextToken()
-		expression, err = ast.NewUnaryOpNode(expression, opp)
+loop:
+	for tok := p.lex.PeekToken(); ; tok = p.lex.PeekToken() {
+		switch tok.typ {
+		case TTPeriod:
+			p.lex.NextToken()
 
-		if err != nil {
-			panic(p.lex.curLoc.String() + err.Error())
-		}
+			if expression.ReturnType().Kind() != ast.KindStruct {
+				panic(p.lex.curLoc.String() + "ERROR: not a struct")
+			}
 
-		tok = p.lex.PeekToken()
-	}
+			tok = p.lex.PeekToken()
 
-	return expression
-}
+			if tok.typ == TTLSquirly {
+				panic("struct initialization")
+			}
 
-func (p *Parser) parsePrimary() ast.Expression {
-	tok := p.lex.PeekToken()
-	if tok.typ == TTEOF {
-		panic("opperand expected")
-	}
+			p.expect(TTIdentifier)
 
-	switch tok.typ {
-	case TTIdentifier:
-		p.lex.NextToken()
-		if !p.exists(ast.Identifier(tok.literal)) {
-			panic(tok.loc.String() + " Undefinded name: " + tok.literal)
-		}
+			optField := expression.ReturnType().(ast.StructType).GetField(ast.Identifier(tok.literal))
 
-		var expr ast.Expression
+			if optField == nil {
+				fmt.Println(expression.ReturnType())
+				panic(p.lex.curLoc.String() + "ERROR: no field `" + tok.literal + "`")
+			}
 
-		if next := p.lex.PeekToken(); next.typ == TTLBrace {
-			funcName := ast.Identifier(tok.literal)
+			field := *optField
 
+			if curVal, ok := expression.(ast.StructIndex); ok {
+				curVal.Offset += field.Offset
+				curVal.Typ = field.Typ
+				expression = curVal
+			} else {
+				expression = ast.StructIndex{
+					Base:   expression,
+					Typ:    field.Typ,
+					Offset: field.Offset,
+				}
+			}
+
+		case TTLBrace:
+			p.lex.NextToken()
 			funcCall := ast.FuncCall{}
 
-			if val, ok := p.get(funcName).(ast.Func); ok {
+			if val, ok := expression.(ast.Func); ok {
 				funcCall.Fun = val
 			} else {
-				p.lex.NextToken()
 				fmt.Println(val)
 				panic(p.lex.curLoc.String() + " Can only call functions")
 			}
 
-			p.lex.NextToken() // always`(` because of if condition
-
 			argIdx := -1
 
-			for tok := p.lex.PeekToken(); tok != nil && tok.typ != TTRBrace; tok = p.lex.PeekToken() {
+			for tok := p.lex.PeekToken(); tok.typ != TTRBrace; tok = p.lex.PeekToken() {
 				if len(funcCall.Args) >= len(funcCall.Fun.Args) {
 					panic(p.lex.curLoc.String() + " Error: to many arguments to function")
 				}
@@ -729,57 +733,43 @@ func (p *Parser) parsePrimary() ast.Expression {
 
 			p.expect(TTRBrace)
 
-			expr = funcCall
-		} else {
-			expr = p.get(ast.Identifier(tok.literal)).(ast.Var)
-		}
+			expression = funcCall
 
-		next := p.lex.PeekToken()
 
-		if next.typ != TTPeriod {
-			return expr
-		}
+		default:
+			opp = tok.typ.ToUnOp()
 
-		curVal := ast.StructIndex{Base: expr, Typ: expr.ReturnType(), Offset: 0}
-		expr = curVal
+			if opp == -1 || opp.OnLeftSide() {
+				break loop
+			}
 
-		for ; next.typ == TTPeriod; next = p.lex.PeekToken() {
 			p.lex.NextToken()
+			var err error
+			expression, err = ast.NewUnaryOpNode(expression, opp)
 
-			if curVal.Typ.Kind() != ast.KindStruct {
-				panic(p.lex.curLoc.String() + "ERROR: not a struct")
+			if err != nil {
+				panic(p.lex.curLoc.String() + err.Error())
 			}
+		}
+	}
 
-			next = p.lex.PeekToken()
+	return expression
+}
 
-			if next.typ == TTLSquirly {
-				panic("struct initialization")
-			}
+func (p *Parser) parsePrimary() ast.Expression {
+	tok := p.lex.PeekToken()
+	if tok.typ == TTEOF {
+		panic("opperand expected")
+	}
 
-			if next.typ == TTIdentifier {
-				p.lex.NextToken()
-
-				var field ast.StructField
-
-				for _, field = range curVal.Typ.(ast.StructType).Fields {
-					if field.Name == ast.Identifier(next.literal) {
-						goto fieldOk
-					}
-				}
-
-				panic(p.lex.curLoc.String() + "ERROR: no field `" + next.literal + "`")
-
-			fieldOk:
-				curVal.Offset += field.Offset
-				curVal.Typ = field.Typ
-				expr = curVal
-				continue
-			}
-
-			p.expect(TTIdentifier) // throw error
+	switch tok.typ {
+	case TTIdentifier:
+		p.lex.NextToken()
+		if !p.exists(ast.Identifier(tok.literal)) {
+			panic(tok.loc.String() + " Undefinded name: " + tok.literal)
 		}
 
-		return expr
+		return p.get(ast.Identifier(tok.literal))
 
 	case TTInt:
 		p.lex.NextToken()

@@ -77,7 +77,8 @@ func (s *Scope) Contains(iden Identifier) bool {
 	return false
 }
 
-func (s *Scope) Get(iden Identifier) any {
+// Var or Func
+func (s *Scope) Get(iden Identifier) Expression {
 	if val, contains := s.Vars[iden]; contains {
 		return val
 	}

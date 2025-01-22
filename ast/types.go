@@ -60,12 +60,12 @@ var _ Type = (*StructType)(nil)
 var (
 	TypeVoid = SimpleType{KindVoid, 0, ""}
 
-	TypeInt8 = SimpleType{KindInt, 1, "int8"}
+	TypeInt8  = SimpleType{KindInt, 1, "int8"}
 	TypeInt16 = SimpleType{KindInt, 2, "int16"}
 	TypeInt32 = SimpleType{KindInt, 4, "int32"}
 	TypeInt64 = SimpleType{KindInt, 8, "int64"}
 
-	TypeUint8 = SimpleType{KindUint, 1, "uint8"}
+	TypeUint8  = SimpleType{KindUint, 1, "uint8"}
 	TypeUint16 = SimpleType{KindUint, 2, "uint16"}
 	TypeUint32 = SimpleType{KindUint, 4, "uint32"}
 	TypeUint64 = SimpleType{KindUint, 8, "uint64"}
@@ -73,8 +73,8 @@ var (
 	TypeFloat32 = SimpleType{KindFloat, 4, "float32"}
 	TypeFloat64 = SimpleType{KindFloat, 8, "float64"}
 
-	TypeBool = SimpleType{KindBool, 4, "bool"}
-	TypeChar = SimpleType{KindInt, 4, "char"}
+	TypeBool   = SimpleType{KindBool, 4, "bool"}
+	TypeChar   = SimpleType{KindInt, 4, "char"}
 	TypeString = PointerType{"string", TypeUint8}
 )
 
@@ -143,4 +143,15 @@ func (s StructType) matches(other Type) bool {
 	}
 
 	return true
+}
+
+// optional
+func (s StructType) GetField(iden Identifier) *StructField {
+	for _, field := range s.Fields {
+		if field.Name == iden {
+			return &field
+		}
+	}
+
+	return nil
 }
