@@ -56,6 +56,13 @@ type StructType struct {
 
 var _ Type = (*StructType)(nil)
 
+type ArrayType struct {
+	Name_ Identifier
+	Inner Type
+}
+
+var _ Type = (*ArrayType)(nil)
+
 // Default types
 var (
 	TypeVoid = SimpleType{KindVoid, 0, ""}
@@ -88,6 +95,9 @@ func EqualTypes(a, b Type) bool {
 		return ok && a.matches(b)
 	case StructType:
 		_, ok := b.(StructType)
+		return ok && a.matches(b)
+	case ArrayType:
+		_, ok := b.(ArrayType)
 		return ok && a.matches(b)
 	}
 
@@ -155,3 +165,19 @@ func (s StructType) GetField(iden Identifier) *StructField {
 
 	return nil
 }
+
+func (s ArrayType) Kind() Kind       { return KindArray }
+func (s ArrayType) Size() int        { return 24 }
+func (s ArrayType) Name() Identifier { return s.Name_ }
+
+func (s ArrayType) SetName(iden Identifier) Type {
+	s.Name_ = iden
+	return s
+}
+
+func (s ArrayType) matches(other Type) bool {
+	otherS := other.(ArrayType)
+
+	return s.Name_ == otherS.Name_ && EqualTypes(s.Inner, otherS.Inner)
+}
+

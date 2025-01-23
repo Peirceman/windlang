@@ -444,7 +444,9 @@ func (p *Parser) parseType() ast.Type {
 		}
 
 	case TTLSquare:
-		panic("arrays not yet fully implemented")
+		p.expect(TTRSquare)
+		inner := p.parseType()
+		return ast.ArrayType{Name_: "", Inner: inner}
 
 	case TTAmp:
 		inner := p.parseType()
@@ -558,6 +560,10 @@ func (p *Parser) parseBinary(precedence int) ast.Expression {
 					if _, ok := lhs.Base.(ast.Var); ok {
 						goto ok1
 					}
+				case ast.ArrayIndex:
+					if _, ok := lhs.Array.(ast.Var); ok {
+						goto ok1
+					}
 				}
 
 				panic(p.lex.curLoc.String() + " cannot assign to lhs")
@@ -597,6 +603,10 @@ func (p *Parser) parseBinary(precedence int) ast.Expression {
 					}
 				case ast.StructIndex:
 					if _, ok := lhs.Base.(ast.Var); ok {
+						goto ok2
+					}
+				case ast.ArrayIndex:
+					if _, ok := lhs.Array.(ast.Var); ok {
 						goto ok2
 					}
 				}
@@ -735,6 +745,15 @@ loop:
 
 			expression = funcCall
 
+		case TTLSquare:
+			p.lex.NextToken()
+			index := p.parseExpression()
+			p.expect(TTRSquare)
+			expression = ast.ArrayIndex{
+				Array: expression,
+				Index: index,
+				Typ:   expression.ReturnType().(ast.ArrayType).Inner,
+			}
 
 		default:
 			opp = tok.typ.ToUnOp()
@@ -765,6 +784,10 @@ func (p *Parser) parsePrimary() ast.Expression {
 	switch tok.typ {
 	case TTIdentifier:
 		p.lex.NextToken()
+		if tok.literal == "alloc" {
+			return p.parseAlloc()
+		}
+
 		if !p.exists(ast.Identifier(tok.literal)) {
 			panic(tok.loc.String() + " Undefinded name: " + tok.literal)
 		}
@@ -829,4 +852,35 @@ func (p *Parser) parsePrimary() ast.Expression {
 	}
 
 	panic(p.lex.NextToken().String() + " illegal token") // TODO: better error handling
+}
+
+func (p *Parser) parseAlloc() ast.Expression {
+	p.expect(TTLBrace)
+
+	typ := p.parseType()
+
+	var result ast.Allocation
+
+	if typ.Kind() == ast.KindArray {
+		p.expect(TTComma)
+
+		count := p.parseExpression()
+
+		if (count.ReturnType().Kind() != ast.KindInt &&
+			count.ReturnType().Kind() != ast.KindUint) ||
+			count.ReturnType().Size() != 8 {
+			panic("type mismatch")
+		}
+
+		result = ast.Allocation{Typ: typ, ElemsCount: count}
+	} else {
+		result = ast.Allocation{
+			Typ:        ast.PointerType{Name_: "", Inner: typ},
+			ElemsCount: ast.IntLit{Value: 1},
+		}
+	}
+
+	p.expect(TTRBrace)
+
+	return result
 }

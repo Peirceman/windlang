@@ -375,6 +375,27 @@ fn main() {
 
 	testLocalScope();
 
+	var array: []int64 = alloc([]int64, 10);
+	i = 0;
+	var num: int64 = 1;
+	while i < 10 {
+		array[i] = num;
+		if num < 0 {
+			num = -num + 1;
+		} elif num > 0 {
+			num = -num - 1;
+		}
+
+		i += 1;
+	}
+
+	i = 0;
+
+	while i < 10 {
+		print(array[i]);
+
+		i+= 1;
+	}
 	return;
 }
 

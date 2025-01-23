@@ -1016,6 +1016,136 @@ func (g *generator) writeExpression(expression ast.Expression) error {
 	case ast.UnaryOpNode:
 		return g.generateUnaryOpNode(expression)
 
+	case ast.ArrayIndex:
+		err := g.writeExpression(expression.Array)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(pops, 8) // pop capacity
+
+		if err != nil {
+			return err
+		}
+
+		// TODO: bounds check
+		err = g.writeInstruction0(pops, 8) // pop size
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeExpression(expression.Index)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstructionn(push, 8, uint64(expression.ReturnType().Size()))
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(mulu, 8)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(addu, 8)
+
+		if err != nil {
+			return err
+		}
+
+		if expression.Typ.Size() > 8 {
+			panic("error: cannot generate bytecode for arrays with elements larger than 8 bytes")
+		}
+
+		err = g.writeInstruction0(load, expression.Typ.Size())
+
+		if err != nil {
+			return err
+		}
+
+	case ast.Allocation:
+		if expression.Typ.Kind() == ast.KindArray {
+			err := g.writeExpression(expression.ElemsCount)
+
+			if err != nil {
+				return err
+			}
+
+			typ := expression.Typ.(ast.ArrayType).Inner
+
+			err = g.writeInstructionn(push, 8, uint64(typ.Size()))
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstruction0(mulu, 8)
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstruction0(dupe, 8)
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstruction0(aloc, 8)
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstruction0(swap, 8)
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstruction0(dupe, 8)
+
+			if err != nil {
+				return err
+			}
+
+		} else if expression.Typ.Kind() == ast.KindPointer {
+			err := g.writeExpression(expression.ElemsCount)
+
+			if err != nil {
+				return err
+			}
+
+			typ := expression.Typ.(ast.PointerType).Inner
+
+			err = g.writeInstructionn(push, 8, uint64(typ.Size()))
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstruction0(mulu, 8)
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstruction0(aloc, 8)
+
+			if err != nil {
+				return err
+			}
+		} else {
+			panic("assertion failed")
+		}
+
 	default:
 		panic("Unknow or unimplemented expression: " + reflect.TypeOf(expression).String())
 	}
@@ -2023,6 +2153,52 @@ loop:
 			derefCount++
 
 			lhs = lhsTyp.Expression
+
+		case ast.ArrayIndex:
+			err := g.writeExpression(lhsTyp.Array)
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstruction0(pops, 8) // pop capacity
+
+			if err != nil {
+				return err
+			}
+
+			// TODO: bounds check
+			err = g.writeInstruction0(pops, 8) // pop size
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeExpression(lhsTyp.Index)
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstructionn(push, 8, uint64(lhsTyp.ReturnType().Size()))
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstruction0(mulu, 8)
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstruction0(addu, 8)
+
+			if err != nil {
+				return err
+			}
+
+			break loop
 
 		default:
 			panic("assigning to not variable???")

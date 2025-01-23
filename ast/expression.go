@@ -57,6 +57,21 @@ type StructIndex struct {
 
 var _ Expression = (*StructIndex)(nil)
 
+type ArrayIndex struct {
+	Array Expression
+	Index Expression
+	Typ   Type
+}
+
+var _ Expression = (*ArrayIndex)(nil)
+
+type Allocation struct {
+	Typ        Type
+	ElemsCount Expression
+}
+
+var _ Expression = (*Allocation)(nil)
+
 func (v Var) string() string {
 	return string(v.Name)
 }
@@ -111,4 +126,20 @@ func (s StructIndex) string() string {
 
 func (s StructIndex) ReturnType() Type {
 	return s.Typ
+}
+
+func (a ArrayIndex) string() string {
+	return a.Array.string() + "[" + a.Index.string() + "]"
+}
+
+func (a ArrayIndex) ReturnType() Type {
+	return a.Typ
+}
+
+func (a Allocation) string() string {
+	return "alloc(...)"
+}
+
+func (a Allocation) ReturnType() Type {
+	return a.Typ
 }
