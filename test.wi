@@ -397,6 +397,22 @@ fn main() {
 		i+= 1;
 	}
 
+	print("");
+
+	var structs: []AStruct = alloc([]AStruct, 3);
+	structs[0] = structVar.c;
+	structs[1].a = 69;
+	structs[1].b = 68.0;
+	structs[2].a = 420;
+	structs[2].b = 12345.6789;
+
+	i = 0;
+	while i < 6 {
+		print(structs[i/2].a);
+		print(structs[i/2].b + 1.0);
+		i += 2;
+	}
+
 	return;
 }
 

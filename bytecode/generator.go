@@ -858,91 +858,10 @@ func (g *generator) writeExpression(expression ast.Expression) error {
 		}
 
 	case ast.StructIndex:
-		switch structBase := expression.Base.(type) {
-		case ast.Var:
-			err := g.varPointer(structBase)
+		err := g.writeLoad(expression)
 
-			if err != nil {
-				return err
-			}
-
-			err = g.writeInstructionn(push, 8, uint64(expression.Offset))
-
-			if err != nil {
-				return err
-			}
-
-			err = g.writeInstruction0(addu, 8)
-
-			if err != nil {
-				return err
-			}
-
-			err = g.writeInstruction0(load, expression.Typ.Size())
-
-			if err != nil {
-				return err
-			}
-
-		case ast.FuncCall:
-			if structBase.ReturnType().Kind() == ast.KindVoid {
-				panic("assertion failed") // parser should have caught
-			}
-
-			err := g.scratchPointer()
-
-			if err != nil {
-				return err
-			}
-
-			err = g.writeInstruction0(farg, 0)
-
-			if err != nil {
-				return err
-			}
-
-			err = g.writeInstruction0(dupe, 8)
-
-			if err != nil {
-				return err
-			}
-
-			for i := len(structBase.Args) - 1; i >= 0; i-- {
-				arg := structBase.Args[i]
-
-				err := g.writeExpression(arg)
-
-				if err != nil {
-					return err
-				}
-			}
-
-			err = g.writeInstruction4(call, 0, g.funcs[structBase.Fun.Name])
-
-			if err != nil {
-				return err
-			}
-
-			err = g.writeInstructionn(push, 8, uint64(expression.Offset))
-
-			if err != nil {
-				return err
-			}
-
-			err = g.writeInstruction0(addu, 8)
-
-			if err != nil {
-				return err
-			}
-
-			err = g.writeInstruction0(load, expression.Typ.Size())
-
-			if err != nil {
-				return err
-			}
-
-		default:
-			panic("help me pwease")
+		if err != nil {
+			return err
 		}
 
 	case ast.BinaryOpNode:
@@ -1848,9 +1767,9 @@ func (g *generator) writeAssignment(lhs, rhs ast.Expression) error {
 	)
 }
 
-func (g *generator) writeStore(writeLhs, writeRhs func() error, typ ast.Type) error {
+func (g *generator) writeStore(writeLhsPtr, writeRhs func() error, typ ast.Type) error {
 	if typ.Size() <= 8 {
-		err := writeLhs()
+		err := writeLhsPtr()
 
 		if err != nil {
 			return err
@@ -1878,7 +1797,7 @@ func (g *generator) writeStore(writeLhs, writeRhs func() error, typ ast.Type) er
 			return err
 		}
 
-		err = writeLhs()
+		err = writeLhsPtr()
 
 		if err != nil {
 			return err
@@ -2074,8 +1993,47 @@ func (g *generator) writePointerTo(lhs ast.Expression) error {
 			return err
 		}
 
+	case ast.FuncCall:
+		if lhs.ReturnType().Kind() == ast.KindVoid {
+			panic("assertion failed") // parser should have caught
+		}
+
+		err := g.scratchPointer()
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(farg, 0)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(dupe, 8)
+
+		if err != nil {
+			return err
+		}
+
+		for i := len(lhs.Args) - 1; i >= 0; i-- {
+			arg := lhs.Args[i]
+
+			err := g.writeExpression(arg)
+
+			if err != nil {
+				return err
+			}
+		}
+
+		err = g.writeInstruction4(call, 0, g.funcs[lhs.Fun.Name])
+
+		if err != nil {
+			return err
+		}
+
 	default:
-		panic("assigning to not variable???")
+		panic(fmt.Sprintf("cant create pointer to expression of type: %T", lhs))
 	}
 
 	return nil
