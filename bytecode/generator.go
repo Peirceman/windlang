@@ -685,60 +685,10 @@ func (g *generator) writeExpression(expression ast.Expression) error {
 		}
 
 	case ast.Var:
-		err := g.varPointer(expression)
+		err := g.writeLoad(expression)
 
 		if err != nil {
 			return err
-		}
-
-		if size := expression.Typ.Size(); size <= 8 {
-			err = g.writeInstruction0(load, size)
-
-			if err != nil {
-				return err
-			}
-		} else {
-			if size%8 != 0 {
-				panic("assertion failed")
-			}
-
-			for i := 0; i < size; i += 8 {
-				err = g.writeInstruction0(dupe, 8)
-
-				if err != nil {
-					return err
-				}
-
-				err = g.writeInstructionn(push, 8, uint64(i))
-
-				if err != nil {
-					return err
-				}
-
-				err = g.writeInstruction0(addu, 8)
-
-				if err != nil {
-					return err
-				}
-
-				err = g.writeInstruction0(load, 8)
-
-				if err != nil {
-					return err
-				}
-
-				err = g.writeInstruction0(swap, 8)
-
-				if err != nil {
-					return err
-				}
-			}
-
-			err = g.writeInstruction0(pops, 8)
-
-			if err != nil {
-				return err
-			}
 		}
 
 	case ast.Func:
@@ -1002,17 +952,7 @@ func (g *generator) writeExpression(expression ast.Expression) error {
 		return g.generateUnaryOpNode(expression)
 
 	case ast.ArrayIndex:
-		err := g.writePointerTo(expression)
-
-		if err != nil {
-			return err
-		}
-
-		if expression.Typ.Size() > 8 {
-			panic("error: cannot generate bytecode for arrays with elements larger than 8 bytes")
-		}
-
-		err = g.writeInstruction0(load, expression.Typ.Size())
+		err := g.writeLoad(expression)
 
 		if err != nil {
 			return err
@@ -2216,6 +2156,68 @@ func (g *generator) writeAssignment(lhs, rhs ast.Expression) error {
 	return nil
 }
 
+func (g *generator) writeLoad(expr ast.Expression) error {
+	err := g.writePointerTo(expr)
+
+	if err != nil {
+		return err
+	}
+
+	size := expr.ReturnType().Size()
+
+	if size <= 8 {
+		err = g.writeInstruction0(load, size)
+
+		if err != nil {
+			return err
+		}
+	} else {
+		if size%8 != 0 {
+			panic("assertion failed")
+		}
+
+		for offset := 0; offset < size; offset += 8 {
+			err = g.writeInstruction0(dupe, 8)
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstructionn(push, 8, uint64(offset))
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstruction0(addu, 8)
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstruction0(load, 8)
+
+			if err != nil {
+				return err
+			}
+
+			err = g.writeInstruction0(swap, 8)
+
+			if err != nil {
+				return err
+			}
+		}
+
+		err = g.writeInstruction0(pops, 8)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (g *generator) writePointerTo(lhs ast.Expression) error {
 	switch lhs := lhs.(type) {
 	case ast.Var:
@@ -2249,13 +2251,7 @@ func (g *generator) writePointerTo(lhs ast.Expression) error {
 			panic("assertion failed")
 		}
 
-		err := g.writePointerTo(lhs.Expression)
-
-		if err != nil {
-			return err
-		}
-
-		err = g.writeInstruction0(load, lhs.Expression.ReturnType().Size())
+		err := g.writeLoad(lhs.Expression)
 
 		if err != nil {
 			return err

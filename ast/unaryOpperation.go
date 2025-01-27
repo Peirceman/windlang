@@ -137,7 +137,6 @@ func NewUnaryOpNode(expression Expression, op UnaryOp) (Expression, error) {
 	}
 
 	return UnaryOpNode{expression, op}, nil
-
 }
 
 func (u UnaryOpNode) string() string {
