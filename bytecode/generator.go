@@ -15,7 +15,7 @@ import (
 type varLocation struct {
 	identifier ast.Identifier
 	typ        ast.Type
-	pointer    pointer // note offset for LocStack is relative to base
+	pointer    pointer // NOTE: offset for LocStack is relative to base
 }
 
 type generator struct {
@@ -40,13 +40,13 @@ func Generate(output io.WriteSeeker, code ast.CodeBlockNode) error {
 		baseOffset:     0,
 	}
 
-	_, err := g.Output.Write([]byte{'W', 'B', 'C', 0, 0, 0, 0, 0})
+	_, err := g.Output.Write([]byte("WBC\x00\x00\x00\x00\x00"))
 
 	if err != nil {
 		return err
 	}
 
-	_, err = g.Output.Write([]byte{'c', 'o', 'd', 'e', 0, 0, 0, 0})
+	_, err = g.Output.Write([]byte("code\x00\x00\x00\x00"))
 
 	if err != nil {
 		return err
@@ -72,12 +72,7 @@ func Generate(output io.WriteSeeker, code ast.CodeBlockNode) error {
 		return err
 	}
 
-	_, err = g.Output.Write([]byte{
-		byte(g.bytesWritten >> (3 * 8)),
-		byte(g.bytesWritten >> (2 * 8)),
-		byte(g.bytesWritten >> (1 * 8)),
-		byte(g.bytesWritten >> (0 * 8)),
-	})
+	err = binary.Write(g.Output, binary.BigEndian, uint32(g.bytesWritten))
 
 	if err != nil {
 		return err
@@ -95,12 +90,7 @@ func Generate(output io.WriteSeeker, code ast.CodeBlockNode) error {
 		return err
 	}
 
-	_, err = g.Output.Write([]byte{
-		byte(len(g.data) >> (3 * 8)),
-		byte(len(g.data) >> (2 * 8)),
-		byte(len(g.data) >> (1 * 8)),
-		byte(len(g.data) >> (0 * 8)),
-	})
+	err = binary.Write(g.Output, binary.BigEndian, uint32(len(g.data)))
 
 	if err != nil {
 		return err
@@ -811,21 +801,22 @@ func (g *generator) writeExpression(expression ast.Expression) error {
 			break
 		}
 
-		if expression.ReturnType().Kind() != ast.KindVoid {
-			size := expression.ReturnType().Size()
-			for i := size; i > 0; i -= 8 {
-				err = g.writeInstructionn(push, min(i, 8), 0)
-
-				if err != nil {
-					return err
-				}
-			}
-
-			err = g.writeInstruction0(farg, 0)
+		size := expression.ReturnType().Size()
+		for remaining := size; remaining > 0; remaining -= 8 {
+			err = g.writeInstructionn(push, min(remaining, 8), 0)
 
 			if err != nil {
 				return err
 			}
+		}
+
+		err = g.writeInstruction0(farg, 0)
+
+		if err != nil {
+			return err
+		}
+
+		if expression.ReturnType().Kind() != ast.KindVoid {
 
 			err = g.writeInstruction0(sptr, 0)
 
@@ -840,12 +831,6 @@ func (g *generator) writeExpression(expression ast.Expression) error {
 			}
 
 			err = g.writeInstruction0(subu, 8)
-
-			if err != nil {
-				return err
-			}
-		} else {
-			err = g.writeInstruction0(farg, 0)
 
 			if err != nil {
 				return err
@@ -1017,44 +1002,7 @@ func (g *generator) writeExpression(expression ast.Expression) error {
 		return g.generateUnaryOpNode(expression)
 
 	case ast.ArrayIndex:
-		err := g.writeExpression(expression.Array)
-
-		if err != nil {
-			return err
-		}
-
-		err = g.writeInstruction0(pops, 8) // pop capacity
-
-		if err != nil {
-			return err
-		}
-
-		// TODO: bounds check
-		err = g.writeInstruction0(pops, 8) // pop size
-
-		if err != nil {
-			return err
-		}
-
-		err = g.writeExpression(expression.Index)
-
-		if err != nil {
-			return err
-		}
-
-		err = g.writeInstructionn(push, 8, uint64(expression.ReturnType().Size()))
-
-		if err != nil {
-			return err
-		}
-
-		err = g.writeInstruction0(mulu, 8)
-
-		if err != nil {
-			return err
-		}
-
-		err = g.writeInstruction0(addu, 8)
+		err := g.writePointerTo(expression)
 
 		if err != nil {
 			return err
@@ -1470,7 +1418,7 @@ func (g *generator) generateBinaryOpNode(binopnode ast.BinaryOpNode) error {
 
 	case ast.BOPlusAssign:
 		typ := binopnode.Lhs.ReturnType()
-		err := g.writeAssignLhs(binopnode.Lhs)
+		err := g.writePointerTo(binopnode.Lhs)
 
 		if err != nil {
 			return err
@@ -1515,7 +1463,7 @@ func (g *generator) generateBinaryOpNode(binopnode ast.BinaryOpNode) error {
 
 	case ast.BODashAssign:
 		typ := binopnode.Lhs.ReturnType()
-		err := g.writeAssignLhs(binopnode.Lhs)
+		err := g.writePointerTo(binopnode.Lhs)
 
 		if err != nil {
 			return err
@@ -1560,7 +1508,7 @@ func (g *generator) generateBinaryOpNode(binopnode ast.BinaryOpNode) error {
 
 	case ast.BOStarAssign:
 		typ := binopnode.Lhs.ReturnType()
-		err := g.writeAssignLhs(binopnode.Lhs)
+		err := g.writePointerTo(binopnode.Lhs)
 
 		if err != nil {
 			return err
@@ -1605,7 +1553,7 @@ func (g *generator) generateBinaryOpNode(binopnode ast.BinaryOpNode) error {
 
 	case ast.BOSlashAssign:
 		typ := binopnode.Lhs.ReturnType()
-		err := g.writeAssignLhs(binopnode.Lhs)
+		err := g.writePointerTo(binopnode.Lhs)
 
 		if err != nil {
 			return err
@@ -1650,7 +1598,7 @@ func (g *generator) generateBinaryOpNode(binopnode ast.BinaryOpNode) error {
 
 	case ast.BOAndAssign:
 		typ := binopnode.Lhs.ReturnType()
-		err := g.writeAssignLhs(binopnode.Lhs)
+		err := g.writePointerTo(binopnode.Lhs)
 
 		if err != nil {
 			return err
@@ -1688,7 +1636,7 @@ func (g *generator) generateBinaryOpNode(binopnode ast.BinaryOpNode) error {
 
 	case ast.BOOrAssign:
 		typ := binopnode.Lhs.ReturnType()
-		err := g.writeAssignLhs(binopnode.Lhs)
+		err := g.writePointerTo(binopnode.Lhs)
 
 		if err != nil {
 			return err
@@ -1726,7 +1674,7 @@ func (g *generator) generateBinaryOpNode(binopnode ast.BinaryOpNode) error {
 
 	case ast.BOXorAssign:
 		typ := binopnode.Lhs.ReturnType()
-		err := g.writeAssignLhs(binopnode.Lhs)
+		err := g.writePointerTo(binopnode.Lhs)
 
 		if err != nil {
 			return err
@@ -1764,7 +1712,7 @@ func (g *generator) generateBinaryOpNode(binopnode ast.BinaryOpNode) error {
 
 	case ast.BOShrAssign:
 		typ := binopnode.Lhs.ReturnType()
-		err := g.writeAssignLhs(binopnode.Lhs)
+		err := g.writePointerTo(binopnode.Lhs)
 
 		if err != nil {
 			return err
@@ -1808,7 +1756,7 @@ func (g *generator) generateBinaryOpNode(binopnode ast.BinaryOpNode) error {
 
 	case ast.BOShlAssign:
 		typ := binopnode.Lhs.ReturnType()
-		err := g.writeAssignLhs(binopnode.Lhs)
+		err := g.writePointerTo(binopnode.Lhs)
 
 		if err != nil {
 			return err
@@ -2117,113 +2065,6 @@ func (g *generator) castSigned(requiredSize, currentSize int) (err error) {
 	return nil
 }
 
-func (g *generator) writeAssignLhs(lhs ast.Expression) error {
-	derefCount := 0
-
-loop:
-	for true {
-		switch lhsTyp := lhs.(type) {
-		case ast.Var:
-			err := g.varPointer(lhsTyp)
-
-			if err != nil {
-				return err
-			}
-
-			break loop
-		case ast.StructIndex:
-			_, ok := lhsTyp.Base.(ast.Var)
-
-			if !ok {
-				panic("Assigning to not var?")
-			}
-
-			err := g.structIndexPointer(lhsTyp)
-
-			if err != nil {
-				return err
-			}
-
-			break loop
-		case ast.UnaryOpNode:
-			if lhsTyp.Op != ast.UODeref {
-				panic("assertion failed")
-			}
-
-			derefCount++
-
-			lhs = lhsTyp.Expression
-
-		case ast.ArrayIndex:
-			err := g.writeExpression(lhsTyp.Array)
-
-			if err != nil {
-				return err
-			}
-
-			err = g.writeInstruction0(pops, 8) // pop capacity
-
-			if err != nil {
-				return err
-			}
-
-			// TODO: bounds check
-			err = g.writeInstruction0(pops, 8) // pop size
-
-			if err != nil {
-				return err
-			}
-
-			err = g.writeExpression(lhsTyp.Index)
-
-			if err != nil {
-				return err
-			}
-
-			err = g.writeInstructionn(push, 8, uint64(lhsTyp.ReturnType().Size()))
-
-			if err != nil {
-				return err
-			}
-
-			err = g.writeInstruction0(mulu, 8)
-
-			if err != nil {
-				return err
-			}
-
-			err = g.writeInstruction0(addu, 8)
-
-			if err != nil {
-				return err
-			}
-
-			break loop
-
-		default:
-			panic("assigning to not variable???")
-		}
-	}
-
-	for i := range derefCount {
-		if i < derefCount-1 {
-			err := g.writeInstruction0(load, 8)
-
-			if err != nil {
-				return err
-			}
-		} else {
-			err := g.writeInstruction0(load, lhs.ReturnType().Size())
-
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
 func (g *generator) writeInstruction0(opcode Opcode, size int) error {
 	_, err := g.Output.Write([]byte{byte(opcode), byte(size)})
 
@@ -2296,7 +2137,7 @@ func (g *generator) findVar(identifier ast.Identifier) int {
 
 func (g *generator) writeAssignment(lhs, rhs ast.Expression) error {
 	if rhs.ReturnType().Size() <= 8 {
-		err := g.writeAssignLhs(lhs)
+		err := g.writePointerTo(lhs)
 
 		if err != nil {
 			return err
@@ -2324,7 +2165,7 @@ func (g *generator) writeAssignment(lhs, rhs ast.Expression) error {
 			return err
 		}
 
-		err = g.writeAssignLhs(lhs)
+		err = g.writePointerTo(lhs)
 
 		if err != nil {
 			return err
@@ -2375,48 +2216,97 @@ func (g *generator) writeAssignment(lhs, rhs ast.Expression) error {
 	return nil
 }
 
-func (g *generator) structIndexPointer(struc ast.StructIndex) error {
-	var varLoc varLocation
-	variable := struc.Base.(ast.Var)
-
-	for i := len(g.vars) - 1; i >= 0; i-- {
-		cur := g.vars[i]
-		if cur.identifier == variable.Name {
-			varLoc = cur
-			goto found
-		}
-	}
-
-	panic("variable ´" + variable.Name + "´ not found")
-
-found:
-	switch varLoc.pointer.location {
-	case locDataSection: // global var
-		err := g.writeInstructionn(push, 8, varLoc.pointer.toUint64()+uint64(struc.Offset))
+func (g *generator) writePointerTo(lhs ast.Expression) error {
+	switch lhs := lhs.(type) {
+	case ast.Var:
+		err := g.varPointer(lhs)
 
 		if err != nil {
 			return err
 		}
-	case locStack: // local var
-		err := g.writeInstruction0(base, 0)
+
+	case ast.StructIndex:
+		err := g.writePointerTo(lhs.Base)
 
 		if err != nil {
 			return err
 		}
-		err = g.writeInstructionn(push, 8, varLoc.pointer.byteOffset+uint64(struc.Offset))
+
+		err = g.writeInstructionn(push, 8, uint64(lhs.Offset))
 
 		if err != nil {
 			return err
 		}
+
 		err = g.writeInstruction0(addu, 8)
 
 		if err != nil {
 			return err
 		}
-	case locAlloc:
-		fallthrough // dynamically allocated pointer/array, already stored in local var
+
+	case ast.UnaryOpNode:
+		if lhs.Op != ast.UODeref {
+			panic("assertion failed")
+		}
+
+		err := g.writePointerTo(lhs.Expression)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(load, lhs.Expression.ReturnType().Size())
+
+		if err != nil {
+			return err
+		}
+
+	case ast.ArrayIndex:
+		err := g.writeExpression(lhs.Array)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(pops, 8) // pop capacity
+
+		if err != nil {
+			return err
+		}
+
+		// TODO: bounds check
+		err = g.writeInstruction0(pops, 8) // pop size
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeExpression(lhs.Index)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstructionn(push, 8, uint64(lhs.ReturnType().Size()))
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(mulu, 8)
+
+		if err != nil {
+			return err
+		}
+
+		err = g.writeInstruction0(addu, 8)
+
+		if err != nil {
+			return err
+		}
+
 	default:
-		panic("unreachable")
+		panic("assigning to not variable???")
 	}
 
 	return nil

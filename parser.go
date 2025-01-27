@@ -547,28 +547,9 @@ func (p *Parser) parseBinary(precedence int) ast.Expression {
 			}
 
 			if precedence == ast.BOAssign.Precedence() {
-				switch lhs := lhs.(type) {
-				case ast.Var:
-					if !lhs.IsConst {
-						goto ok1 // oh noooooo goto such unreadableness
-					}
-				case ast.UnaryOpNode:
-					if lhs.Op == ast.UODeref {
-						goto ok1
-					}
-				case ast.StructIndex:
-					if _, ok := lhs.Base.(ast.Var); ok {
-						goto ok1
-					}
-				case ast.ArrayIndex:
-					if _, ok := lhs.Array.(ast.Var); ok {
-						goto ok1
-					}
+				if !p.canAssign(lhs) {
+					panic(p.lex.curLoc.String() + " cannot assign to lhs")
 				}
-
-				panic(p.lex.curLoc.String() + " cannot assign to lhs")
-
-			ok1:
 			}
 
 			var err error
@@ -592,28 +573,9 @@ func (p *Parser) parseBinary(precedence int) ast.Expression {
 			}
 
 			if precedence == ast.BOAssign.Precedence() {
-				switch lhs := lhs.(type) {
-				case ast.Var:
-					if !lhs.IsConst {
-						goto ok2
-					}
-				case ast.UnaryOpNode:
-					if lhs.Op == ast.UODeref {
-						goto ok2
-					}
-				case ast.StructIndex:
-					if _, ok := lhs.Base.(ast.Var); ok {
-						goto ok2
-					}
-				case ast.ArrayIndex:
-					if _, ok := lhs.Array.(ast.Var); ok {
-						goto ok2
-					}
+				if !p.canAssign(lhs) {
+					panic(p.lex.curLoc.String() + " cannot assign to lhs")
 				}
-
-				panic(p.lex.curLoc.String() + " cannot assign to lhs")
-
-			ok2:
 			}
 
 			var err error
@@ -883,4 +845,27 @@ func (p *Parser) parseAlloc() ast.Expression {
 	p.expect(TTRBrace)
 
 	return result
+}
+
+func (p *Parser) canAssign(lhs ast.Expression) bool {
+	switch lhs := lhs.(type) {
+	case ast.Var:
+		return !lhs.IsConst
+
+	case ast.UnaryOpNode:
+		if lhs.Op == ast.UODeref {
+			return p.canAssign(lhs.Expression)
+		}
+
+		return false
+
+	case ast.StructIndex:
+		return p.canAssign(lhs.Base)
+
+	case ast.ArrayIndex:
+		return p.canAssign(lhs.Array)
+
+	}
+
+	return false
 }

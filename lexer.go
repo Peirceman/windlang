@@ -538,6 +538,7 @@ func (l *Lexer) readCharLitteral() (string, rune) {
 		panic(l.curLoc.String() + " empty char litteral") // TODO: better error handling
 	}
 
+	// Guess I wanted to do function objects?
 	checkClosing := func() {
 		r, eof := l.peekRune()
 		if eof || r != '\'' {
