@@ -153,11 +153,6 @@ func (p *Parser) ParseTopLevel() (ast.AstNode, bool) {
 		if tok := p.lex.PeekToken(); tok.Typ == lexer.TTAssign {
 			p.lex.NextToken()
 			node.Value = p.parseExpression()
-
-			if !ast.EqualTypes(node.Typ, node.Value.ReturnType()) {
-				panic(fmt.Sprintf(tok.Loc.String()+" lhs and rhs types dont match: %v, %v", node.Typ, node.Value.ReturnType()))
-			}
-
 		}
 
 		p.expect(lexer.TTSemiColon)
@@ -226,11 +221,6 @@ func (p *Parser) parseFunctionBody() (result ast.AstNode, eof bool) {
 		if tok := p.lex.PeekToken(); tok.Typ == lexer.TTAssign {
 			p.lex.NextToken()
 			node.Value = p.parseExpression()
-
-			if !ast.EqualTypes(node.Typ, node.Value.ReturnType()) {
-				panic(fmt.Sprintf(tok.Loc.String()+" lhs and rhs types dont match: %v, %v", node.Typ, node.Value.ReturnType()))
-			}
-
 		}
 
 		p.expect(lexer.TTSemiColon)
@@ -278,10 +268,6 @@ func (p *Parser) parseFunctionBody() (result ast.AstNode, eof bool) {
 		node := ast.IfChain{Loc_: startLoc}
 		node.Conditions = append(node.Conditions, p.parseExpression())
 
-		if node.Conditions[0].ReturnType().Kind() != ast.KindBool { // Kind bool instead of "real" bool because typedefed bools can also be used
-			panic(tok.Loc.String() + " boolean expression expected")
-		}
-
 		statements, eof := p.parseCodeBlock()
 		if eof {
 			panic("unreachable")
@@ -297,10 +283,6 @@ func (p *Parser) parseFunctionBody() (result ast.AstNode, eof bool) {
 				p.lex.NextToken()
 
 				condition := p.parseExpression()
-
-				if condition.ReturnType().Kind() != ast.KindBool { // same as before
-					panic(nextToken.String() + " boolean expression expected")
-				}
 
 				node.Conditions = append(node.Conditions, condition)
 			} else {
@@ -322,10 +304,6 @@ func (p *Parser) parseFunctionBody() (result ast.AstNode, eof bool) {
 		p.lex.NextToken()
 		node := ast.WhileNode{Loc_: startLoc}
 		node.Condition = p.parseExpression()
-
-		if node.Condition.ReturnType().Kind() != ast.KindBool { // same as in if
-			panic(startLoc.String() + " boolean expression expected")
-		}
 
 		statements, eof := p.parseCodeBlock()
 
