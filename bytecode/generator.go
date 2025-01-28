@@ -376,33 +376,25 @@ func (g *generator) writeFuncNode(fun ast.FuncNode) error {
 }
 
 func analyseStackUsage(block ast.CodeBlockNode) (localBytes, scratchBytes uint64) {
+
 	for _, varDef := range block.Scope.Vars {
 		localBytes += uint64(varDef.Typ.Size())
 	}
 
 	var extraLocal uint64
+
 	for _, node := range block.Statements {
 		switch node := node.(type) {
 		case ast.IfChain:
 
-			scratchBytes = max(scratchBytes, analyseNeededScratch(node.IfCondition))
+			var statementLocals, statementScratch uint64
 
-			statementLocals, statementScratch := analyseStackUsage(node.IfStatement)
+			for i, statement := range node.Statements {
+				if i < len(node.Conditions) {
+					scratchBytes = max(scratchBytes, analyseNeededScratch(node.Conditions[i]))
+				}
 
-			scratchBytes = max(scratchBytes, statementScratch)
-			extraLocal = max(extraLocal, statementLocals)
-
-			for i, condition := range node.ElifConditions {
-				scratchBytes = max(scratchBytes, analyseNeededScratch(condition))
-
-				statementLocals, statementScratch = analyseStackUsage(node.ElifStatements[i])
-
-				extraLocal = max(extraLocal, statementLocals)
-				scratchBytes = max(scratchBytes, statementScratch)
-			}
-
-			if node.HasElse {
-				statementLocals, statementScratch = analyseStackUsage(node.ElseStatement)
+				statementLocals, statementScratch = analyseStackUsage(statement)
 
 				extraLocal = max(extraLocal, statementLocals)
 				scratchBytes = max(scratchBytes, statementScratch)
@@ -466,70 +458,8 @@ func (g *generator) writeIfChain(chain ast.IfChain) error {
 	var seekEnds []int64
 	var seekFalse int64
 
-	err := g.writeExpression(chain.IfCondition)
-
-	if err != nil {
-		return err
-	}
-
-	err = g.writeInstruction4(jpfl, chain.IfCondition.ReturnType().Size(), 0)
-
-	if err != nil {
-		return err
-	}
-
-	seekFalse, err = g.Output.Seek(0, io.SeekCurrent)
-
-	if err != nil {
-		return err
-	}
-
-	seekFalse -= 4
-
-	err = g.writeCodeBlock(chain.IfStatement)
-
-	if err != nil {
-		return err
-	}
-
-	if chain.HasElse || len(chain.ElifConditions) > 0 {
-		err = g.writeInstruction4(jump, 0, 0)
-
-		if err != nil {
-			return err
-		}
-
-		seekEnd, err := g.Output.Seek(0, io.SeekCurrent)
-
-		if err != nil {
-			return err
-		}
-
-		seekEnd -= 4
-
-		seekEnds = append(seekEnds, seekEnd)
-	}
-
-	_, err = g.Output.Seek(seekFalse, io.SeekStart)
-
-	if err != nil {
-		return err
-	}
-
-	err = binary.Write(g.Output, binary.BigEndian, uint32(g.instructionIdx))
-
-	if err != nil {
-		return err
-	}
-
-	_, err = g.Output.Seek(0, io.SeekEnd)
-
-	if err != nil {
-		return err
-	}
-
-	for i, condition := range chain.ElifConditions {
-		statement := chain.ElifStatements[i]
+	for i, condition := range chain.Conditions {
+		statement := chain.Statements[i]
 
 		err := g.writeExpression(condition)
 
@@ -557,7 +487,7 @@ func (g *generator) writeIfChain(chain ast.IfChain) error {
 			return err
 		}
 
-		if chain.HasElse || i < len(chain.ElifConditions)-1 {
+		if i < len(chain.Statements)-1 {
 			err = g.writeInstruction4(jump, 0, 0)
 
 			if err != nil {
@@ -593,8 +523,8 @@ func (g *generator) writeIfChain(chain ast.IfChain) error {
 		}
 	}
 
-	if chain.HasElse {
-		err = g.writeCodeBlock(chain.ElseStatement)
+	if len(chain.Conditions) < len(chain.Statements) {
+		err := g.writeCodeBlock(chain.Statements[len(chain.Statements)-1])
 
 		if err != nil {
 			return err
@@ -602,7 +532,7 @@ func (g *generator) writeIfChain(chain ast.IfChain) error {
 	}
 
 	for _, seek := range seekEnds {
-		_, err = g.Output.Seek(seek, io.SeekStart)
+		_, err := g.Output.Seek(seek, io.SeekStart)
 
 		if err != nil {
 			return err
@@ -615,7 +545,7 @@ func (g *generator) writeIfChain(chain ast.IfChain) error {
 		}
 	}
 
-	_, err = g.Output.Seek(0, io.SeekEnd)
+	_, err := g.Output.Seek(0, io.SeekEnd)
 
 	if err != nil {
 		return err

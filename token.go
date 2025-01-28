@@ -32,7 +32,6 @@ const (
 	TTStruct
 	TTInterface
 	TTIf
-	TTElif
 	TTElse
 	TTTrue
 	TTFalse
@@ -104,7 +103,7 @@ const (
 )
 
 func (t TokenType) String() string {
-	if TTCount != 61 {
+	if TTCount != 60 {
 		panic("Token Type count changed")
 	}
 
@@ -129,8 +128,6 @@ func (t TokenType) String() string {
 		return "TTInterface"
 	case TTIf:
 		return "TTIf"
-	case TTElif:
-		return "TTElif"
 	case TTElse:
 		return "TTElse"
 	case TTTrue:
@@ -237,7 +234,7 @@ func (t TokenType) String() string {
 }
 
 func (t TokenType) SymbolToString() string {
-	if TTCount != 61 {
+	if TTCount != 60 {
 		panic("Token Type count changed")
 	}
 
@@ -354,7 +351,7 @@ func (t TokenType) ToBinOp() ast.BinaryOp {
 		panic("Binary opperation enum length changed")
 	}
 
-	if TTCount != 61 {
+	if TTCount != 60 {
 		panic("Token type enum length changed")
 	}
 
@@ -425,7 +422,7 @@ func (t TokenType) ToUnOp() ast.UnaryOp {
 		panic("Unary opperation enum length changed")
 	}
 
-	if TTCount != 61 {
+	if TTCount != 60 {
 		panic("Token type enum length changed")
 	}
 

@@ -46,14 +46,8 @@ type CodeBlockNode struct {
 var _ AstNode = (*CodeBlockNode)(nil)
 
 type IfChain struct {
-	IfCondition Expression
-	IfStatement CodeBlockNode
-
-	ElifConditions []Expression
-	ElifStatements []CodeBlockNode
-
-	HasElse       bool
-	ElseStatement CodeBlockNode
+	Conditions []Expression
+	Statements []CodeBlockNode
 }
 
 var _ AstNode = (*IfChain)(nil)
@@ -164,20 +158,22 @@ func (c IfChain) String() string {
 	sb := strings.Builder{}
 
 	sb.WriteString("if ")
-	sb.WriteString(c.IfCondition.string())
+	sb.WriteString(c.Conditions[0].string())
 	sb.WriteString(" ")
-	sb.WriteString(c.IfStatement.String())
+	sb.WriteString(c.Statements[0].String())
 
-	for i := range c.ElifConditions {
-		sb.WriteString(" elif ")
-		sb.WriteString(c.ElifConditions[i].string())
-		sb.WriteString(" ")
-		sb.WriteString(c.ElifStatements[i].String())
-	}
-
-	if c.HasElse {
+	for i := range c.Statements[1:] {
+		i := i+1
+		
 		sb.WriteString(" else ")
-		sb.WriteString(c.ElseStatement.String())
+
+		if i < len(c.Conditions) {
+			sb.WriteString(" if ")
+			sb.WriteString(c.Conditions[i].string())
+		}
+
+		sb.WriteString(" ")
+		sb.WriteString(c.Statements[i].String())
 	}
 
 	return sb.String()

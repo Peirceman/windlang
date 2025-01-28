@@ -9,7 +9,6 @@ var keywords = map[string]TokenType{
 	"struct":    TTStruct,
 	"interface": TTInterface,
 	"if":        TTIf,
-	"elif":      TTElif,
 	"else":      TTElse,
 	"true":      TTTrue,
 	"false":     TTFalse,

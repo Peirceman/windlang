@@ -117,7 +117,7 @@ func (p *Parser) ParseAll() ast.CodeBlockNode {
 }
 
 func (p *Parser) ParseTopLevel() (ast.AstNode, bool) {
-	if TTCount != 61 {
+	if TTCount != 60 {
 		panic("TokenType enum length changed: " + strconv.Itoa(int(TTCount)))
 	}
 
@@ -187,7 +187,7 @@ func (p *Parser) ParseTopLevel() (ast.AstNode, bool) {
 }
 
 func (p *Parser) parseFunctionBody() (ast.AstNode, bool) {
-	if TTCount != 61 {
+	if TTCount != 60 {
 		panic("TokenType enum length changed: " + strconv.Itoa(int(TTCount)))
 	}
 
@@ -268,9 +268,9 @@ func (p *Parser) parseFunctionBody() (ast.AstNode, bool) {
 	case TTIf:
 		p.lex.NextToken()
 		node := ast.IfChain{}
-		node.IfCondition = p.parseExpression()
+		node.Conditions = append(node.Conditions, p.parseExpression())
 
-		if node.IfCondition.ReturnType().Kind() != ast.KindBool { // Kind bool instead of "real" bool because typedefed bools can also be used
+		if node.Conditions[0].ReturnType().Kind() != ast.KindBool { // Kind bool instead of "real" bool because typedefed bools can also be used
 			panic(p.lex.curLoc.String() + " boolean expression expected")
 		}
 
@@ -281,18 +281,25 @@ func (p *Parser) parseFunctionBody() (ast.AstNode, bool) {
 			panic("unreachable")
 		}
 
-		node.IfStatement = statements.(ast.CodeBlockNode)
+		node.Statements = append(node.Statements, statements.(ast.CodeBlockNode))
 
-		for nextToken := p.lex.PeekToken(); nextToken.typ == TTElif; nextToken = p.lex.PeekToken() {
+		wasElseIf := true
+		for nextToken := p.lex.PeekToken(); nextToken.typ == TTElse && wasElseIf; nextToken = p.lex.PeekToken() {
 			p.lex.NextToken()
 
-			condition := p.parseExpression()
+			if p.lex.PeekToken().typ == TTIf {
+				p.lex.NextToken()
 
-			if condition.ReturnType().Kind() != ast.KindBool { // same as before
-				panic(p.lex.curLoc.String() + " boolean expression expected")
+				condition := p.parseExpression()
+
+				if condition.ReturnType().Kind() != ast.KindBool { // same as before
+					panic(p.lex.curLoc.String() + " boolean expression expected")
+				}
+
+				node.Conditions = append(node.Conditions, condition)
+			} else {
+				wasElseIf = false
 			}
-
-			node.ElifConditions = append(node.ElifConditions, condition)
 
 			p.expectPeek(TTLSquirly)
 
@@ -302,21 +309,7 @@ func (p *Parser) parseFunctionBody() (ast.AstNode, bool) {
 				panic("unreachable")
 			}
 
-			node.ElifStatements = append(node.ElifStatements, statements.(ast.CodeBlockNode))
-		}
-
-		if nextToken := p.lex.PeekToken(); nextToken != nil && nextToken.typ == TTElse {
-			node.HasElse = true
-			p.lex.NextToken()
-
-			p.expectPeek(TTLSquirly)
-
-			statements, eof := p.parseFunctionBody()
-			if eof {
-				panic("unreachable")
-			}
-
-			node.ElseStatement = statements.(ast.CodeBlockNode)
+			node.Statements = append(node.Statements, statements.(ast.CodeBlockNode))
 		}
 
 		return node, false

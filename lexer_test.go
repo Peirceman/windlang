@@ -16,7 +16,7 @@ a = αConst * 3 + 1;
 // line comment
 if a == 50 {
 	io.print(50);
-} elif a != 30 {
+} else if a != 30 {
 	print(!true);
 } else {
 	print('\x41');
@@ -65,11 +65,12 @@ var str: string = "\u0009string\n\tmulti line";
 		{typ: TTRBrace, loc: Location{"--", 11, 13}, literal: ")"},
 		{typ: TTSemiColon, loc: Location{"--", 11, 14}, literal: ";"},
 		{typ: TTRSquirly, loc: Location{"--", 12, 1}, literal: "}"},
-		{typ: TTElif, loc: Location{"--", 12, 3}, literal: "elif"},
-		{typ: TTIdentifier, loc: Location{"--", 12, 8}, literal: "a"},
-		{typ: TTNotEqual, loc: Location{"--", 12, 10}, literal: "!="},
-		{typ: TTInt, loc: Location{"--", 12, 13}, literal: "30"},
-		{typ: TTLSquirly, loc: Location{"--", 12, 16}, literal: "{"},
+		{typ: TTElse, loc: Location{"--", 12, 3}, literal: "else"},
+		{typ: TTIf, loc: Location{"--", 12, 8}, literal: "if"},
+		{typ: TTIdentifier, loc: Location{"--", 12, 13}, literal: "a"},
+		{typ: TTNotEqual, loc: Location{"--", 12, 15}, literal: "!="},
+		{typ: TTInt, loc: Location{"--", 12, 18}, literal: "30"},
+		{typ: TTLSquirly, loc: Location{"--", 12, 21}, literal: "{"},
 		{typ: TTIdentifier, loc: Location{"--", 13, 2}, literal: "print"},
 		{typ: TTLBrace, loc: Location{"--", 13, 7}, literal: "("},
 		{typ: TTExclam, loc: Location{"--", 13, 8}, literal: "!"},

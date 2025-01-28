@@ -6,8 +6,6 @@
  - [ ] testing:  
     use testdata dir with files for files to parse and expected output
  - [ ] fix the rest of this readme
- - [x] expand type system: arrays
- - [ ] indexing temp structs, eg. return of functions
  - [ ] use jump instructions for if statements instead of what happens now
  - [ ] for loops
  - [ ] calling functions that are declared further down the file
@@ -23,9 +21,9 @@
 
 ### keywords
 ```
-const var    fn        return false
+const var    fn        return
 type  struct interface while
-if    elif   else      true
+if    else      true   false
 ```
 
 ### letters & digits

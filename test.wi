@@ -155,7 +155,7 @@ fn main() {
 		something = false;
 		d += 1;
 		print("b is a = 208");
-	} elif true {
+	} else if true {
 		a = 210;
 		print("elif");
 	} else {
@@ -382,7 +382,7 @@ fn main() {
 		array[i] = num;
 		if num < 0 {
 			num = -num + 1;
-		} elif num > 0 {
+		} else if num > 0 {
 			num = -num - 1;
 		}
 
@@ -412,6 +412,10 @@ fn main() {
 		print(structs[i/2].b + 1.0);
 		i += 2;
 	}
+
+	structVar.c = structs[2];
+	print(structVar.c.a);
+	print(structVar.c.b);
 
 	return;
 }
