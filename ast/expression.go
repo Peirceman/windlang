@@ -2,6 +2,7 @@ package ast
 
 import (
 	"strings"
+	"windlang/lexer"
 )
 
 type ExpressionNode struct {
@@ -10,6 +11,10 @@ type ExpressionNode struct {
 
 func (e ExpressionNode) String() string {
 	return e.Expr.string() + ";"
+}
+
+func (e ExpressionNode) Loc() lexer.Location {
+	return lexer.Location{} // TODO: expression should have loc
 }
 
 var _ AstNode = (*ExpressionNode)(nil)

@@ -1,4 +1,4 @@
-package main
+package lexer
 
 import (
 	"bufio"
@@ -88,11 +88,11 @@ func (l *Lexer) nextRune() (r rune, eof bool) {
 		return
 	}
 
-	l.curLoc.col++
+	l.curLoc.Col++
 
 	if r == '\n' {
-		l.curLoc.col = 1
-		l.curLoc.line++
+		l.curLoc.Col = 1
+		l.curLoc.Line++
 	}
 
 	return
@@ -106,14 +106,14 @@ func (l *Lexer) skipWhitespace() {
 
 func (l *Lexer) readAllTokens() {
 	tok := l.nextToken()
-	for ; tok.typ != TTEOF; tok = l.nextToken() {
-		if tok.typ != TTComment {
+	for ; tok.Typ != TTEOF; tok = l.nextToken() {
+		if tok.Typ != TTComment {
 			l.tokens = append(l.tokens, *tok)
 		}
 	}
 
 	l.tokens = append(l.tokens, *tok)
-	l.curLoc = l.tokens[0].loc
+	l.curLoc = l.tokens[0].Loc
 }
 
 func (l *Lexer) PeekToken() *Token {
@@ -124,7 +124,7 @@ func (l *Lexer) NextToken() *Token {
 	tok := &l.tokens[l.idx]
 	if l.idx < len(l.tokens)-1 {
 		l.idx++
-		l.curLoc = l.tokens[l.idx].loc
+		l.curLoc = l.tokens[l.idx].Loc
 	}
 
 	return tok
@@ -132,7 +132,7 @@ func (l *Lexer) NextToken() *Token {
 
 func (l *Lexer) Reset() {
 	l.idx = 0
-	l.curLoc = l.tokens[0].loc
+	l.curLoc = l.tokens[0].Loc
 }
 
 // Seek sets the index for which token it is on depending on
@@ -157,7 +157,7 @@ func (l *Lexer) Seek(offset int64, whence int) (int64, error) {
 		return 0, errors.New("ERROR: seek out of bounds")
 	}
 
-	l.curLoc = l.tokens[l.idx].loc
+	l.curLoc = l.tokens[l.idx].Loc
 
 	return int64(l.idx), nil
 }
@@ -168,9 +168,9 @@ func (l *Lexer) nextToken() *Token {
 	r, eof := l.peekRune()
 	if eof {
 		return &Token{
-			typ:     TTEOF,
-			loc:     l.curLoc,
-			literal: "",
+			Typ:     TTEOF,
+			Loc:     l.curLoc,
+			Literal: "",
 		}
 	}
 
@@ -188,161 +188,161 @@ func (l *Lexer) nextToken() *Token {
 
 	// symbols
 
-	tok := &Token{loc: l.curLoc}
+	tok := &Token{Loc: l.curLoc}
 	l.nextRune()
 
 	switch r {
 	case '+':
 		if r, eof = l.peekRune(); !eof && r == '=' {
 			l.nextRune()
-			tok.literal = "+="
-			tok.typ = TTPlusAssign
+			tok.Literal = "+="
+			tok.Typ = TTPlusAssign
 		} else {
-			tok.literal = "+"
-			tok.typ = TTPlus
+			tok.Literal = "+"
+			tok.Typ = TTPlus
 		}
 
 	case '-':
 		if r, eof = l.peekRune(); !eof && r == '=' {
 			l.nextRune()
-			tok.literal = "-="
-			tok.typ = TTDashAssign
+			tok.Literal = "-="
+			tok.Typ = TTDashAssign
 		} else {
-			tok.literal = "-"
-			tok.typ = TTDash
+			tok.Literal = "-"
+			tok.Typ = TTDash
 		}
 
 	case '*':
 		if r, eof = l.peekRune(); !eof && r == '=' {
 			l.nextRune()
-			tok.literal = "*="
-			tok.typ = TTStarAssign
+			tok.Literal = "*="
+			tok.Typ = TTStarAssign
 		} else {
-			tok.literal = "*"
-			tok.typ = TTStar
+			tok.Literal = "*"
+			tok.Typ = TTStar
 		}
 
 	case '/':
-		tok.literal, tok.typ = l.readAfterSlash()
+		tok.Literal, tok.Typ = l.readAfterSlash()
 
 	case '%':
-		tok.literal = "%"
-		tok.typ = TTPercent
+		tok.Literal = "%"
+		tok.Typ = TTPercent
 
 	case '!':
 		if r, eof = l.peekRune(); !eof && r == '=' {
 			l.nextRune()
-			tok.literal = "!="
-			tok.typ = TTNotEqual
+			tok.Literal = "!="
+			tok.Typ = TTNotEqual
 		} else {
-			tok.literal = "!"
-			tok.typ = TTExclam
+			tok.Literal = "!"
+			tok.Typ = TTExclam
 		}
 
 	case '=':
 		if r, eof = l.peekRune(); !eof && r == '=' {
 			l.nextRune()
-			tok.literal = "=="
-			tok.typ = TTEqual
+			tok.Literal = "=="
+			tok.Typ = TTEqual
 		} else {
-			tok.literal = "="
-			tok.typ = TTAssign
+			tok.Literal = "="
+			tok.Typ = TTAssign
 		}
 
 	case '.':
-		tok.literal = "."
-		tok.typ = TTPeriod
+		tok.Literal = "."
+		tok.Typ = TTPeriod
 
 	case ',':
-		tok.literal = ","
-		tok.typ = TTComma
+		tok.Literal = ","
+		tok.Typ = TTComma
 
 	case ':':
-		tok.literal = ":"
-		tok.typ = TTColon
+		tok.Literal = ":"
+		tok.Typ = TTColon
 
 	case ';':
-		tok.literal = ";"
-		tok.typ = TTSemiColon
+		tok.Literal = ";"
+		tok.Typ = TTSemiColon
 
 	case '(':
-		tok.literal = "("
-		tok.typ = TTLBrace
+		tok.Literal = "("
+		tok.Typ = TTLBrace
 
 	case ')':
-		tok.literal = ")"
-		tok.typ = TTRBrace
+		tok.Literal = ")"
+		tok.Typ = TTRBrace
 
 	case '[':
-		tok.literal = "["
-		tok.typ = TTLSquare
+		tok.Literal = "["
+		tok.Typ = TTLSquare
 
 	case ']':
-		tok.literal = "]"
-		tok.typ = TTRSquare
+		tok.Literal = "]"
+		tok.Typ = TTRSquare
 
 	case '{':
-		tok.literal = "{"
-		tok.typ = TTLSquirly
+		tok.Literal = "{"
+		tok.Typ = TTLSquirly
 
 	case '}':
-		tok.literal = "}"
-		tok.typ = TTRSquirly
+		tok.Literal = "}"
+		tok.Typ = TTRSquirly
 
 	case '|':
 		r, eof = l.peekRune()
-		tok.literal = "|"
-		tok.typ = TTBar
+		tok.Literal = "|"
+		tok.Typ = TTBar
 		if eof {
 			break
 		}
 
 		if r == '|' {
 			l.nextRune()
-			tok.literal = "||"
-			tok.typ = TTOr
+			tok.Literal = "||"
+			tok.Typ = TTOr
 		} else if r == '=' {
 			l.nextRune()
-			tok.literal = "|="
-			tok.typ = TTBarAssign
+			tok.Literal = "|="
+			tok.Typ = TTBarAssign
 		}
 
 	case '&':
 		r, eof = l.peekRune()
-		tok.literal = "&"
-		tok.typ = TTAmp
+		tok.Literal = "&"
+		tok.Typ = TTAmp
 		if eof {
 			break
 		}
 
 		if r == '&' {
 			l.nextRune()
-			tok.literal = "&&"
-			tok.typ = TTAnd
+			tok.Literal = "&&"
+			tok.Typ = TTAnd
 		} else if r == '=' {
 			l.nextRune()
-			tok.literal = "&="
-			tok.typ = TTAmpAssign
+			tok.Literal = "&="
+			tok.Typ = TTAmpAssign
 		}
 
 	case '^':
 		if r, eof = l.peekRune(); !eof && r == '=' {
 			l.nextRune()
-			tok.literal = "^="
-			tok.typ = TTCaretAssign
+			tok.Literal = "^="
+			tok.Typ = TTCaretAssign
 		} else {
-			tok.literal = "^"
-			tok.typ = TTCaret
+			tok.Literal = "^"
+			tok.Typ = TTCaret
 		}
 
 	case '~':
-		tok.literal = "~"
-		tok.typ = TTTilde
+		tok.Literal = "~"
+		tok.Typ = TTTilde
 
 	case '>':
 		// posibilities: > >> >>= >=
-		tok.literal = ">"
-		tok.typ = TTGt
+		tok.Literal = ">"
+		tok.Typ = TTGt
 
 		r, eof = l.peekRune()
 		if eof {
@@ -351,27 +351,27 @@ func (l *Lexer) nextToken() *Token {
 
 		if r == '>' {
 			l.nextRune()
-			tok.literal = ">>"
-			tok.typ = TTShr
+			tok.Literal = ">>"
+			tok.Typ = TTShr
 
 			r, eof = l.peekRune()
 
 			if !eof && r == '=' {
 				l.nextRune()
-				tok.literal = ">>="
-				tok.typ = TTShrAssign
+				tok.Literal = ">>="
+				tok.Typ = TTShrAssign
 				break
 			}
 		} else if r == '=' {
 			l.nextRune()
-			tok.literal = ">="
-			tok.typ = TTGtEq
+			tok.Literal = ">="
+			tok.Typ = TTGtEq
 		}
 
 	case '<':
 		// posibilities: < << <<= <=
-		tok.literal = "<"
-		tok.typ = TTLt
+		tok.Literal = "<"
+		tok.Typ = TTLt
 
 		r, eof = l.peekRune()
 		if eof {
@@ -380,34 +380,34 @@ func (l *Lexer) nextToken() *Token {
 
 		if r == '<' {
 			l.nextRune()
-			tok.literal = "<<"
-			tok.typ = TTShl
+			tok.Literal = "<<"
+			tok.Typ = TTShl
 
 			r, eof = l.peekRune()
 
 			if !eof && r == '=' {
 				l.nextRune()
-				tok.literal = "<<="
-				tok.typ = TTShlAssign
+				tok.Literal = "<<="
+				tok.Typ = TTShlAssign
 				break
 			}
 		} else if r == '=' {
 			l.nextRune()
-			tok.literal = "<="
-			tok.typ = TTLtEq
+			tok.Literal = "<="
+			tok.Typ = TTLtEq
 		}
 
 	case '\'':
-		tok.typ = TTChar
-		tok.literal, tok.extraInfo = l.readCharLitteral()
+		tok.Typ = TTChar
+		tok.Literal, tok.ExtraInfo = l.readCharLitteral()
 
 	case '"':
-		tok.typ = TTString
-		tok.literal, tok.extraInfo = l.readStringLitteral()
+		tok.Typ = TTString
+		tok.Literal, tok.ExtraInfo = l.readStringLitteral()
 
 	default:
-		tok.literal = string(r)
-		tok.typ = TTIllegal
+		tok.Literal = string(r)
+		tok.Typ = TTIllegal
 	}
 
 	return tok
@@ -642,19 +642,19 @@ func (l *Lexer) readCharLitteral() (string, rune) {
 func (l *Lexer) readAfterLetter() *Token {
 	tokenText := strings.Builder{}
 	tok := &Token{}
-	tok.loc = l.curLoc
+	tok.Loc = l.curLoc
 
 	for r, eof := l.peekRune(); !eof && (unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_'); r, eof = l.peekRune() {
 		l.nextRune()
 		tokenText.WriteRune(r)
 	}
 
-	tok.literal = tokenText.String()
+	tok.Literal = tokenText.String()
 
-	if typ, isKeyword := keywords[tok.literal]; isKeyword {
-		tok.typ = typ
+	if typ, isKeyword := keywords[tok.Literal]; isKeyword {
+		tok.Typ = typ
 	} else {
-		tok.typ = TTIdentifier
+		tok.Typ = TTIdentifier
 	}
 
 	return tok
@@ -663,7 +663,7 @@ func (l *Lexer) readAfterLetter() *Token {
 func (l *Lexer) readAfterDigit() *Token {
 	tokenText := strings.Builder{}
 	tok := &Token{
-		loc: l.curLoc,
+		Loc: l.curLoc,
 	}
 
 	var charsetName string = "decimal"
@@ -679,7 +679,7 @@ func (l *Lexer) readAfterDigit() *Token {
 	if r == '0' {
 		r, eof := l.peekRune()
 		if eof {
-			tok.literal = tokenText.String()
+			tok.Literal = tokenText.String()
 			return tok
 		}
 
@@ -700,9 +700,9 @@ func (l *Lexer) readAfterDigit() *Token {
 			hasDecimalPoint = true
 		default:
 			if _, contains = decimalCharset[r]; !contains {
-				tok.literal = tokenText.String()
-				tok.typ = TTInt
-				tok.extraInfo = int(0)
+				tok.Literal = tokenText.String()
+				tok.Typ = TTInt
+				tok.ExtraInfo = int(0)
 				return tok
 			}
 		}
@@ -738,14 +738,14 @@ func (l *Lexer) readAfterDigit() *Token {
 		panic(fmt.Sprintf(l.curLoc.String()+" illegal digit `"+string(r)+"` in %s literal", charsetName)) // TODO: better error handling
 	}
 
-	tok.literal = tokenText.String()
+	tok.Literal = tokenText.String()
 
 	if hasDecimalPoint {
-		tok.typ = TTFloat
-		tok.extraInfo, _ = strconv.ParseFloat(tok.literal, 64)
+		tok.Typ = TTFloat
+		tok.ExtraInfo, _ = strconv.ParseFloat(tok.Literal, 64)
 	} else {
-		tok.typ = TTInt
-		tok.extraInfo = intVal
+		tok.Typ = TTInt
+		tok.ExtraInfo = intVal
 	}
 
 	return tok

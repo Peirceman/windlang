@@ -17,13 +17,13 @@
  - [ ] clean up codebase
  - [ ] importing/modules
 
-# spec:
+## spec:
 
 ### keywords
 ```
 const var    fn        return
 type  struct interface while
-if    else      true   false
+if    else   true      false
 ```
 
 ### letters & digits

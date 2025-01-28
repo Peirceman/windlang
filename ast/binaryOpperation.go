@@ -1,9 +1,5 @@
 package ast
 
-import (
-	"errors"
-)
-
 type BinaryOp int
 
 const (
@@ -51,18 +47,6 @@ type BinaryOpNode struct {
 }
 
 var _ Expression = (*BinaryOpNode)(nil)
-
-func NewBinaryOpNode(lhs, rhs Expression, op BinaryOp) (BinaryOpNode, error) {
-	if !EqualTypes(lhs.ReturnType(), rhs.ReturnType()) {
-		return BinaryOpNode{}, errors.New("lhs and rhs types dont match: " + string(lhs.ReturnType().Name()) + " " + string(rhs.ReturnType().Name()))
-	}
-
-	if !op.InputAllowed(lhs.ReturnType().Kind()) {
-		return BinaryOpNode{}, errors.New("invalid opperation " + op.String() + " on " + string(lhs.ReturnType().Name()))
-	}
-
-	return BinaryOpNode{lhs, rhs, op}, nil
-}
 
 func (b BinaryOp) String() string {
 	if BOCount != 28 {

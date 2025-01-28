@@ -20,6 +20,10 @@ func main() {
 		par := ParserFromFilename(fileName)
 		ast := par.ParseAll()
 
+		if !TypeCheck(ast) {
+			os.Exit(1)
+		}
+
 		// PPrintln(ast)
 
 		out, err := os.Create("out.wbc")

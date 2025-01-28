@@ -1,7 +1,6 @@
 package ast
 
 import (
-	"errors"
 	"fmt"
 )
 
@@ -108,36 +107,6 @@ func (u UnaryOp) ReturnType(input Type) Type {
 	panic("not a unary op")
 }
 
-func NewUnaryOpNode(expression Expression, op UnaryOp) (Expression, error) {
-	if !op.InputAllowed(expression.ReturnType().Kind()) {
-		return UnaryOpNode{}, fmt.Errorf("Invalid opperation %s on %s", op.String(), expression.ReturnType().Name())
-	}
-
-	switch op {
-	case UOPlus: // does nothing anyways
-		return expression, nil
-	case UONegative:
-		if lit, ok := expression.(IntLit); ok {
-			lit.Value = -lit.Value
-			return lit, nil
-		} else if lit, ok := expression.(FloatLit); ok {
-			lit.Value = -lit.Value
-			return lit, nil
-		}
-
-	case UORef:
-		if _, ok := expression.(Var); ok {
-			// ok
-		} else if _, ok := expression.(StructIndex); ok {
-			// ok
-		} else {
-			return UnaryOpNode{}, errors.New("Can only take a reference to a variable or constant")
-		}
-
-	}
-
-	return UnaryOpNode{expression, op}, nil
-}
 
 func (u UnaryOpNode) string() string {
 	if u.Op.OnLeftSide() {

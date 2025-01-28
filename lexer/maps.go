@@ -1,4 +1,4 @@
-package main
+package lexer
 
 var keywords = map[string]TokenType{
 	"const":     TTConst,

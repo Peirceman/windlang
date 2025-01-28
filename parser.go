@@ -1,20 +1,22 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"windlang/ast"
+	"windlang/lexer"
 )
 
 type Parser struct {
-	lex          *Lexer
+	lex          *lexer.Lexer
 	currentScope []ast.Scope
 	typeDefs     []ast.Type
 }
 
 func ParserFromFilename(filename string) (p *Parser) {
 	p = &Parser{
-		lex: LexerFromFilename(filename),
+		lex: lexer.LexerFromFilename(filename),
 		currentScope: []ast.Scope{
 			{Vars: make(ast.VarScope), Funcs: make(ast.FuncScope)},
 		},
@@ -27,7 +29,7 @@ func ParserFromFilename(filename string) (p *Parser) {
 
 func ParserFromString(str string) (p *Parser) {
 	p = &Parser{
-		lex: LexerFromString(str),
+		lex: lexer.LexerFromString(str),
 		currentScope: []ast.Scope{
 			{Vars: make(ast.VarScope), Funcs: make(ast.FuncScope)},
 		},
@@ -117,23 +119,24 @@ func (p *Parser) ParseAll() ast.CodeBlockNode {
 }
 
 func (p *Parser) ParseTopLevel() (ast.AstNode, bool) {
-	if TTCount != 60 {
-		panic("TokenType enum length changed: " + strconv.Itoa(int(TTCount)))
+	if lexer.TTCount != 60 {
+		panic("TokenType enum length changed: " + strconv.Itoa(int(lexer.TTCount)))
 	}
 
 	tok := p.lex.PeekToken()
-	switch tok.typ {
-	case TTConst, TTVar:
+	startLoc := tok.Loc
+	switch tok.Typ {
+	case lexer.TTConst, lexer.TTVar:
 		p.lex.NextToken()
 
-		nameTok := p.expect(TTIdentifier)
-		name := ast.Identifier(nameTok.literal)
+		nameTok := p.expect(lexer.TTIdentifier)
+		name := ast.Identifier(nameTok.Literal)
 
 		if p.defined(name) {
-			panic(nameTok.loc.String() + " ERROR: `" + nameTok.literal + "` is already defined in this scope")
+			panic(nameTok.Loc.String() + " ERROR: `" + nameTok.Literal + "` is already defined in this scope")
 		}
 
-		p.expect(TTColon)
+		p.expect(lexer.TTColon)
 
 		typ := p.parseType()
 
@@ -141,69 +144,72 @@ func (p *Parser) ParseTopLevel() (ast.AstNode, bool) {
 			Var: ast.Var{
 				Name:    name,
 				Typ:     typ,
-				IsConst: tok.typ == TTConst,
+				IsConst: tok.Typ == lexer.TTConst,
 			},
 			Value: nil,
+			Loc_:  startLoc,
 		}
 
-		if tok := p.lex.PeekToken(); tok.typ == TTAssign {
+		if tok := p.lex.PeekToken(); tok.Typ == lexer.TTAssign {
 			p.lex.NextToken()
 			node.Value = p.parseExpression()
 
 			if !ast.EqualTypes(node.Typ, node.Value.ReturnType()) {
-				panic(fmt.Sprintf(p.lex.curLoc.String()+" lhs and rhs types dont match: %v, %v", node.Typ, node.Value.ReturnType()))
+				panic(fmt.Sprintf(tok.Loc.String()+" lhs and rhs types dont match: %v, %v", node.Typ, node.Value.ReturnType()))
 			}
 
 		}
 
-		p.expect(TTSemiColon)
+		p.expect(lexer.TTSemiColon)
 
 		p.addVar(node.Var)
 
 		return node, false
 
-	case TTFn:
+	case lexer.TTFn:
 		return p.parseFunc()
 
-	case TTType:
+	case lexer.TTType:
 		p.lex.NextToken()
 
-		name := p.expect(TTIdentifier)
+		name := p.expect(lexer.TTIdentifier)
 
 		typ := p.parseType()
-		typ = typ.SetName(ast.Identifier(name.literal))
+		typ = typ.SetName(ast.Identifier(name.Literal))
 
 		p.typeDefs = append(p.typeDefs, typ)
 
-		p.expect(TTSemiColon)
+		p.expect(lexer.TTSemiColon)
 
 		return nil, false
 
-	case TTEOF:
+	case lexer.TTEOF:
 		return nil, true
-	}
 
-	panic(tok.loc.String() + " syntax error") // TODO: better error handling
+	default:
+		panic(tok.Loc.String() + "ERROR: invalid syntax")
+	}
 }
 
-func (p *Parser) parseFunctionBody() (ast.AstNode, bool) {
-	if TTCount != 60 {
-		panic("TokenType enum length changed: " + strconv.Itoa(int(TTCount)))
+func (p *Parser) parseFunctionBody() (result ast.AstNode, eof bool) {
+	if lexer.TTCount != 60 {
+		panic("TokenType enum length changed: " + strconv.Itoa(int(lexer.TTCount)))
 	}
 
 	tok := p.lex.PeekToken()
-	switch tok.typ {
-	case TTConst, TTVar:
+	startLoc := tok.Loc
+	switch tok.Typ {
+	case lexer.TTConst, lexer.TTVar:
 		p.lex.NextToken()
 
-		nameTok := p.expect(TTIdentifier)
-		name := ast.Identifier(nameTok.literal)
+		nameTok := p.expect(lexer.TTIdentifier)
+		name := ast.Identifier(nameTok.Literal)
 
 		if p.defined(name) {
-			panic(nameTok.loc.String() + " ERROR: `" + nameTok.literal + "` is already defined in this scope")
+			panic(nameTok.Loc.String() + " ERROR: `" + nameTok.Literal + "` is already defined in this scope")
 		}
 
-		p.expect(TTColon)
+		p.expect(lexer.TTColon)
 
 		typ := p.parseType()
 
@@ -211,89 +217,89 @@ func (p *Parser) parseFunctionBody() (ast.AstNode, bool) {
 			Var: ast.Var{
 				Name:    name,
 				Typ:     typ,
-				IsConst: tok.typ == TTConst,
+				IsConst: tok.Typ == lexer.TTConst,
 			},
 			Value: nil,
+			Loc_:  startLoc,
 		}
 
-		if tok := p.lex.PeekToken(); tok.typ == TTAssign {
+		if tok := p.lex.PeekToken(); tok.Typ == lexer.TTAssign {
 			p.lex.NextToken()
 			node.Value = p.parseExpression()
 
 			if !ast.EqualTypes(node.Typ, node.Value.ReturnType()) {
-				panic(fmt.Sprintf(p.lex.curLoc.String()+" lhs and rhs types dont match: %v, %v", node.Typ, node.Value.ReturnType()))
+				panic(fmt.Sprintf(tok.Loc.String()+" lhs and rhs types dont match: %v, %v", node.Typ, node.Value.ReturnType()))
 			}
 
 		}
 
-		p.expect(TTSemiColon)
+		p.expect(lexer.TTSemiColon)
 
 		p.addVar(node.Var)
 
 		return node, false
 
-	case TTFn:
+	case lexer.TTFn:
 		return p.parseFunc()
 
-	case TTReturn:
+	case lexer.TTReturn:
 		p.lex.NextToken()
 		tok := p.lex.PeekToken()
 
-		if tok.typ == TTSemiColon {
-			p.lex.nextToken()
+		if tok.Typ == lexer.TTSemiColon {
+			p.lex.NextToken()
 
-			return ast.ReturnNode{Expr: nil}, false
+			return ast.ReturnNode{Expr: nil, Loc_: startLoc}, false
 		}
 
-		node := ast.ReturnNode{Expr: p.parseExpression()}
-		p.expect(TTSemiColon)
+		node := ast.ReturnNode{Expr: p.parseExpression(), Loc_: startLoc}
+
+		p.expect(lexer.TTSemiColon)
 
 		return node, false
 
-	case TTLSquirly:
-		p.lex.NextToken()
+	case lexer.TTLSquirly:
 		return p.parseCodeBlock()
 
-	case TTIdentifier, TTStar:
+	case lexer.TTIdentifier, lexer.TTStar:
 		node := ast.ExpressionNode{Expr: p.parseExpression()}
 
-		p.expect(TTSemiColon)
+		p.expect(lexer.TTSemiColon)
 
 		return node, false
 
-	case TTSemiColon: // skip token
+	case lexer.TTSemiColon: // skip token
 		p.lex.NextToken()
+
 		return nil, false
 
-	case TTIf:
+	case lexer.TTIf:
 		p.lex.NextToken()
-		node := ast.IfChain{}
+		node := ast.IfChain{Loc_: startLoc}
 		node.Conditions = append(node.Conditions, p.parseExpression())
 
 		if node.Conditions[0].ReturnType().Kind() != ast.KindBool { // Kind bool instead of "real" bool because typedefed bools can also be used
-			panic(p.lex.curLoc.String() + " boolean expression expected")
+			panic(tok.Loc.String() + " boolean expression expected")
 		}
 
-		p.expectPeek(TTLSquirly)
-
-		statements, eof := p.parseFunctionBody()
+		statements, eof := p.parseCodeBlock()
 		if eof {
 			panic("unreachable")
 		}
 
-		node.Statements = append(node.Statements, statements.(ast.CodeBlockNode))
+		node.Statements = append(node.Statements, statements)
 
 		wasElseIf := true
-		for nextToken := p.lex.PeekToken(); nextToken.typ == TTElse && wasElseIf; nextToken = p.lex.PeekToken() {
+		for nextToken := p.lex.PeekToken(); nextToken.Typ == lexer.TTElse && wasElseIf; nextToken = p.lex.PeekToken() {
 			p.lex.NextToken()
 
-			if p.lex.PeekToken().typ == TTIf {
+			if p.lex.PeekToken().Typ == lexer.TTIf {
 				p.lex.NextToken()
 
 				condition := p.parseExpression()
 
 				if condition.ReturnType().Kind() != ast.KindBool { // same as before
-					panic(p.lex.curLoc.String() + " boolean expression expected")
+					panic(nextToken.String() + " boolean expression expected")
 				}
 
 				node.Conditions = append(node.Conditions, condition)
@@ -301,29 +307,25 @@ func (p *Parser) parseFunctionBody() (ast.AstNode, bool) {
 				wasElseIf = false
 			}
 
-			p.expectPeek(TTLSquirly)
-
-			statements, eof := p.parseFunctionBody()
+			statements, eof := p.parseCodeBlock()
 
 			if eof {
 				panic("unreachable")
 			}
 
-			node.Statements = append(node.Statements, statements.(ast.CodeBlockNode))
+			node.Statements = append(node.Statements, statements)
 		}
 
 		return node, false
 
-	case TTWhile:
+	case lexer.TTWhile:
 		p.lex.NextToken()
-		node := ast.WhileNode{}
+		node := ast.WhileNode{Loc_: startLoc}
 		node.Condition = p.parseExpression()
 
 		if node.Condition.ReturnType().Kind() != ast.KindBool { // same as in if
-			panic(p.lex.curLoc.String() + " boolean expression expected")
+			panic(startLoc.String() + " boolean expression expected")
 		}
-
-		p.expect(TTLSquirly)
 
 		statements, eof := p.parseCodeBlock()
 
@@ -335,14 +337,17 @@ func (p *Parser) parseFunctionBody() (ast.AstNode, bool) {
 
 		return node, false
 
-	case TTEOF:
+	case lexer.TTEOF:
 		return nil, true
-	}
 
-	panic(tok.String() + " syntax error ") // TODO: better error handling
+	default:
+		panic(tok.String() + " syntax error ") // TODO: better error handling
+	}
 }
 
 func (p *Parser) parseCodeBlock() (ast.CodeBlockNode, bool) {
+	p.expect(lexer.TTLSquirly)
+
 	block := ast.CodeBlockNode{
 		Statements: make([]ast.AstNode, 0),
 		Scope:      ast.Scope{Vars: make(ast.VarScope), Funcs: make(ast.FuncScope)},
@@ -350,10 +355,10 @@ func (p *Parser) parseCodeBlock() (ast.CodeBlockNode, bool) {
 
 	p.currentScope = append(p.currentScope, block.Scope)
 
-	for tok := p.lex.PeekToken(); tok.typ != TTEOF && tok.typ != TTRSquirly; tok = p.lex.PeekToken() {
+	for tok := p.lex.PeekToken(); tok.Typ != lexer.TTEOF && tok.Typ != lexer.TTRSquirly; tok = p.lex.PeekToken() {
 		statement, eof := p.parseFunctionBody()
 		if eof {
-			panic(tok.loc.String() + " `}` excpected")
+			panic(tok.Loc.String() + " `}` excpected")
 		}
 
 		if statement == nil {
@@ -364,31 +369,31 @@ func (p *Parser) parseCodeBlock() (ast.CodeBlockNode, bool) {
 	}
 
 	block.Statements = block.Statements[:len(block.Statements):len(block.Statements)]
-	p.expect(TTRSquirly)
+	p.expect(lexer.TTRSquirly)
 
 	p.currentScope = p.currentScope[:len(p.currentScope)-1]
 
 	return block, false
 }
 
-func (p *Parser) parseFunc() (ast.FuncNode, bool) {
+func (p *Parser) parseFunc() (ast.AstNode, bool) {
 	p.lex.NextToken()
 	node := ast.FuncNode{ReturnType: ast.TypeVoid}
 
-	name := p.expect(TTIdentifier)
-	node.Name = ast.Identifier(name.literal)
+	name := p.expect(lexer.TTIdentifier)
+	node.Name = ast.Identifier(name.Literal)
 	if p.defined(node.Name) {
-		panic(name.loc.String() + " ERROR: `" + name.literal + "` is already defined in this scope")
+		panic(name.Loc.String() + " ERROR: `" + name.Literal + "` is already defined in this scope")
 	}
 
-	p.expect(TTLBrace)
+	p.expect(lexer.TTLBrace)
 	scope := ast.Scope{Vars: make(ast.VarScope), Funcs: make(ast.FuncScope)}
 
-	for tok := p.lex.PeekToken(); tok != nil && tok.typ != TTRBrace; tok = p.lex.PeekToken() {
+	for tok := p.lex.PeekToken(); tok != nil && tok.Typ != lexer.TTRBrace; tok = p.lex.PeekToken() {
 		arg := ast.Var{}
-		arg.Name = ast.Identifier(p.expect(TTIdentifier).literal)
+		arg.Name = ast.Identifier(p.expect(lexer.TTIdentifier).Literal)
 
-		p.expect(TTColon)
+		p.expect(lexer.TTColon)
 
 		arg.Typ = p.parseType()
 
@@ -396,22 +401,20 @@ func (p *Parser) parseFunc() (ast.FuncNode, bool) {
 		scope.AddVar(arg)
 
 		tok = p.lex.PeekToken()
-		if tok == nil || tok.typ != TTComma {
+		if tok == nil || tok.Typ != lexer.TTComma {
 			break
 		}
 
 		p.lex.NextToken()
 	}
 
-	p.expect(TTRBrace)
+	p.expect(lexer.TTRBrace)
 
 	tok := p.lex.PeekToken()
-	if tok.typ == TTColon {
+	if tok.Typ == lexer.TTColon {
 		p.lex.NextToken()
 		node.ReturnType = p.parseType()
 	}
-
-	p.expect(TTLSquirly)
 
 	p.currentScope = append(p.currentScope, scope)
 
@@ -428,46 +431,46 @@ func (p *Parser) parseFunc() (ast.FuncNode, bool) {
 func (p *Parser) parseType() ast.Type {
 	tok := p.lex.NextToken()
 
-	switch tok.typ {
-	case TTIdentifier:
+	switch tok.Typ {
+	case lexer.TTIdentifier:
 		for _, typedef := range p.typeDefs {
-			if typedef.Name() == ast.Identifier(tok.literal) {
+			if typedef.Name() == ast.Identifier(tok.Literal) {
 				return typedef
 			}
 		}
 
-	case TTLSquare:
-		p.expect(TTRSquare)
+	case lexer.TTLSquare:
+		p.expect(lexer.TTRSquare)
 		inner := p.parseType()
 		return ast.ArrayType{Name_: "", Inner: inner}
 
-	case TTAmp:
+	case lexer.TTAmp:
 		inner := p.parseType()
 		return ast.PointerType{Name_: "", Inner: inner}
 
-	case TTAnd: // special case for `&&` which is seen as one token
+	case lexer.TTAnd: // special case for `&&` which is seen as one token
 		inner := p.parseType()
 		return ast.PointerType{Name_: "", Inner: ast.PointerType{Name_: "", Inner: inner}}
 
-	case TTStruct:
-		p.expect(TTLSquirly)
+	case lexer.TTStruct:
+		p.expect(lexer.TTLSquirly)
 
 		typ := ast.StructType{}
 
-		for tok := p.lex.PeekToken(); tok.typ != TTEOF && tok.typ != TTRSquirly; tok = p.lex.PeekToken() {
+		for tok := p.lex.PeekToken(); tok.Typ != lexer.TTEOF && tok.Typ != lexer.TTRSquirly; tok = p.lex.PeekToken() {
 			field := ast.StructField{}
 
 			field.Offset = typ.Size_
-			tok := p.expect(TTIdentifier)
-			field.Name = ast.Identifier(tok.literal)
+			tok := p.expect(lexer.TTIdentifier)
+			field.Name = ast.Identifier(tok.Literal)
 
-			p.expect(TTColon)
+			p.expect(lexer.TTColon)
 
 			field.Typ = p.parseType()
 
 			for _, prevField := range typ.Fields {
 				if prevField.Name == field.Name {
-					panic(tok.loc.String() + "ERROR: field redeclared")
+					panic(tok.Loc.String() + "ERROR: field redeclared")
 				}
 			}
 
@@ -477,7 +480,7 @@ func (p *Parser) parseType() ast.Type {
 
 			tok = p.lex.PeekToken()
 
-			if tok.typ != TTComma {
+			if tok.Typ != lexer.TTComma {
 				break
 			}
 
@@ -487,27 +490,27 @@ func (p *Parser) parseType() ast.Type {
 		// round size up to multiple of 8
 		typ.Size_ = (typ.Size_ + 7) / 8 * 8
 
-		p.expect(TTRSquirly)
+		p.expect(lexer.TTRSquirly)
 
 		return typ
 	}
 
-	panic(tok.loc.String() + " Error: expected type")
+	panic(tok.Loc.String() + " Error: expected type")
 }
 
-func (p *Parser) expect(typ TokenType) *Token {
+func (p *Parser) expect(typ lexer.TokenType) *lexer.Token {
 	tok := p.lex.NextToken()
-	if tok.typ != typ {
-		panic(tok.loc.String() + " " + tok.literal + " syntax error, expected: " + typ.String()) // TODO: better error handling
+	if tok.Typ != typ {
+		panic(tok.Loc.String() + " " + tok.Literal + " syntax error, expected: " + typ.String()) // TODO: better error handling
 	}
 
 	return tok
 }
 
-func (p *Parser) expectPeek(typ TokenType) *Token {
+func (p *Parser) expectPeek(typ lexer.TokenType) *lexer.Token {
 	tok := p.lex.PeekToken()
-	if tok.typ != typ {
-		panic(tok.loc.String() + " " + tok.literal + " syntax error, expected: " + typ.String()) // TODO: better error handling
+	if tok.Typ != typ {
+		panic(tok.Loc.String() + " " + tok.Literal + " syntax error, expected: " + typ.String()) // TODO: better error handling
 	}
 
 	return tok
@@ -522,64 +525,58 @@ func (p *Parser) parseBinary(precedence int) ast.Expression {
 		return p.parseUnary()
 	}
 
-	loc := p.lex.curLoc
 	lhs := p.parseBinary(precedence + 1)
+	tok := p.lex.PeekToken()
+	opp := ToBinOp(tok.Typ)
+	loc := tok.Loc
+
 	if lhs == nil {
 		return nil
 	}
 
 	if ast.LeftToRight(precedence) {
-		tok := p.lex.PeekToken()
-		opp := tok.typ.ToBinOp()
-		for tok != nil && tok.typ != TTEOF && opp != -1 && opp.Precedence() == precedence {
+		for tok != nil && tok.Typ != lexer.TTEOF && opp != -1 && opp.Precedence() == precedence {
 			p.lex.NextToken()
 
+
 			rhs := p.parseBinary(precedence + 1)
-			if rhs == nil {
-				panic(p.lex.curLoc.String() + " opperand expected") // TODO: better error handling
-			}
 
 			if precedence == ast.BOAssign.Precedence() {
 				if !p.canAssign(lhs) {
-					panic(p.lex.curLoc.String() + " cannot assign to lhs")
+					panic(/* rhs.Loc().String() + */ " cannot assign to lhs")
 				}
 			}
 
 			var err error
-			lhs, err = ast.NewBinaryOpNode(lhs, rhs, opp)
+			lhs, err = newBinaryOpNode(lhs, rhs, opp)
 			if err != nil {
 				fmt.Println(opp.String())
 				panic(loc.String() + err.Error()) // TODO: better error handling
 			}
 
 			tok = p.lex.PeekToken()
-			opp = tok.typ.ToBinOp()
+			opp = ToBinOp(tok.Typ)
 		}
 	} else {
-		tok := p.lex.PeekToken()
-		opp := tok.typ.ToBinOp()
-		for tok.typ != TTEOF && opp != -1 && opp.Precedence() == precedence {
+		for tok.Typ != lexer.TTEOF && opp != -1 && opp.Precedence() == precedence {
 			p.lex.NextToken()
 			rhs := p.parseBinary(precedence)
-			if rhs == nil {
-				panic(loc.String() + " opperand expected") // TODO: better error handling
-			}
 
 			if precedence == ast.BOAssign.Precedence() {
 				if !p.canAssign(lhs) {
-					panic(p.lex.curLoc.String() + " cannot assign to lhs")
+					panic(/* rhs.Loc().String() + */ " cannot assign to lhs")
 				}
 			}
 
 			var err error
-			lhs, err = ast.NewBinaryOpNode(lhs, rhs, opp)
+			lhs, err = newBinaryOpNode(lhs, rhs, opp)
 			if err != nil {
 				fmt.Println(opp.String())
-				panic(p.lex.curLoc.String() + err.Error()) // TODO: better error handling
+				panic(/* lhs.Loc().String() + */ err.Error()) // TODO: better error handling
 			}
 
 			tok = p.lex.PeekToken()
-			opp = tok.typ.ToBinOp()
+			opp = ToBinOp(tok.Typ)
 		}
 	}
 
@@ -588,8 +585,8 @@ func (p *Parser) parseBinary(precedence int) ast.Expression {
 
 func (p *Parser) parseUnary() ast.Expression {
 	tok := p.lex.PeekToken()
-	loc := tok.loc
-	opp := tok.typ.ToUnOp()
+	loc := tok.Loc
+	opp := ToUnOp(tok.Typ)
 
 	if opp != -1 && opp.OnLeftSide() {
 		p.lex.NextToken()
@@ -597,10 +594,10 @@ func (p *Parser) parseUnary() ast.Expression {
 		expression := p.parseUnary()
 
 		if expression == nil {
-			panic(p.lex.curLoc.String() + " Error: opperand expected")
+			panic(/* exprssion.Loc().String() + */ " Error: opperand expected")
 		}
 
-		unOp, err := ast.NewUnaryOpNode(expression, opp)
+		unOp, err := newUnaryOpNode(expression, opp)
 
 		if err != nil {
 			panic(loc.String() + err.Error())
@@ -612,32 +609,32 @@ func (p *Parser) parseUnary() ast.Expression {
 	expression := p.parsePrimary()
 
 	if expression == nil {
-		panic(p.lex.curLoc.String() + " Error: opperand expected")
+		panic(/* exprssion.Loc().String() + */ " Error: opperand expected")
 	}
 
 loop:
 	for tok := p.lex.PeekToken(); ; tok = p.lex.PeekToken() {
-		switch tok.typ {
-		case TTPeriod:
+		switch tok.Typ {
+		case lexer.TTPeriod:
 			p.lex.NextToken()
 
 			if expression.ReturnType().Kind() != ast.KindStruct {
-				panic(p.lex.curLoc.String() + "ERROR: not a struct")
+				panic(/* expression.Loc().String() + */"ERROR: not a struct")
 			}
 
 			tok = p.lex.PeekToken()
 
-			if tok.typ == TTLSquirly {
+			if tok.Typ == lexer.TTLSquirly {
 				panic("struct initialization")
 			}
 
-			p.expect(TTIdentifier)
+			p.expect(lexer.TTIdentifier)
 
-			optField := expression.ReturnType().(ast.StructType).GetField(ast.Identifier(tok.literal))
+			optField := expression.ReturnType().(ast.StructType).GetField(ast.Identifier(tok.Literal))
 
 			if optField == nil {
 				fmt.Println(expression.ReturnType())
-				panic(p.lex.curLoc.String() + "ERROR: no field `" + tok.literal + "`")
+				panic(tok.Loc.String() + "ERROR: no field `" + tok.Literal + "`")
 			}
 
 			field := *optField
@@ -654,7 +651,7 @@ loop:
 				}
 			}
 
-		case TTLBrace:
+		case lexer.TTLBrace:
 			p.lex.NextToken()
 			funcCall := ast.FuncCall{}
 
@@ -662,17 +659,17 @@ loop:
 				funcCall.Fun = val
 			} else {
 				fmt.Println(val)
-				panic(p.lex.curLoc.String() + " Can only call functions")
+				panic(tok.Loc.String() + " Can only call functions")
 			}
 
 			argIdx := -1
 
-			for tok := p.lex.PeekToken(); tok.typ != TTRBrace; tok = p.lex.PeekToken() {
+			for tok := p.lex.PeekToken(); tok.Typ != lexer.TTRBrace; tok = p.lex.PeekToken() {
 				if len(funcCall.Args) >= len(funcCall.Fun.Args) {
-					panic(p.lex.curLoc.String() + " Error: to many arguments to function")
+					panic(tok.Loc.String() + " Error: to many arguments to function")
 				}
 
-				loc := p.lex.curLoc
+				loc := tok.Loc
 				arg := p.parseExpression()
 
 				funcCall.Args = append(funcCall.Args, arg)
@@ -685,25 +682,25 @@ loop:
 				}
 
 				tok = p.lex.PeekToken()
-				if tok == nil || tok.typ != TTComma {
+				if tok == nil || tok.Typ != lexer.TTComma {
 					break
 				}
 
 				p.lex.NextToken()
 			}
 
-			if len(funcCall.Args) < len(funcCall.Fun.Args) {
-				panic(p.lex.curLoc.String() + " Error: to few arguments to function")
-			}
+			tok := p.expect(lexer.TTRBrace)
 
-			p.expect(TTRBrace)
+			if len(funcCall.Args) < len(funcCall.Fun.Args) {
+				panic(tok.Loc.String() + " Error: to few arguments to function")
+			}
 
 			expression = funcCall
 
-		case TTLSquare:
+		case lexer.TTLSquare:
 			p.lex.NextToken()
 			index := p.parseExpression()
-			p.expect(TTRSquare)
+			p.expect(lexer.TTRSquare)
 			expression = ast.ArrayIndex{
 				Array: expression,
 				Index: index,
@@ -711,7 +708,7 @@ loop:
 			}
 
 		default:
-			opp = tok.typ.ToUnOp()
+			opp = ToUnOp(tok.Typ)
 
 			if opp == -1 || opp.OnLeftSide() {
 				break loop
@@ -719,10 +716,10 @@ loop:
 
 			p.lex.NextToken()
 			var err error
-			expression, err = ast.NewUnaryOpNode(expression, opp)
+			expression, err = newUnaryOpNode(expression, opp)
 
 			if err != nil {
-				panic(p.lex.curLoc.String() + err.Error())
+				panic(/*expression.String() +*/ err.Error())
 			}
 		}
 	}
@@ -732,59 +729,59 @@ loop:
 
 func (p *Parser) parsePrimary() ast.Expression {
 	tok := p.lex.PeekToken()
-	if tok.typ == TTEOF {
+	if tok.Typ == lexer.TTEOF {
 		panic("opperand expected")
 	}
 
-	switch tok.typ {
-	case TTIdentifier:
+	switch tok.Typ {
+	case lexer.TTIdentifier:
 		p.lex.NextToken()
-		if tok.literal == "alloc" {
+		if tok.Literal == "alloc" {
 			return p.parseAlloc()
 		}
 
-		if !p.exists(ast.Identifier(tok.literal)) {
-			panic(tok.loc.String() + " Undefinded name: " + tok.literal)
+		if !p.exists(ast.Identifier(tok.Literal)) {
+			panic(tok.Loc.String() + " Undefinded name: " + tok.Literal)
 		}
 
-		return p.get(ast.Identifier(tok.literal))
+		return p.get(ast.Identifier(tok.Literal))
 
-	case TTInt:
+	case lexer.TTInt:
 		p.lex.NextToken()
-		val := tok.extraInfo.(int)
+		val := tok.ExtraInfo.(int)
 		return ast.IntLit{Value: int64(val)}
 
-	case TTFloat:
+	case lexer.TTFloat:
 		p.lex.NextToken()
-		val := tok.extraInfo.(float64)
+		val := tok.ExtraInfo.(float64)
 		return ast.FloatLit{Value: val}
 
-	case TTString:
+	case lexer.TTString:
 		p.lex.NextToken()
-		return ast.StrLit{Value: tok.extraInfo.(string), Litteral: tok.literal}
+		return ast.StrLit{Value: tok.ExtraInfo.(string), Litteral: tok.Literal}
 
-	case TTChar:
+	case lexer.TTChar:
 		p.lex.NextToken()
-		return ast.CharLit{Value: tok.extraInfo.(rune), Litteral: tok.literal}
+		return ast.CharLit{Value: tok.ExtraInfo.(rune), Litteral: tok.Literal}
 
-	case TTTrue:
+	case lexer.TTTrue:
 		p.lex.NextToken()
 		return ast.BoolLit{Value: true}
 
-	case TTFalse:
+	case lexer.TTFalse:
 		p.lex.NextToken()
 		return ast.BoolLit{Value: false}
 
-	case TTLBrace:
+	case lexer.TTLBrace:
 		p.lex.NextToken()
 		result := p.parseBinary(0)
 
-		next := p.lex.NextToken().typ
-		if next == TTRBrace {
+		next := p.lex.NextToken().Typ
+		if next == lexer.TTRBrace {
 			return result
 		}
 
-		if next == TTColon {
+		if next == lexer.TTColon {
 			typ := p.parseType()
 
 			// TODO: some sort of `canCast` function
@@ -795,29 +792,29 @@ func (p *Parser) parsePrimary() ast.Expression {
 				(typ.Kind() == ast.KindInt && resultKind == ast.KindUint)
 
 			if !sameKind && !intToUint && innerKind != ast.KindStruct {
-				panic(fmt.Errorf("%s ERROR: cannot cast: incompatible types", p.lex.curLoc.String()))
+				panic(fmt.Errorf(/*"%s*/" ERROR: cannot cast: incompatible types", /* tok.Loc.String() */))
 			}
 
-			p.expect(TTRBrace)
+			p.expect(lexer.TTRBrace)
 
 			return ast.Cast{Inner: result, NewType: typ}
 		}
 
-		p.expect(TTRBrace)
+		p.expect(lexer.TTRBrace)
 	}
 
 	panic(p.lex.NextToken().String() + " illegal token") // TODO: better error handling
 }
 
 func (p *Parser) parseAlloc() ast.Expression {
-	p.expect(TTLBrace)
+	p.expect(lexer.TTLBrace)
 
 	typ := p.parseType()
 
 	var result ast.Allocation
 
 	if typ.Kind() == ast.KindArray {
-		p.expect(TTComma)
+		p.expect(lexer.TTComma)
 
 		count := p.parseExpression()
 
@@ -835,7 +832,7 @@ func (p *Parser) parseAlloc() ast.Expression {
 		}
 	}
 
-	p.expect(TTRBrace)
+	p.expect(lexer.TTRBrace)
 
 	return result
 }
@@ -861,4 +858,147 @@ func (p *Parser) canAssign(lhs ast.Expression) bool {
 	}
 
 	return false
+}
+
+func newUnaryOpNode(expression ast.Expression, op ast.UnaryOp) (ast.Expression, error) {
+	if !op.InputAllowed(expression.ReturnType().Kind()) {
+		return ast.UnaryOpNode{}, fmt.Errorf("Invalid opperation %s on %s", op.String(), expression.ReturnType().Name())
+	}
+
+	switch op {
+	case ast.UOPlus: // does nothing anyways
+		return expression, nil
+	case ast.UONegative:
+		if lit, ok := expression.(ast.IntLit); ok {
+			lit.Value = -lit.Value
+			return lit, nil
+		} else if lit, ok := expression.(ast.FloatLit); ok {
+			lit.Value = -lit.Value
+			return lit, nil
+		}
+
+	case ast.UORef:
+		if _, ok := expression.(ast.Var); ok {
+			// ok
+		} else if _, ok := expression.(ast.StructIndex); ok {
+			// ok
+		} else {
+			return ast.UnaryOpNode{}, errors.New("Can only take a reference to a variable or constant")
+		}
+
+	}
+
+	return ast.UnaryOpNode{Expression: expression, Op: op}, nil
+}
+
+func newBinaryOpNode(lhs, rhs ast.Expression, op ast.BinaryOp) (ast.BinaryOpNode, error) {
+	if !ast.EqualTypes(lhs.ReturnType(), rhs.ReturnType()) {
+		return ast.BinaryOpNode{}, errors.New("lhs and rhs types dont match: " + string(lhs.ReturnType().Name()) + " " + string(rhs.ReturnType().Name()))
+	}
+
+	if !op.InputAllowed(lhs.ReturnType().Kind()) {
+		return ast.BinaryOpNode{}, errors.New("invalid opperation " + op.String() + " on " + string(lhs.ReturnType().Name()))
+	}
+
+	return ast.BinaryOpNode{Lhs: lhs, Rhs: rhs, Op: op}, nil
+}
+
+func ToUnOp(t lexer.TokenType) ast.UnaryOp {
+	if ast.UOCount != 6 {
+		panic("Unary opperation enum length changed")
+	}
+
+	if lexer.TTCount != 60 {
+		panic("Token type enum length changed")
+	}
+
+	switch t {
+	case lexer.TTPlus:
+		return ast.UOPlus
+	case lexer.TTDash:
+		return ast.UONegative
+	case lexer.TTExclam:
+		return ast.UOBoolNot
+	case lexer.TTTilde:
+		return ast.UOBinNot
+	case lexer.TTAmp:
+		return ast.UORef
+	case lexer.TTStar:
+		return ast.UODeref
+	}
+
+	return -1
+}
+
+// ToBinOp converts the token type to it's
+// binary opperation, returns -1 if it isn't a binary op
+func ToBinOp(t lexer.TokenType) ast.BinaryOp {
+	if ast.BOCount != 28 {
+		panic("Binary opperation enum length changed")
+	}
+
+	if lexer.TTCount != 60 {
+		panic("Token type enum length changed")
+	}
+
+	switch t {
+	case lexer.TTAssign:
+		return ast.BOAssign
+	case lexer.TTPlus:
+		return ast.BOPlus
+	case lexer.TTDash:
+		return ast.BOMinus
+	case lexer.TTStar:
+		return ast.BOMul
+	case lexer.TTSlash:
+		return ast.BODiv
+	case lexer.TTPercent:
+		return ast.BOMod
+	case lexer.TTPlusAssign:
+		return ast.BOPlusAssign
+	case lexer.TTDashAssign:
+		return ast.BODashAssign
+	case lexer.TTStarAssign:
+		return ast.BOStarAssign
+	case lexer.TTSlashAssign:
+		return ast.BOSlashAssign
+	case lexer.TTAmp:
+		return ast.BOBinAnd
+	case lexer.TTBar:
+		return ast.BOBinOr
+	case lexer.TTCaret:
+		return ast.BOBinXor
+	case lexer.TTAnd:
+		return ast.BOBoolAnd
+	case lexer.TTOr:
+		return ast.BOBoolOr
+	case lexer.TTGt:
+		return ast.BOGt
+	case lexer.TTLt:
+		return ast.BOLt
+	case lexer.TTGtEq:
+		return ast.BOGtEq
+	case lexer.TTLtEq:
+		return ast.BOLtEq
+	case lexer.TTShr:
+		return ast.BOShr
+	case lexer.TTShl:
+		return ast.BOShl
+	case lexer.TTAmpAssign:
+		return ast.BOAndAssign
+	case lexer.TTBarAssign:
+		return ast.BOOrAssign
+	case lexer.TTCaretAssign:
+		return ast.BOXorAssign
+	case lexer.TTShrAssign:
+		return ast.BOShrAssign
+	case lexer.TTShlAssign:
+		return ast.BOShlAssign
+	case lexer.TTEqual:
+		return ast.BOEquals
+	case lexer.TTNotEqual:
+		return ast.BONotEqual
+	}
+
+	return -1
 }

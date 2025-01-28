@@ -1,22 +1,21 @@
-package main
+package lexer
 
 import (
 	"strconv"
-	"windlang/ast"
 )
 
 type TokenType uint
 
 type Location struct {
-	filename  string
-	line, col int
+	Filename  string
+	Line, Col int
 }
 
 type Token struct {
-	typ       TokenType
-	loc       Location
-	literal   string
-	extraInfo any // optional
+	Typ       TokenType
+	Loc       Location
+	Literal   string
+	ExtraInfo any // optional
 }
 
 const (
@@ -34,8 +33,8 @@ const (
 	TTIf
 	TTElse
 	TTTrue
-	TTFalse
 	TTWhile
+	TTFalse
 
 	// symbols
 	TTAssign
@@ -329,117 +328,19 @@ func (t TokenType) SymbolToString() string {
 }
 
 func (l Location) String() string {
-	return l.filename + ":" + strconv.Itoa(l.line) + ":" + strconv.Itoa(l.col) + ":"
+	return l.Filename + ":" + strconv.Itoa(l.Line) + ":" + strconv.Itoa(l.Col) + ":"
 }
 
 func (l Location) SyntaxString() string {
-	return "{\"" + l.filename + "\", " + strconv.Itoa(l.line) + ", " + strconv.Itoa(l.col) + "}"
+	return "{\"" + l.Filename + "\", " + strconv.Itoa(l.Line) + ", " + strconv.Itoa(l.Col) + "}"
 }
 
 func (t *Token) String() string {
-	return t.loc.String() + " " + t.typ.String() + " `" + t.literal + "`"
+	return t.Loc.String() + " " + t.Typ.String() + " `" + t.Literal + "`"
 }
 
 func (t *Token) SyntaxString() string {
-	return "{" + t.typ.String() + ", " + t.loc.SyntaxString() + ", \"" + t.literal + "\"}"
+	return "{" + t.Typ.String() + ", " + t.Loc.SyntaxString() + ", \"" + t.Literal + "\"}"
 }
 
-// ToBinOp converts the token type to it's
-// binary opperation, returns -1 if it isn't a binary op
-func (t TokenType) ToBinOp() ast.BinaryOp {
-	if ast.BOCount != 28 {
-		panic("Binary opperation enum length changed")
-	}
 
-	if TTCount != 60 {
-		panic("Token type enum length changed")
-	}
-
-	switch t {
-	case TTAssign:
-		return ast.BOAssign
-	case TTPlus:
-		return ast.BOPlus
-	case TTDash:
-		return ast.BOMinus
-	case TTStar:
-		return ast.BOMul
-	case TTSlash:
-		return ast.BODiv
-	case TTPercent:
-		return ast.BOMod
-	case TTPlusAssign:
-		return ast.BOPlusAssign
-	case TTDashAssign:
-		return ast.BODashAssign
-	case TTStarAssign:
-		return ast.BOStarAssign
-	case TTSlashAssign:
-		return ast.BOSlashAssign
-	case TTAmp:
-		return ast.BOBinAnd
-	case TTBar:
-		return ast.BOBinOr
-	case TTCaret:
-		return ast.BOBinXor
-	case TTAnd:
-		return ast.BOBoolAnd
-	case TTOr:
-		return ast.BOBoolOr
-	case TTGt:
-		return ast.BOGt
-	case TTLt:
-		return ast.BOLt
-	case TTGtEq:
-		return ast.BOGtEq
-	case TTLtEq:
-		return ast.BOLtEq
-	case TTShr:
-		return ast.BOShr
-	case TTShl:
-		return ast.BOShl
-	case TTAmpAssign:
-		return ast.BOAndAssign
-	case TTBarAssign:
-		return ast.BOOrAssign
-	case TTCaretAssign:
-		return ast.BOXorAssign
-	case TTShrAssign:
-		return ast.BOShrAssign
-	case TTShlAssign:
-		return ast.BOShlAssign
-	case TTEqual:
-		return ast.BOEquals
-	case TTNotEqual:
-		return ast.BONotEqual
-	}
-
-	return -1
-}
-
-func (t TokenType) ToUnOp() ast.UnaryOp {
-	if ast.UOCount != 6 {
-		panic("Unary opperation enum length changed")
-	}
-
-	if TTCount != 60 {
-		panic("Token type enum length changed")
-	}
-
-	switch t {
-	case TTPlus:
-		return ast.UOPlus
-	case TTDash:
-		return ast.UONegative
-	case TTExclam:
-		return ast.UOBoolNot
-	case TTTilde:
-		return ast.UOBinNot
-	case TTAmp:
-		return ast.UORef
-	case TTStar:
-		return ast.UODeref
-	}
-
-	return -1
-}

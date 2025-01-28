@@ -2,15 +2,18 @@ package ast
 
 import (
 	"strings"
+	"windlang/lexer"
 )
 
 type AstNode interface {
 	String() string
+	Loc() lexer.Location
 }
 
 type VarNode struct {
 	Var
 	Value Expression
+	Loc_  lexer.Location
 }
 
 var _ AstNode = (*VarNode)(nil)
@@ -20,12 +23,14 @@ type FuncNode struct {
 	Args       []Var
 	ReturnType Type
 	Body       CodeBlockNode
+	Loc_       lexer.Location
 }
 
 var _ AstNode = (*FuncNode)(nil)
 
 type ReturnNode struct {
 	Expr Expression // optional
+	Loc_ lexer.Location
 }
 
 var _ AstNode = (*ReturnNode)(nil)
@@ -41,6 +46,7 @@ type Scope struct {
 type CodeBlockNode struct {
 	Statements []AstNode
 	Scope      Scope
+	Loc_       lexer.Location
 }
 
 var _ AstNode = (*CodeBlockNode)(nil)
@@ -48,6 +54,7 @@ var _ AstNode = (*CodeBlockNode)(nil)
 type IfChain struct {
 	Conditions []Expression
 	Statements []CodeBlockNode
+	Loc_       lexer.Location
 }
 
 var _ AstNode = (*IfChain)(nil)
@@ -55,6 +62,7 @@ var _ AstNode = (*IfChain)(nil)
 type WhileNode struct {
 	Condition Expression
 	Body      CodeBlockNode
+	Loc_      lexer.Location
 }
 
 var _ AstNode = (*WhileNode)(nil)
@@ -106,6 +114,10 @@ func (v VarNode) String() string {
 	}
 }
 
+func (v VarNode) Loc() lexer.Location {
+	return v.Loc_
+}
+
 func (f FuncNode) String() string {
 	sb := strings.Builder{}
 
@@ -138,8 +150,16 @@ func (f FuncNode) String() string {
 	return sb.String()
 }
 
+func (f FuncNode) Loc() lexer.Location {
+	return f.Loc_
+}
+
 func (r ReturnNode) String() string {
 	return "return " + r.Expr.string() + ";"
+}
+
+func (r ReturnNode) Loc() lexer.Location {
+	return r.Loc_
 }
 
 func (b CodeBlockNode) String() string {
@@ -154,6 +174,10 @@ func (b CodeBlockNode) String() string {
 	return sb.String()
 }
 
+func (b CodeBlockNode) Loc() lexer.Location {
+	return b.Loc_
+}
+
 func (c IfChain) String() string {
 	sb := strings.Builder{}
 
@@ -163,8 +187,8 @@ func (c IfChain) String() string {
 	sb.WriteString(c.Statements[0].String())
 
 	for i := range c.Statements[1:] {
-		i := i+1
-		
+		i := i + 1
+
 		sb.WriteString(" else ")
 
 		if i < len(c.Conditions) {
@@ -179,6 +203,10 @@ func (c IfChain) String() string {
 	return sb.String()
 }
 
+func (c IfChain) Loc() lexer.Location {
+	return c.Loc_
+}
+
 func (w WhileNode) String() string {
 	sb := strings.Builder{}
 
@@ -188,4 +216,8 @@ func (w WhileNode) String() string {
 	sb.WriteString(w.Body.String())
 
 	return sb.String()
+}
+
+func (w WhileNode) Loc() lexer.Location {
+	return w.Loc_
 }
