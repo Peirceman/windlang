@@ -20,7 +20,7 @@ func main() {
 		par := ParserFromFilename(fileName)
 		ast := par.ParseAll()
 
-		if !TypeCheck(ast) {
+		if !TypeCheckGlobal(ast) {
 			os.Exit(1)
 		}
 

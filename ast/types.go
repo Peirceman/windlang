@@ -1,18 +1,22 @@
 package ast
 
+import "fmt"
+
 type Kind int
 
 const (
 	KindVoid Kind = 0
 	KindAny  Kind = ^0
 
-	KindInt     Kind = 0x1
-	KindUint    Kind = 0x2
-	KindFloat   Kind = 0x4
-	KindBool    Kind = 0x8
-	KindPointer Kind = 0x10
-	KindArray   Kind = 0x20
-	KindStruct  Kind = 0x40
+	KindInt       Kind = 0x1
+	KindUint      Kind = 0x2
+	KindFloat     Kind = 0x4
+	KindBool      Kind = 0x8
+	KindPointer   Kind = 0x10
+	KindArray     Kind = 0x20
+	KindStruct    Kind = 0x40
+	KindInterface Kind = 0x80
+	KindInferred  Kind = 0x100
 
 	KindNumberMask Kind = KindInt | KindUint | KindFloat
 
@@ -63,9 +67,16 @@ type ArrayType struct {
 
 var _ Type = (*ArrayType)(nil)
 
+type InferredType struct {
+	Name_ Identifier
+	Default Type
+}
+
+var _ Type = (*InferredType)(nil)
+
 // Default types
 var (
-	TypeVoid = SimpleType{KindVoid, 0, ""}
+	TypeVoid     = SimpleType{KindVoid, 0, ""}
 
 	TypeInt8  = SimpleType{KindInt, 1, "int8"}
 	TypeInt16 = SimpleType{KindInt, 2, "int16"}
@@ -99,9 +110,12 @@ func EqualTypes(a, b Type) bool {
 	case ArrayType:
 		_, ok := b.(ArrayType)
 		return ok && a.matches(b)
+	case InferredType:
+		_, ok := b.(InferredType)
+		return ok && a.matches(b)
 	}
 
-	panic("unknow Type")
+	panic(fmt.Sprintf("unknow Type %T", a))
 }
 
 func (s SimpleType) Kind() Kind              { return s.Kind_ }
@@ -181,3 +195,17 @@ func (s ArrayType) matches(other Type) bool {
 	return s.Name_ == otherS.Name_ && EqualTypes(s.Inner, otherS.Inner)
 }
 
+func (i InferredType) Kind() Kind       { return KindInferred }
+func (i InferredType) Size() int        { return i.Default.Size() }
+func (i InferredType) Name() Identifier { return i.Name_ }
+
+func (i InferredType) SetName(iden Identifier) Type {
+	i.Name_ = iden
+	return i
+}
+
+func (i InferredType) matches(other Type) bool {
+	otherS := other.(InferredType)
+
+	return i.Name_ == otherS.Name_ && EqualTypes(i.Default, otherS.Default)
+}

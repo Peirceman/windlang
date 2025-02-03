@@ -2,6 +2,7 @@ package ast
 
 import (
 	"fmt"
+	"windlang/lexer"
 )
 
 type UnaryOp int
@@ -20,10 +21,10 @@ const (
 type UnaryOpNode struct {
 	Expression Expression
 	Op         UnaryOp
+	Loc_       lexer.Location
 }
 
 var _ Expression = (*UnaryOpNode)(nil)
-
 
 func (u UnaryOp) String() string {
 	if UOCount != 6 {
@@ -107,7 +108,6 @@ func (u UnaryOp) ReturnType(input Type) Type {
 	panic("not a unary op")
 }
 
-
 func (u UnaryOpNode) string() string {
 	if u.Op.OnLeftSide() {
 		return fmt.Sprint(u.Op.String(), "(", u.Expression.string(), ")")
@@ -118,4 +118,8 @@ func (u UnaryOpNode) string() string {
 
 func (u UnaryOpNode) ReturnType() Type {
 	return u.Op.ReturnType(u.Expression.ReturnType())
+}
+
+func (u UnaryOpNode) Loc() lexer.Location {
+	return u.Loc_
 }

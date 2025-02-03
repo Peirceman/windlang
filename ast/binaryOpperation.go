@@ -1,5 +1,7 @@
 package ast
 
+import "windlang/lexer"
+
 type BinaryOp int
 
 const (
@@ -44,6 +46,7 @@ const (
 type BinaryOpNode struct {
 	Lhs, Rhs Expression
 	Op       BinaryOp
+	Loc_ lexer.Location
 }
 
 var _ Expression = (*BinaryOpNode)(nil)
@@ -361,3 +364,8 @@ func (b BinaryOpNode) string() string {
 func (b BinaryOpNode) ReturnType() Type {
 	return b.Op.ReturnType(b.Lhs.ReturnType())
 }
+
+func (b BinaryOpNode) Loc() lexer.Location {
+	return b.Loc_
+}
+

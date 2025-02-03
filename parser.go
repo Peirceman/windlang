@@ -506,7 +506,6 @@ func (p *Parser) parseBinary(precedence int) ast.Expression {
 	lhs := p.parseBinary(precedence + 1)
 	tok := p.lex.PeekToken()
 	opp := ToBinOp(tok.Typ)
-	loc := tok.Loc
 
 	if lhs == nil {
 		return nil
@@ -516,22 +515,15 @@ func (p *Parser) parseBinary(precedence int) ast.Expression {
 		for tok != nil && tok.Typ != lexer.TTEOF && opp != -1 && opp.Precedence() == precedence {
 			p.lex.NextToken()
 
-
 			rhs := p.parseBinary(precedence + 1)
 
 			if precedence == ast.BOAssign.Precedence() {
 				if !p.canAssign(lhs) {
-					panic(/* rhs.Loc().String() + */ " cannot assign to lhs")
+					panic( /* rhs.Loc().String() + */ " cannot assign to lhs")
 				}
 			}
 
-			var err error
-			lhs, err = newBinaryOpNode(lhs, rhs, opp)
-			if err != nil {
-				fmt.Println(opp.String())
-				panic(loc.String() + err.Error()) // TODO: better error handling
-			}
-
+			lhs = ast.BinaryOpNode{Lhs: lhs, Rhs: rhs, Op: opp, Loc_: lhs.Loc()}
 			tok = p.lex.PeekToken()
 			opp = ToBinOp(tok.Typ)
 		}
@@ -542,17 +534,11 @@ func (p *Parser) parseBinary(precedence int) ast.Expression {
 
 			if precedence == ast.BOAssign.Precedence() {
 				if !p.canAssign(lhs) {
-					panic(/* rhs.Loc().String() + */ " cannot assign to lhs")
+					panic( /* rhs.Loc().String() + */ " cannot assign to lhs")
 				}
 			}
 
-			var err error
-			lhs, err = newBinaryOpNode(lhs, rhs, opp)
-			if err != nil {
-				fmt.Println(opp.String())
-				panic(/* lhs.Loc().String() + */ err.Error()) // TODO: better error handling
-			}
-
+			lhs = ast.BinaryOpNode{Lhs: lhs, Rhs: rhs, Op: opp, Loc_: lhs.Loc()}
 			tok = p.lex.PeekToken()
 			opp = ToBinOp(tok.Typ)
 		}
@@ -572,10 +558,10 @@ func (p *Parser) parseUnary() ast.Expression {
 		expression := p.parseUnary()
 
 		if expression == nil {
-			panic(/* exprssion.Loc().String() + */ " Error: opperand expected")
+			panic(tok.Loc.String() + "Error: opperand expected")
 		}
 
-		unOp, err := newUnaryOpNode(expression, opp)
+		unOp, err := newUnaryOpNode(expression, opp, loc)
 
 		if err != nil {
 			panic(loc.String() + err.Error())
@@ -587,7 +573,7 @@ func (p *Parser) parseUnary() ast.Expression {
 	expression := p.parsePrimary()
 
 	if expression == nil {
-		panic(/* exprssion.Loc().String() + */ " Error: opperand expected")
+		panic( tok.Loc.String() + "Error: opperand expected")
 	}
 
 loop:
@@ -597,7 +583,7 @@ loop:
 			p.lex.NextToken()
 
 			if expression.ReturnType().Kind() != ast.KindStruct {
-				panic(/* expression.Loc().String() + */"ERROR: not a struct")
+				panic( /* expression.Loc().String() + */ "ERROR: not a struct")
 			}
 
 			tok = p.lex.PeekToken()
@@ -635,6 +621,7 @@ loop:
 
 			if val, ok := expression.(ast.Func); ok {
 				funcCall.Fun = val
+				funcCall.Loc_ = val.Loc_
 			} else {
 				fmt.Println(val)
 				panic(tok.Loc.String() + " Can only call functions")
@@ -643,21 +630,10 @@ loop:
 			argIdx := -1
 
 			for tok := p.lex.PeekToken(); tok.Typ != lexer.TTRBrace; tok = p.lex.PeekToken() {
-				if len(funcCall.Args) >= len(funcCall.Fun.Args) {
-					panic(tok.Loc.String() + " Error: to many arguments to function")
-				}
-
-				loc := tok.Loc
 				arg := p.parseExpression()
 
 				funcCall.Args = append(funcCall.Args, arg)
 				argIdx++
-
-				expectedType := funcCall.Fun.Args[argIdx].ReturnType()
-
-				if !ast.EqualTypes(arg.ReturnType(), expectedType) && expectedType.Kind() != ast.KindAny {
-					panic(loc.String() + " Error: argument type mismatch")
-				}
 
 				tok = p.lex.PeekToken()
 				if tok == nil || tok.Typ != lexer.TTComma {
@@ -667,11 +643,7 @@ loop:
 				p.lex.NextToken()
 			}
 
-			tok := p.expect(lexer.TTRBrace)
-
-			if len(funcCall.Args) < len(funcCall.Fun.Args) {
-				panic(tok.Loc.String() + " Error: to few arguments to function")
-			}
+			p.expect(lexer.TTRBrace)
 
 			expression = funcCall
 
@@ -694,10 +666,10 @@ loop:
 
 			p.lex.NextToken()
 			var err error
-			expression, err = newUnaryOpNode(expression, opp)
+			expression, err = newUnaryOpNode(expression, opp, tok.Loc)
 
 			if err != nil {
-				panic(/*expression.String() +*/ err.Error())
+				panic(expression.Loc().String() + err.Error())
 			}
 		}
 	}
@@ -713,42 +685,52 @@ func (p *Parser) parsePrimary() ast.Expression {
 
 	switch tok.Typ {
 	case lexer.TTIdentifier:
-		p.lex.NextToken()
 		if tok.Literal == "alloc" {
 			return p.parseAlloc()
 		}
+
+		p.lex.NextToken()
 
 		if !p.exists(ast.Identifier(tok.Literal)) {
 			panic(tok.Loc.String() + " Undefinded name: " + tok.Literal)
 		}
 
-		return p.get(ast.Identifier(tok.Literal))
+		variable := p.get(ast.Identifier(tok.Literal))
+		if vari, ok := variable.(ast.Var); ok {
+			vari.Loc_ = tok.Loc
+			return vari
+		} else if fun, ok := variable.(ast.Func); ok {
+			fun.Loc_ = tok.Loc
+			return fun
+		} else {
+			panic("unreachable")
+		}
 
 	case lexer.TTInt:
 		p.lex.NextToken()
 		val := tok.ExtraInfo.(int)
-		return ast.IntLit{Value: int64(val)}
+		return ast.IntLit{Value: int64(val), Loc_: tok.Loc}
 
 	case lexer.TTFloat:
 		p.lex.NextToken()
 		val := tok.ExtraInfo.(float64)
-		return ast.FloatLit{Value: val}
+		return ast.FloatLit{Value: val, Loc_: tok.Loc}
 
 	case lexer.TTString:
 		p.lex.NextToken()
-		return ast.StrLit{Value: tok.ExtraInfo.(string), Litteral: tok.Literal}
+		return ast.StrLit{Value: tok.ExtraInfo.(string), Litteral: tok.Literal, Loc_: tok.Loc}
 
 	case lexer.TTChar:
 		p.lex.NextToken()
-		return ast.CharLit{Value: tok.ExtraInfo.(rune), Litteral: tok.Literal}
+		return ast.CharLit{Value: tok.ExtraInfo.(rune), Litteral: tok.Literal, Loc_: tok.Loc}
 
 	case lexer.TTTrue:
 		p.lex.NextToken()
-		return ast.BoolLit{Value: true}
+		return ast.BoolLit{Value: true, Loc_: tok.Loc}
 
 	case lexer.TTFalse:
 		p.lex.NextToken()
-		return ast.BoolLit{Value: false}
+		return ast.BoolLit{Value: false, Loc_: tok.Loc}
 
 	case lexer.TTLBrace:
 		p.lex.NextToken()
@@ -762,20 +744,9 @@ func (p *Parser) parsePrimary() ast.Expression {
 		if next == lexer.TTColon {
 			typ := p.parseType()
 
-			// TODO: some sort of `canCast` function
-			innerKind := typ.Kind()
-			resultKind := result.ReturnType().Kind()
-			sameKind := innerKind == resultKind
-			intToUint := (innerKind == ast.KindUint && resultKind == ast.KindInt) ||
-				(typ.Kind() == ast.KindInt && resultKind == ast.KindUint)
-
-			if !sameKind && !intToUint && innerKind != ast.KindStruct {
-				panic(fmt.Errorf(/*"%s*/" ERROR: cannot cast: incompatible types", /* tok.Loc.String() */))
-			}
-
 			p.expect(lexer.TTRBrace)
 
-			return ast.Cast{Inner: result, NewType: typ}
+			return ast.Cast{Inner: result, NewType: typ, Loc_: tok.Loc}
 		}
 
 		p.expect(lexer.TTRBrace)
@@ -785,6 +756,12 @@ func (p *Parser) parsePrimary() ast.Expression {
 }
 
 func (p *Parser) parseAlloc() ast.Expression {
+	var loc lexer.Location
+	tok := p.expect(lexer.TTIdentifier)
+	if tok.Literal != "alloc" {
+		panic("unreachable")
+	}
+
 	p.expect(lexer.TTLBrace)
 
 	typ := p.parseType()
@@ -802,11 +779,12 @@ func (p *Parser) parseAlloc() ast.Expression {
 			panic("type mismatch")
 		}
 
-		result = ast.Allocation{Typ: typ, ElemsCount: count}
+		result = ast.Allocation{Typ: typ, ElemsCount: count, Loc_: loc}
 	} else {
 		result = ast.Allocation{
 			Typ:        ast.PointerType{Name_: "", Inner: typ},
 			ElemsCount: ast.IntLit{Value: 1},
+			Loc_:       loc,
 		}
 	}
 
@@ -838,7 +816,7 @@ func (p *Parser) canAssign(lhs ast.Expression) bool {
 	return false
 }
 
-func newUnaryOpNode(expression ast.Expression, op ast.UnaryOp) (ast.Expression, error) {
+func newUnaryOpNode(expression ast.Expression, op ast.UnaryOp, opLoc lexer.Location) (ast.Expression, error) {
 	if !op.InputAllowed(expression.ReturnType().Kind()) {
 		return ast.UnaryOpNode{}, fmt.Errorf("Invalid opperation %s on %s", op.String(), expression.ReturnType().Name())
 	}
@@ -866,19 +844,11 @@ func newUnaryOpNode(expression ast.Expression, op ast.UnaryOp) (ast.Expression, 
 
 	}
 
-	return ast.UnaryOpNode{Expression: expression, Op: op}, nil
-}
-
-func newBinaryOpNode(lhs, rhs ast.Expression, op ast.BinaryOp) (ast.BinaryOpNode, error) {
-	if !ast.EqualTypes(lhs.ReturnType(), rhs.ReturnType()) {
-		return ast.BinaryOpNode{}, errors.New("lhs and rhs types dont match: " + string(lhs.ReturnType().Name()) + " " + string(rhs.ReturnType().Name()))
+	if op.OnLeftSide() {
+		return ast.UnaryOpNode{Expression: expression, Op: op, Loc_: opLoc}, nil
+	} else {
+		return ast.UnaryOpNode{Expression: expression, Op: op, Loc_: expression.Loc()}, nil
 	}
-
-	if !op.InputAllowed(lhs.ReturnType().Kind()) {
-		return ast.BinaryOpNode{}, errors.New("invalid opperation " + op.String() + " on " + string(lhs.ReturnType().Name()))
-	}
-
-	return ast.BinaryOpNode{Lhs: lhs, Rhs: rhs, Op: op}, nil
 }
 
 func ToUnOp(t lexer.TokenType) ast.UnaryOp {
