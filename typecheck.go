@@ -149,13 +149,33 @@ func typeCheckExpression(expression ast.Expression, expected ast.Type) bool {
 		return ok
 
 	case ast.Cast:
-		if !typeCheckExpression(expression.Inner, nil) {
+		if !typeCheckExpression(expression.Inner, expression.NewType) {
 			return false
 		}
 
 		return checkCast(expression.Loc(), expression.Inner.ReturnType(), expression.NewType)
 
-	case ast.StructIndex:
+	case *ast.StructIndex:
+		if !typeCheckExpression(expression.Base, nil) {
+			return false
+		}
+
+		if expression.Base.ReturnType().Kind() != ast.KindStruct {
+			printErrorln(expression.FieldLoc, "trying to index expression which is not a struct")
+			return false
+		}
+
+		baseTyp := expression.Base.ReturnType().(ast.StructType)
+
+		field := baseTyp.GetField(expression.FieldName)
+
+		if field == nil {
+			printErrorln(expression.FieldLoc, "unknown field `", expression.FieldName, "`")
+			return false
+		}
+
+		expression.Type = field.Typ
+
 		return true
 
 	case ast.ArrayIndex:
@@ -165,42 +185,31 @@ func typeCheckExpression(expression ast.Expression, expected ast.Type) bool {
 		return true
 
 	case ast.BinaryOpNode:
-		return typeCheckBinOp(expression, expected)
+		return typeCheckBinOp(expression)
 
 	case ast.UnaryOpNode:
-		return true
+		return typeCheckUnOp(expression)
 
 	default:
 		panic("unreachable")
 	}
 }
 
-func typeCheckBinOp(binOp ast.BinaryOpNode, expected ast.Type) bool {
+func typeCheckBinOp(binOp ast.BinaryOpNode) bool {
 	if ast.BOCount != 28 {
 		panic("binarry opperation enum length changed")
 	}
 
 	lTyp, rTyp := binOp.Lhs.ReturnType(), binOp.Rhs.ReturnType()
-	lInf, rInf := lTyp.Kind() == ast.KindInferred, rTyp.Kind() == ast.KindInferred
 	ok := true
 
-	if lInf {
-		if rInf {
-			lDefaultTyp := lTyp.(ast.InferredType).Default
-			ok = typeCheckExpression(binOp.Lhs, lDefaultTyp) && ok
-			ok = typeCheckExpression(binOp.Rhs, lDefaultTyp) && ok
-		} else {
-			ok = typeCheckExpression(binOp.Lhs, rTyp) && ok
-			ok = typeCheckExpression(binOp.Rhs, rTyp) && ok
-		}
+	if lTyp != nil && rTyp != nil && lTyp.Kind() == ast.KindInferred && rTyp.Kind() == ast.KindInferred {
+		ok = typeCheckExpression(binOp.Lhs, nil) && ok
+		lTyp = binOp.Lhs.ReturnType()
+		ok = typeCheckExpression(binOp.Rhs, lTyp) && ok
 	} else {
-		if rInf {
-			ok = typeCheckExpression(binOp.Lhs, lTyp) && ok
-			ok = typeCheckExpression(binOp.Rhs, lTyp) && ok
-		} else {
-			ok = typeCheckExpression(binOp.Lhs, lTyp) && ok
-			ok = typeCheckExpression(binOp.Rhs, rTyp) && ok
-		}
+		ok = typeCheckExpression(binOp.Lhs, rTyp) && ok
+		ok = typeCheckExpression(binOp.Rhs, lTyp) && ok
 	}
 
 	if !ok {
@@ -217,9 +226,10 @@ func typeCheckBinOp(binOp ast.BinaryOpNode, expected ast.Type) bool {
 		return false
 	}
 
+	var kindMask ast.Kind
 	switch binOp.Op {
 	case ast.BOEquals, ast.BONotEqual:
-		fallthrough //arrays and pointers? not yet anyways
+		fallthrough // TODO: equality check for pointers, structs, strings,...
 
 	// number and number
 	case ast.BOPlus, ast.BOMinus, ast.BOMul,
@@ -227,43 +237,19 @@ func typeCheckBinOp(binOp ast.BinaryOpNode, expected ast.Type) bool {
 		ast.BOStarAssign, ast.BOSlashAssign,
 		ast.BOGt, ast.BOLt, ast.BOGtEq, ast.BOLtEq:
 
-		if lTyp.Kind()&ast.KindNumberMask == 0 {
-			printErrorln(
-				binOp.Loc(), "invalid opperation",
-				binOp.Op.String(), "on", typeToString(lTyp),
-			)
-			return false
-		}
-
-		return true
+		kindMask = ast.KindNumberMask
 
 	// (u)int and (u)int
 	case ast.BOMod, ast.BOBinAnd, ast.BOBinOr, ast.BOBinXor, ast.BOShl, ast.BOShr, ast.BOAndAssign, ast.BOOrAssign, ast.BOXorAssign, ast.BOShrAssign, ast.BOShlAssign:
-		if lTyp.Kind()&(ast.KindInt|ast.KindUint) == 0 {
-			printErrorln(
-				binOp.Loc(), "invalid opperation",
-				binOp.Op.String(), "on", typeToString(lTyp),
-			)
-			return false
-		}
-
-		return true
+		kindMask = ast.KindInt | ast.KindUint
 
 	// bool and bool
 	case ast.BOBoolAnd, ast.BOBoolOr:
-		if lTyp.Kind() != ast.KindBool {
-			printErrorln(
-				binOp.Loc(), "invalid opperation",
-				binOp.Op.String(), "on", typeToString(lTyp),
-			)
-			return false
-		}
-
-		return true
+		kindMask = ast.KindBool
 
 	// any types
 	case ast.BOAssign:
-		return true
+		kindMask = ast.KindAny
 
 	case ast.BOCount:
 		fallthrough
@@ -271,10 +257,73 @@ func typeCheckBinOp(binOp ast.BinaryOpNode, expected ast.Type) bool {
 	default:
 		panic("unknow binop")
 	}
+
+	if lTyp.Kind()&kindMask == 0 {
+		printErrorln(
+			binOp.Loc(), "invalid opperation",
+			binOp.Op.String(), "on", typeToString(lTyp),
+		)
+		return false
+	}
+
+	switch binOp.Op {
+	case ast.BOAssign, ast.BOPlusAssign, ast.BODashAssign, ast.BOStarAssign,
+		ast.BOSlashAssign, ast.BOAndAssign, ast.BOOrAssign, ast.BOXorAssign,
+		ast.BOShrAssign, ast.BOShlAssign:
+
+		if !canAssign(binOp.Lhs) {
+			printErrorln(
+				binOp.Loc(), "cannot assign",
+			)
+			return false
+		}
+	}
+
+	return true
+}
+
+func typeCheckUnOp(unOp ast.UnaryOpNode) bool {
+	if ast.UOCount != 6 {
+		panic("unary opperation enum length changed")
+	}
+
+	typeCheckExpression(unOp.Expression, nil)
+
+	var kindMask ast.Kind
+	switch unOp.Op {
+	case ast.UOPlus, ast.UONegative:
+		kindMask = ast.KindNumberMask
+
+	case ast.UOBoolNot:
+		kindMask = ast.KindBool
+
+	case ast.UOBinNot:
+		kindMask = ast.KindInt | ast.KindUint
+
+	case ast.UORef:
+		if !canRef(unOp.Expression) {
+			printErrorln(unOp.Loc(), "cannot take reference to value")
+			return false
+		}
+
+		kindMask = ast.KindAny
+
+	case ast.UODeref:
+		kindMask = ast.KindPointer
+	}
+
+	if unOp.Expression.ReturnType().Kind()&kindMask == 0 {
+		printErrorln(
+			unOp.Loc(), "invalid opperation",
+			unOp.Op.String(), "on", typeToString(unOp.Expression.ReturnType()),
+		)
+		return false
+	}
+
+	return true
 }
 
 func checkCast(loc lexer.Location, inner, outer ast.Type) bool {
-
 	eqalKinds := inner.Kind() == outer.Kind()
 	intToUint := (inner.Kind() == ast.KindUint && outer.Kind() == ast.KindInt) ||
 		(inner.Kind() == ast.KindInt && outer.Kind() == ast.KindUint)
@@ -323,6 +372,52 @@ func checkCast(loc lexer.Location, inner, outer ast.Type) bool {
 		return checkCast(loc, inner.(ast.InferredType).Default, outer)
 	default:
 		panic("unreachable")
+	}
+}
+
+func canAssign(expr ast.Expression) bool {
+	switch expr := expr.(type) {
+	case ast.Var:
+		return !expr.IsConst
+
+	case ast.UnaryOpNode:
+		if expr.Op == ast.UODeref {
+			return canAssign(expr.Expression)
+		}
+
+		return false
+
+	case *ast.StructIndex:
+		return canAssign(expr.Base)
+
+	case ast.ArrayIndex:
+		return canAssign(expr.Array)
+
+	default:
+		return false
+	}
+}
+
+func canRef(expr ast.Expression) bool {
+	switch expr := expr.(type) {
+	case ast.Var:
+		return true
+
+	case ast.UnaryOpNode:
+		if expr.Op == ast.UODeref {
+			return canRef(expr.Expression)
+		}
+
+		return false
+
+	case *ast.StructIndex:
+		return canRef(expr.Base)
+
+	case ast.ArrayIndex:
+		return false
+
+	default:
+		return false
 	}
 }
 

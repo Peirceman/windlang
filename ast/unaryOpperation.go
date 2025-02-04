@@ -62,29 +62,6 @@ func (u UnaryOp) OnLeftSide() bool {
 	panic("not a unary op")
 }
 
-func (u UnaryOp) InputAllowed(input Kind) bool {
-	if UOCount != 6 {
-		panic("Unary opperation enum length changed")
-	}
-
-	switch u {
-	case UOPlus:
-		return input&KindNumberMask != 0
-	case UONegative:
-		return input&KindNumberMask != 0
-	case UOBoolNot:
-		return input == KindBool
-	case UOBinNot:
-		return input == KindInt || input == KindUint
-	case UORef:
-		return true
-	case UODeref:
-		return input == KindPointer
-	}
-
-	panic("not a unary op")
-}
-
 func (u UnaryOp) ReturnType(input Type) Type {
 	if UOCount != 6 {
 		panic("Unary opperation enum length changed")

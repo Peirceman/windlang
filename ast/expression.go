@@ -60,10 +60,10 @@ type Cast struct {
 var _ Expression = (*Cast)(nil)
 
 type StructIndex struct {
-	Base   Expression
-	Typ    Type
-	Offset int
-	Loc_   lexer.Location
+	Base      Expression
+	FieldName Identifier
+	FieldLoc  lexer.Location
+	Type      Type
 }
 
 var _ Expression = (*StructIndex)(nil)
@@ -149,16 +149,16 @@ func (c Cast) Loc() lexer.Location {
 	return c.Loc_
 }
 
-func (s StructIndex) string() string {
+func (s *StructIndex) string() string {
 	return "" // cant really do this
 }
 
-func (s StructIndex) ReturnType() Type {
-	return s.Typ
+func (s *StructIndex) ReturnType() Type {
+	return s.Type
 }
 
-func (s StructIndex) Loc() lexer.Location {
-	return s.Loc_
+func (s *StructIndex) Loc() lexer.Location {
+	return s.Base.Loc()
 }
 
 func (a ArrayIndex) string() string {

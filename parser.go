@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 	"windlang/ast"
@@ -58,6 +57,7 @@ func (p *Parser) addBuiltIns() {
 	}
 
 	anyVar := ast.Var{Name: "any", Typ: ast.SimpleType{Kind_: ast.KindAny, Size_: 0, Name_: "any"}}
+
 	p.addFunc(ast.Func{
 		Name:    "println",
 		Args:    []ast.Var{anyVar},
@@ -517,12 +517,6 @@ func (p *Parser) parseBinary(precedence int) ast.Expression {
 
 			rhs := p.parseBinary(precedence + 1)
 
-			if precedence == ast.BOAssign.Precedence() {
-				if !p.canAssign(lhs) {
-					panic( /* rhs.Loc().String() + */ " cannot assign to lhs")
-				}
-			}
-
 			lhs = ast.BinaryOpNode{Lhs: lhs, Rhs: rhs, Op: opp, Loc_: lhs.Loc()}
 			tok = p.lex.PeekToken()
 			opp = ToBinOp(tok.Typ)
@@ -531,12 +525,6 @@ func (p *Parser) parseBinary(precedence int) ast.Expression {
 		for tok.Typ != lexer.TTEOF && opp != -1 && opp.Precedence() == precedence {
 			p.lex.NextToken()
 			rhs := p.parseBinary(precedence)
-
-			if precedence == ast.BOAssign.Precedence() {
-				if !p.canAssign(lhs) {
-					panic( /* rhs.Loc().String() + */ " cannot assign to lhs")
-				}
-			}
 
 			lhs = ast.BinaryOpNode{Lhs: lhs, Rhs: rhs, Op: opp, Loc_: lhs.Loc()}
 			tok = p.lex.PeekToken()
@@ -573,7 +561,7 @@ func (p *Parser) parseUnary() ast.Expression {
 	expression := p.parsePrimary()
 
 	if expression == nil {
-		panic( tok.Loc.String() + "Error: opperand expected")
+		panic(tok.Loc.String() + "Error: opperand expected")
 	}
 
 loop:
@@ -581,10 +569,6 @@ loop:
 		switch tok.Typ {
 		case lexer.TTPeriod:
 			p.lex.NextToken()
-
-			if expression.ReturnType().Kind() != ast.KindStruct {
-				panic( /* expression.Loc().String() + */ "ERROR: not a struct")
-			}
 
 			tok = p.lex.PeekToken()
 
@@ -594,25 +578,10 @@ loop:
 
 			p.expect(lexer.TTIdentifier)
 
-			optField := expression.ReturnType().(ast.StructType).GetField(ast.Identifier(tok.Literal))
-
-			if optField == nil {
-				fmt.Println(expression.ReturnType())
-				panic(tok.Loc.String() + "ERROR: no field `" + tok.Literal + "`")
-			}
-
-			field := *optField
-
-			if curVal, ok := expression.(ast.StructIndex); ok {
-				curVal.Offset += field.Offset
-				curVal.Typ = field.Typ
-				expression = curVal
-			} else {
-				expression = ast.StructIndex{
-					Base:   expression,
-					Typ:    field.Typ,
-					Offset: field.Offset,
-				}
+			expression = &ast.StructIndex{
+				Base: expression,
+				FieldName: ast.Identifier(tok.Literal),
+				FieldLoc: tok.Loc,
 			}
 
 		case lexer.TTLBrace:
@@ -793,34 +762,7 @@ func (p *Parser) parseAlloc() ast.Expression {
 	return result
 }
 
-func (p *Parser) canAssign(lhs ast.Expression) bool {
-	switch lhs := lhs.(type) {
-	case ast.Var:
-		return !lhs.IsConst
-
-	case ast.UnaryOpNode:
-		if lhs.Op == ast.UODeref {
-			return p.canAssign(lhs.Expression)
-		}
-
-		return false
-
-	case ast.StructIndex:
-		return p.canAssign(lhs.Base)
-
-	case ast.ArrayIndex:
-		return p.canAssign(lhs.Array)
-
-	}
-
-	return false
-}
-
 func newUnaryOpNode(expression ast.Expression, op ast.UnaryOp, opLoc lexer.Location) (ast.Expression, error) {
-	if !op.InputAllowed(expression.ReturnType().Kind()) {
-		return ast.UnaryOpNode{}, fmt.Errorf("Invalid opperation %s on %s", op.String(), expression.ReturnType().Name())
-	}
-
 	switch op {
 	case ast.UOPlus: // does nothing anyways
 		return expression, nil
@@ -832,16 +774,6 @@ func newUnaryOpNode(expression ast.Expression, op ast.UnaryOp, opLoc lexer.Locat
 			lit.Value = -lit.Value
 			return lit, nil
 		}
-
-	case ast.UORef:
-		if _, ok := expression.(ast.Var); ok {
-			// ok
-		} else if _, ok := expression.(ast.StructIndex); ok {
-			// ok
-		} else {
-			return ast.UnaryOpNode{}, errors.New("Can only take a reference to a variable or constant")
-		}
-
 	}
 
 	if op.OnLeftSide() {

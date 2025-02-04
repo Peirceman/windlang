@@ -447,7 +447,7 @@ func analyseNeededScratch(expr ast.Expression) (scratchBytes uint64) {
 
 	case ast.Cast:
 		scratchBytes = max(scratchBytes, analyseNeededScratch(expr.Inner))
-	case ast.StructIndex:
+	case *ast.StructIndex:
 		scratchBytes = max(scratchBytes, analyseNeededScratch(expr.Base))
 	}
 
@@ -787,7 +787,7 @@ func (g *generator) writeExpression(expression ast.Expression) error {
 			}
 		}
 
-	case ast.StructIndex:
+	case *ast.StructIndex:
 		err := g.writeLoad(expression)
 
 		if err != nil {
@@ -1849,14 +1849,16 @@ func (g *generator) writePointerTo(lhs ast.Expression) error {
 			return err
 		}
 
-	case ast.StructIndex:
+	case *ast.StructIndex:
 		err := g.writePointerTo(lhs.Base)
 
 		if err != nil {
 			return err
 		}
 
-		err = g.writeInstructionn(push, 8, uint64(lhs.Offset))
+		offset := lhs.Base.ReturnType().(ast.StructType).GetField(lhs.FieldName).Offset
+
+		err = g.writeInstructionn(push, 8, uint64(offset))
 
 		if err != nil {
 			return err
