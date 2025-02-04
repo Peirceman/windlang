@@ -72,7 +72,6 @@ type ArrayIndex struct {
 	Array Expression
 	Index Expression
 	Typ   Type
-	Loc_  lexer.Location
 }
 
 var _ Expression = (*ArrayIndex)(nil)
@@ -161,16 +160,16 @@ func (s *StructIndex) Loc() lexer.Location {
 	return s.Base.Loc()
 }
 
-func (a ArrayIndex) string() string {
+func (a *ArrayIndex) string() string {
 	return a.Array.string() + "[" + a.Index.string() + "]"
 }
 
-func (a ArrayIndex) ReturnType() Type {
+func (a *ArrayIndex) ReturnType() Type {
 	return a.Typ
 }
 
-func (a ArrayIndex) Loc() lexer.Location {
-	return a.Loc_
+func (a *ArrayIndex) Loc() lexer.Location {
+	return a.Array.Loc()
 }
 
 func (a Allocation) string() string {

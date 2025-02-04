@@ -178,7 +178,32 @@ func typeCheckExpression(expression ast.Expression, expected ast.Type) bool {
 
 		return true
 
-	case ast.ArrayIndex:
+	case *ast.ArrayIndex:
+		if !typeCheckExpression(expression.Array, nil) {
+			return false
+		}
+
+		innerTyp := expression.Array.ReturnType()
+		if innerTyp.Kind() != ast.KindArray {
+			printErrorln(expression.Loc(), "indexing non-array")
+			return false
+		}
+
+		if !typeCheckExpression(expression.Index, nil) {
+			return false
+		}
+
+		if (expression.Index.ReturnType().Kind() != ast.KindInt &&
+			expression.Index.ReturnType().Kind() != ast.KindUint) ||
+			expression.Index.ReturnType().Size() != 8 {
+			printErrorln(expression.Index.Loc(), "expected 64 bit int or uint type to index array")
+			return false
+		}
+
+		innerTypArray := innerTyp.(ast.ArrayType)
+
+		expression.Typ = innerTypArray.Inner
+
 		return true
 
 	case ast.Allocation:
@@ -390,7 +415,7 @@ func canAssign(expr ast.Expression) bool {
 	case *ast.StructIndex:
 		return canAssign(expr.Base)
 
-	case ast.ArrayIndex:
+	case *ast.ArrayIndex:
 		return canAssign(expr.Array)
 
 	default:
@@ -413,7 +438,7 @@ func canRef(expr ast.Expression) bool {
 	case *ast.StructIndex:
 		return canRef(expr.Base)
 
-	case ast.ArrayIndex:
+	case *ast.ArrayIndex:
 		return false
 
 	default:

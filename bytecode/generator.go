@@ -800,7 +800,7 @@ func (g *generator) writeExpression(expression ast.Expression) error {
 	case ast.UnaryOpNode:
 		return g.generateUnaryOpNode(expression)
 
-	case ast.ArrayIndex:
+	case *ast.ArrayIndex:
 		err := g.writeLoad(expression)
 
 		if err != nil {
@@ -1881,7 +1881,7 @@ func (g *generator) writePointerTo(lhs ast.Expression) error {
 			return err
 		}
 
-	case ast.ArrayIndex:
+	case *ast.ArrayIndex:
 		err := g.writeExpression(lhs.Array)
 
 		if err != nil {

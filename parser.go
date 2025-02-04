@@ -620,10 +620,9 @@ loop:
 			p.lex.NextToken()
 			index := p.parseExpression()
 			p.expect(lexer.TTRSquare)
-			expression = ast.ArrayIndex{
+			expression = &ast.ArrayIndex{
 				Array: expression,
 				Index: index,
-				Typ:   expression.ReturnType().(ast.ArrayType).Inner,
 			}
 
 		default:
