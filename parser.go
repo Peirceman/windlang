@@ -724,11 +724,11 @@ func (p *Parser) parsePrimary() ast.Expression {
 }
 
 func (p *Parser) parseAlloc() ast.Expression {
-	var loc lexer.Location
 	tok := p.expect(lexer.TTIdentifier)
 	if tok.Literal != "alloc" {
 		panic("unreachable")
 	}
+	loc := tok.Loc
 
 	p.expect(lexer.TTLBrace)
 
@@ -740,12 +740,6 @@ func (p *Parser) parseAlloc() ast.Expression {
 		p.expect(lexer.TTComma)
 
 		count := p.parseExpression()
-
-		if (count.ReturnType().Kind() != ast.KindInt &&
-			count.ReturnType().Kind() != ast.KindUint) ||
-			count.ReturnType().Size() != 8 {
-			panic("type mismatch")
-		}
 
 		result = ast.Allocation{Typ: typ, ElemsCount: count, Loc_: loc}
 	} else {

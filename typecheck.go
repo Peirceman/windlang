@@ -189,7 +189,7 @@ func typeCheckExpression(expression ast.Expression, expected ast.Type) bool {
 			return false
 		}
 
-		if !typeCheckExpression(expression.Index, nil) {
+		if !typeCheckExpression(expression.Index, ast.TypeInt64) {
 			return false
 		}
 
@@ -207,6 +207,17 @@ func typeCheckExpression(expression ast.Expression, expected ast.Type) bool {
 		return true
 
 	case ast.Allocation:
+		if !typeCheckExpression(expression.ElemsCount, ast.TypeInt64) {
+			return false
+		}
+
+		if (expression.ElemsCount.ReturnType().Kind() != ast.KindInt &&
+			expression.ElemsCount.ReturnType().Kind() != ast.KindUint) ||
+			expression.ElemsCount.ReturnType().Size() != 8 {
+			printErrorln(expression.ElemsCount.Loc(), "expected 64 bit int or uint for element count")
+			return false
+		}
+
 		return true
 
 	case ast.BinaryOpNode:
