@@ -110,8 +110,18 @@ func typeCheckCodeBlock(block ast.CodeBlockNode, returnType ast.Type) (ok bool) 
 // expected can be nil if type does not matter
 func typeCheckExpression(expression ast.Expression, expected ast.Type) bool {
 	switch expression := expression.(type) {
-	case ast.IntLit,
-		ast.FloatLit,
+	case *ast.IntLit:
+		if expected == nil || (
+			expected.Kind() != ast.KindInt &&
+			expected.Kind() != ast.KindUint) {
+			expression.Type = expression.Type.(ast.InferredType).Default
+		} else {
+			expression.Type = expected
+		}
+
+		return true
+
+	case ast.FloatLit,
 		ast.StrLit,
 		ast.CharLit,
 		ast.BoolLit,

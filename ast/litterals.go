@@ -8,6 +8,7 @@ import (
 type IntLit struct {
 	Value int64
 	Loc_  lexer.Location
+	Type  Type
 }
 
 var _ Expression = (*IntLit)(nil)
@@ -42,15 +43,15 @@ type BoolLit struct {
 
 var _ Expression = (*BoolLit)(nil)
 
-func (i IntLit) string() string {
+func (i *IntLit) string() string {
 	return strconv.FormatInt(i.Value, 10)
 }
 
-func (i IntLit) ReturnType() Type {
-	return TypeInt64
+func (i *IntLit) ReturnType() Type {
+	return i.Type
 }
 
-func (i IntLit) Loc() lexer.Location {
+func (i *IntLit) Loc() lexer.Location {
 	return i.Loc_
 }
 

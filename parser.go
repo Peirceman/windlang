@@ -677,7 +677,7 @@ func (p *Parser) parsePrimary() ast.Expression {
 	case lexer.TTInt:
 		p.lex.NextToken()
 		val := tok.ExtraInfo.(int)
-		return ast.IntLit{Value: int64(val), Loc_: tok.Loc}
+		return &ast.IntLit{Value: int64(val), Loc_: tok.Loc, Type: ast.InferredType{Name_: "untyped int", Default: ast.TypeInt64}}
 
 	case lexer.TTFloat:
 		p.lex.NextToken()
@@ -745,7 +745,7 @@ func (p *Parser) parseAlloc() ast.Expression {
 	} else {
 		result = ast.Allocation{
 			Typ:        ast.PointerType{Name_: "", Inner: typ},
-			ElemsCount: ast.IntLit{Value: 1},
+			ElemsCount: &ast.IntLit{Value: 1},
 			Loc_:       loc,
 		}
 	}
@@ -760,7 +760,7 @@ func newUnaryOpNode(expression ast.Expression, op ast.UnaryOp, opLoc lexer.Locat
 	case ast.UOPlus: // does nothing anyways
 		return expression, nil
 	case ast.UONegative:
-		if lit, ok := expression.(ast.IntLit); ok {
+		if lit, ok := expression.(*ast.IntLit); ok {
 			lit.Value = -lit.Value
 			return lit, nil
 		} else if lit, ok := expression.(ast.FloatLit); ok {

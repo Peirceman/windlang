@@ -556,7 +556,7 @@ func (g *generator) writeIfChain(chain ast.IfChain) error {
 
 func (g *generator) writeExpression(expression ast.Expression) error {
 	switch expression := expression.(type) {
-	case ast.IntLit:
+	case *ast.IntLit:
 		size := expression.ReturnType().Size()
 		err := g.writeInstructionn(push, size, uint64(expression.Value))
 

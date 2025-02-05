@@ -276,19 +276,19 @@ fn main() {
 	}
 
 
-	var aInt: anInt = (3: anInt);
+	var aInt: anInt = 3;
 	print(aInt);
 	print((aInt: int8));
 
 	var aIntPtr: &anInt = &aInt;
-	*aIntPtr = (55: anInt);
+	*aIntPtr = 55;
 
 	print(aInt);
 	print(*aIntPtr);
 
 	/*
 	 in | out
-	--------
+	-------
 	 u  =  u
 	 u  <  u
 	 u  >  u
@@ -308,7 +308,7 @@ fn main() {
 
 	print("");
 
-	var castTesterU: uint32 = (0xffffffff: uint32);
+	var castTesterU: uint32 = 0xffffffff;
 	print((castTesterU: uint32));
 	print((castTesterU: uint64));
 	print((castTesterU: uint16));
@@ -319,7 +319,7 @@ fn main() {
 	print((castTesterU: int64));
 	print((castTesterU: int16));
 
-	var castTesterI: int32 = (0xffffffff: int32);
+	var castTesterI: int32 = 0xffffffff;
 
 	print("");
 
@@ -381,7 +381,7 @@ fn main() {
 	while i < 10 {
 		array[i] = num;
 		if num < 0 {
-			num = -num + 1;
+			num = num + 1;
 		} else if num > 0 {
 			num = -num - 1;
 		}
