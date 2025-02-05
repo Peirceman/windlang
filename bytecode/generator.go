@@ -564,7 +564,7 @@ func (g *generator) writeExpression(expression ast.Expression) error {
 			return err
 		}
 
-	case ast.FloatLit:
+	case *ast.FloatLit:
 		size := expression.ReturnType().Size()
 		float := expression.Value
 

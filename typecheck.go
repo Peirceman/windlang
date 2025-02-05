@@ -90,7 +90,7 @@ func typeCheckCodeBlock(block ast.CodeBlockNode, returnType ast.Type) (ok bool) 
 			ok = typeCheckExpression(node.Condition, nil) && ok
 
 			if node.Condition.ReturnType().Kind() != ast.KindBool {
-				printErrorln(node.Loc(), "boolean expression expected in while-loop")
+				printErrorln(node.Loc(), "boolean expression expected in whileloop")
 				ok = false
 			}
 
@@ -111,8 +111,7 @@ func typeCheckCodeBlock(block ast.CodeBlockNode, returnType ast.Type) (ok bool) 
 func typeCheckExpression(expression ast.Expression, expected ast.Type) bool {
 	switch expression := expression.(type) {
 	case *ast.IntLit:
-		if expected == nil || (
-			expected.Kind() != ast.KindInt &&
+		if expected == nil || (expected.Kind() != ast.KindInt &&
 			expected.Kind() != ast.KindUint) {
 			expression.Type = expression.Type.(ast.InferredType).Default
 		} else {
@@ -121,8 +120,16 @@ func typeCheckExpression(expression ast.Expression, expected ast.Type) bool {
 
 		return true
 
-	case ast.FloatLit,
-		ast.StrLit,
+	case *ast.FloatLit:
+		if expected == nil || expected.Kind() != ast.KindFloat {
+			expression.Type = expression.Type.(ast.InferredType).Default
+		} else {
+			expression.Type = expected
+		}
+
+		return true
+
+	case ast.StrLit,
 		ast.CharLit,
 		ast.BoolLit,
 		ast.Var:
@@ -195,7 +202,7 @@ func typeCheckExpression(expression ast.Expression, expected ast.Type) bool {
 
 		innerTyp := expression.Array.ReturnType()
 		if innerTyp.Kind() != ast.KindArray {
-			printErrorln(expression.Loc(), "indexing non-array")
+			printErrorln(expression.Loc(), "indexing nonarray")
 			return false
 		}
 

@@ -16,6 +16,7 @@ var _ Expression = (*IntLit)(nil)
 type FloatLit struct {
 	Value float64
 	Loc_  lexer.Location
+	Type  Type
 }
 
 var _ Expression = (*FloatLit)(nil)
@@ -55,15 +56,15 @@ func (i *IntLit) Loc() lexer.Location {
 	return i.Loc_
 }
 
-func (f FloatLit) string() string {
+func (f *FloatLit) string() string {
 	return strconv.FormatFloat(f.Value, 'g', -1, 64)
 }
 
-func (i FloatLit) ReturnType() Type {
-	return TypeFloat64
+func (f *FloatLit) ReturnType() Type {
+	return f.Type
 }
 
-func (f FloatLit) Loc() lexer.Location {
+func (f *FloatLit) Loc() lexer.Location {
 	return f.Loc_
 }
 

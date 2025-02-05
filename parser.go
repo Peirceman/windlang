@@ -682,7 +682,7 @@ func (p *Parser) parsePrimary() ast.Expression {
 	case lexer.TTFloat:
 		p.lex.NextToken()
 		val := tok.ExtraInfo.(float64)
-		return ast.FloatLit{Value: val, Loc_: tok.Loc}
+		return &ast.FloatLit{Value: val, Loc_: tok.Loc, Type: ast.InferredType{Name_: "untyped float", Default: ast.TypeFloat64}}
 
 	case lexer.TTString:
 		p.lex.NextToken()
@@ -763,7 +763,7 @@ func newUnaryOpNode(expression ast.Expression, op ast.UnaryOp, opLoc lexer.Locat
 		if lit, ok := expression.(*ast.IntLit); ok {
 			lit.Value = -lit.Value
 			return lit, nil
-		} else if lit, ok := expression.(ast.FloatLit); ok {
+		} else if lit, ok := expression.(*ast.FloatLit); ok {
 			lit.Value = -lit.Value
 			return lit, nil
 		}
