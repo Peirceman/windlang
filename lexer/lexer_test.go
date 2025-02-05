@@ -35,42 +35,42 @@ var str: string = "\u0009string\n\tmulti line";
 		{Typ: TTColon, Loc: Location{"--", 4, 13}, Literal: ":"},
 		{Typ: TTIdentifier, Loc: Location{"--", 4, 15}, Literal: "int"},
 		{Typ: TTAssign, Loc: Location{"--", 4, 19}, Literal: "="},
-		{Typ: TTInt, Loc: Location{"--", 4, 21}, Literal: "69"},
+		{Typ: TTInt, Loc: Location{"--", 4, 21}, Literal: "69", ExtraInfo: 69},
 		{Typ: TTSemiColon, Loc: Location{"--", 4, 23}, Literal: ";"},
 		{Typ: TTVar, Loc: Location{"--", 5, 1}, Literal: "var"},
 		{Typ: TTIdentifier, Loc: Location{"--", 5, 5}, Literal: "a"},
 		{Typ: TTColon, Loc: Location{"--", 5, 6}, Literal: ":"},
 		{Typ: TTIdentifier, Loc: Location{"--", 5, 8}, Literal: "int"},
 		{Typ: TTAssign, Loc: Location{"--", 5, 12}, Literal: "="},
-		{Typ: TTInt, Loc: Location{"--", 5, 14}, Literal: "0x1A4"},
+		{Typ: TTInt, Loc: Location{"--", 5, 14}, Literal: "0x1A4", ExtraInfo: 0x1A4},
 		{Typ: TTSemiColon, Loc: Location{"--", 5, 19}, Literal: ";"},
 		{Typ: TTIdentifier, Loc: Location{"--", 7, 1}, Literal: "a"},
 		{Typ: TTAssign, Loc: Location{"--", 7, 3}, Literal: "="},
 		{Typ: TTIdentifier, Loc: Location{"--", 7, 5}, Literal: "αConst"},
 		{Typ: TTStar, Loc: Location{"--", 7, 12}, Literal: "*"},
-		{Typ: TTInt, Loc: Location{"--", 7, 14}, Literal: "3"},
+		{Typ: TTInt, Loc: Location{"--", 7, 14}, Literal: "3", ExtraInfo: 3},
 		{Typ: TTPlus, Loc: Location{"--", 7, 16}, Literal: "+"},
-		{Typ: TTInt, Loc: Location{"--", 7, 18}, Literal: "1"},
+		{Typ: TTInt, Loc: Location{"--", 7, 18}, Literal: "1", ExtraInfo: 1},
 		{Typ: TTSemiColon, Loc: Location{"--", 7, 19}, Literal: ";"},
 		{Typ: TTIf, Loc: Location{"--", 10, 1}, Literal: "if"},
 		{Typ: TTIdentifier, Loc: Location{"--", 10, 4}, Literal: "a"},
 		{Typ: TTEqual, Loc: Location{"--", 10, 6}, Literal: "=="},
-		{Typ: TTInt, Loc: Location{"--", 10, 9}, Literal: "50"},
+		{Typ: TTInt, Loc: Location{"--", 10, 9}, Literal: "50", ExtraInfo: 50},
 		{Typ: TTLSquirly, Loc: Location{"--", 10, 12}, Literal: "{"},
 		{Typ: TTIdentifier, Loc: Location{"--", 11, 2}, Literal: "io"},
 		{Typ: TTPeriod, Loc: Location{"--", 11, 4}, Literal: "."},
 		{Typ: TTIdentifier, Loc: Location{"--", 11, 5}, Literal: "print"},
 		{Typ: TTLBrace, Loc: Location{"--", 11, 10}, Literal: "("},
-		{Typ: TTInt, Loc: Location{"--", 11, 11}, Literal: "50"},
+		{Typ: TTInt, Loc: Location{"--", 11, 11}, Literal: "50", ExtraInfo: 50},
 		{Typ: TTRBrace, Loc: Location{"--", 11, 13}, Literal: ")"},
 		{Typ: TTSemiColon, Loc: Location{"--", 11, 14}, Literal: ";"},
 		{Typ: TTRSquirly, Loc: Location{"--", 12, 1}, Literal: "}"},
 		{Typ: TTElse, Loc: Location{"--", 12, 3}, Literal: "else"},
 		{Typ: TTIf, Loc: Location{"--", 12, 8}, Literal: "if"},
-		{Typ: TTIdentifier, Loc: Location{"--", 12, 13}, Literal: "a"},
-		{Typ: TTNotEqual, Loc: Location{"--", 12, 15}, Literal: "!="},
-		{Typ: TTInt, Loc: Location{"--", 12, 18}, Literal: "30"},
-		{Typ: TTLSquirly, Loc: Location{"--", 12, 21}, Literal: "{"},
+		{Typ: TTIdentifier, Loc: Location{"--", 12, 11}, Literal: "a"},
+		{Typ: TTNotEqual, Loc: Location{"--", 12, 13}, Literal: "!="},
+		{Typ: TTInt, Loc: Location{"--", 12, 16}, Literal: "30", ExtraInfo: 30},
+		{Typ: TTLSquirly, Loc: Location{"--", 12, 19}, Literal: "{"},
 		{Typ: TTIdentifier, Loc: Location{"--", 13, 2}, Literal: "print"},
 		{Typ: TTLBrace, Loc: Location{"--", 13, 7}, Literal: "("},
 		{Typ: TTExclam, Loc: Location{"--", 13, 8}, Literal: "!"},
@@ -123,7 +123,7 @@ var str: string = "\u0009string\n\tmulti line";
 	exitNext := false
 	for tok, i := lex.NextToken(), 0; !exitNext; tok, i = lex.NextToken(), i+1 {
 		if *tok != expected[i] {
-			t.Logf("expected `%s`, but got `%s`", expected[i].String(), tok.String())
+			t.Logf("expected `%#v`, but got `%#v`", expected[i], tok)
 			t.Fail()
 		}
 
@@ -154,7 +154,7 @@ func TestLexer_2(t *testing.T) {
 	for tok, i := lex.NextToken(), 0; !exitNext; tok, i = lex.NextToken(), i+1 {
 		exitNext = tok.Typ == TTEOF
 		if *tok != expected[i] {
-			t.Logf("expected `%s`, but got `%s`", expected[i].String(), tok.String())
+			t.Logf("expected `%#v`, but got `%#v`", expected[i], tok)
 			t.Fail()
 		}
 	}
